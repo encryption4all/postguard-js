@@ -34,7 +34,7 @@ export interface YiviSign {
 
 export type SignMethod = ApiKeySign | YiviSign;
 
-/** Options for encrypt + upload (no email delivery) */
+/** Options for encrypt + upload */
 export interface EncryptAndUploadOptions {
   sign: SignMethod;
   files: File[] | FileList;
