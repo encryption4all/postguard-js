@@ -22,8 +22,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "build": "tsdown",
+    "dev": "tsdown --watch"
   },
   "dependencies": {
     "@e4a/pg-wasm": "^0.5.5",
@@ -35,12 +35,18 @@
     "@privacybydesign/yivi-client": "^1.0.0-beta.1"
   },
   "peerDependenciesMeta": {
-    "@privacybydesign/yivi-core": { "optional": true },
-    "@privacybydesign/yivi-web": { "optional": true },
-    "@privacybydesign/yivi-client": { "optional": true }
+    "@privacybydesign/yivi-core": {
+      "optional": true
+    },
+    "@privacybydesign/yivi-web": {
+      "optional": true
+    },
+    "@privacybydesign/yivi-client": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "tsup": "^8.0.0",
+    "tsdown": "^0.21.5",
     "typescript": "^5.9.0"
   },
   "keywords": [
