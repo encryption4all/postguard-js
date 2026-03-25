@@ -1,6 +1,6 @@
 {
   "name": "@e4a/pg-js",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "sideEffects": false,
   "description": "Browser SDK for PostGuard — end-to-end encrypted file sharing with identity-based encryption",
