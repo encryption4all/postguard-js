@@ -7,6 +7,7 @@ services:
             - |
                 apk add --no-cache openssl > /dev/null 2>&1
                 openssl genpkey -algorithm RSA -out /keys/jwt_privkey.pem -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+                chmod 644 /keys/jwt_privkey.pem
         volumes:
             - irma-keys:/keys
 
@@ -36,12 +37,12 @@ services:
         command:
             - |
                 apk add --no-cache curl > /dev/null 2>&1
-                while ! curl -sf http://irma-server:8088 > /dev/null; do sleep 1; done
+                while ! curl -sf http://irma-server:8088/health > /dev/null; do sleep 1; done
                 sleep infinity
         depends_on:
             - irma-server
         healthcheck:
-            test: ['CMD', 'curl', '-sf', 'http://irma-server:8088']
+            test: ['CMD', 'curl', '-sf', 'http://irma-server:8088/health']
             interval: 5s
             timeout: 3s
             retries: 10
