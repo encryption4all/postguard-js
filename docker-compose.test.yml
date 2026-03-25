@@ -1,0 +1,71 @@
+services:
+    irma-server:
+        image: ghcr.io/privacybydesign/irma:latest
+        entrypoint: /bin/sh
+        command:
+            - -c
+            - |
+                openssl genpkey -algorithm RSA -out /tmp/jwt_privkey.pem -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+                exec irma server --no-auth -v --url http://localhost:8088 --jwt-privkey-file /tmp/jwt_privkey.pem
+        ports:
+            - '8088:8088'
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8088']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 10s
+        networks:
+            - postguard-test
+
+    postguard-pkg:
+        image: ghcr.io/encryption4all/postguard:edge
+        environment:
+            - IRMA_SERVER=http://irma-server:8088
+        ports:
+            - '8087:8087'
+        depends_on:
+            irma-server:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8087/health']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 30s
+        networks:
+            - postguard-test
+
+    cryptify-fileshare:
+        image: ghcr.io/encryption4all/cryptify-backend:edge
+        volumes:
+            - ./tests/fixtures/cryptify/config.test.toml:/app/config.toml:ro
+            - cryptify-data:/app/data
+        ports:
+            - '8000:8000'
+        depends_on:
+            postguard-pkg:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 30s
+        networks:
+            - postguard-test
+
+    mailcrab:
+        image: marlonb/mailcrab:latest
+        ports:
+            - '1080:1080'
+            - '1025:1025'
+        networks:
+            - postguard-test
+
+volumes:
+    cryptify-data:
+
+networks:
+    postguard-test:
+        driver: bridge
