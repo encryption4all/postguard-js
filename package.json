@@ -25,7 +25,6 @@
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "test:integration": "vitest run --include 'tests/integration/**/*.test.ts'",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
