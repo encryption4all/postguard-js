@@ -78,21 +78,8 @@ services:
         depends_on:
             postguard-pkg:
                 condition: service_healthy
-        networks:
-            - postguard-test
-
-    cryptify-healthcheck:
-        image: alpine:latest
-        entrypoint: ['sh', '-c']
-        command:
-            - |
-                apk add --no-cache curl > /dev/null 2>&1
-                while ! curl -sf http://cryptify-fileshare:8000/health > /dev/null; do sleep 1; done
-                sleep infinity
-        depends_on:
-            - cryptify-fileshare
         healthcheck:
-            test: ['CMD', 'curl', '-sf', 'http://cryptify-fileshare:8000/health']
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
             interval: 5s
             timeout: 3s
             retries: 10
