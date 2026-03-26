@@ -1,0 +1,115 @@
+services:
+    irma-keygen:
+        image: alpine:latest
+        command:
+            - sh
+            - -c
+            - |
+                apk add --no-cache openssl > /dev/null 2>&1
+                openssl genpkey -algorithm RSA -out /keys/jwt_privkey.pem -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+                chmod 644 /keys/jwt_privkey.pem
+        volumes:
+            - irma-keys:/keys
+
+    irma-server:
+        image: ghcr.io/privacybydesign/irma:latest
+        command:
+            - server
+            - --no-auth
+            - -v
+            - --url
+            - http://localhost:8088
+            - --jwt-privkey-file
+            - /keys/jwt_privkey.pem
+        volumes:
+            - irma-keys:/keys:ro
+        ports:
+            - '8088:8088'
+        depends_on:
+            irma-keygen:
+                condition: service_completed_successfully
+        networks:
+            - postguard-test
+
+    irma-healthcheck:
+        image: alpine:latest
+        entrypoint: ['sh', '-c']
+        command:
+            - |
+                apk add --no-cache curl > /dev/null 2>&1
+                while ! curl -sf http://irma-server:8088/health > /dev/null; do sleep 1; done
+                sleep infinity
+        depends_on:
+            - irma-server
+        healthcheck:
+            test: ['CMD', 'curl', '-sf', 'http://irma-server:8088/health']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 10s
+        networks:
+            - postguard-test
+
+    postguard-pkg:
+        image: ghcr.io/encryption4all/postguard:edge
+        environment:
+            - IRMA_SERVER=http://irma-server:8088
+        ports:
+            - '8087:8087'
+        depends_on:
+            irma-healthcheck:
+                condition: service_healthy
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8087/health']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 30s
+        networks:
+            - postguard-test
+
+    cryptify-fileshare:
+        image: ghcr.io/encryption4all/cryptify-backend:edge
+        volumes:
+            - ./tests/fixtures/cryptify/config.test.toml:/app/config.toml:ro
+        ports:
+            - '8000:8000'
+        depends_on:
+            postguard-pkg:
+                condition: service_healthy
+        networks:
+            - postguard-test
+
+    cryptify-healthcheck:
+        image: alpine:latest
+        entrypoint: ['sh', '-c']
+        command:
+            - |
+                apk add --no-cache curl > /dev/null 2>&1
+                while ! curl -sf http://cryptify-fileshare:8000/health > /dev/null; do sleep 1; done
+                sleep infinity
+        depends_on:
+            - cryptify-fileshare
+        healthcheck:
+            test: ['CMD', 'curl', '-sf', 'http://cryptify-fileshare:8000/health']
+            interval: 5s
+            timeout: 3s
+            retries: 10
+            start_period: 30s
+        networks:
+            - postguard-test
+
+    mailcrab:
+        image: marlonb/mailcrab:latest
+        ports:
+            - '1080:1080'
+            - '1025:1025'
+        networks:
+            - postguard-test
+
+volumes:
+    irma-keys:
+
+networks:
+    postguard-test:
+        driver: bridge
