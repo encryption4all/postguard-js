@@ -72,6 +72,7 @@ services:
         image: ghcr.io/encryption4all/cryptify-backend:edge
         volumes:
             - ./tests/fixtures/cryptify/config.test.toml:/app/config.toml:ro
+            - cryptify-data:/app/data
         ports:
             - '8000:8000'
         depends_on:
@@ -109,6 +110,7 @@ services:
 
 volumes:
     irma-keys:
+    cryptify-data:
 
 networks:
     postguard-test:
