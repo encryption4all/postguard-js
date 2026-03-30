@@ -11,8 +11,13 @@ permissions:
     id-token: write
 
 jobs:
+    integration:
+        name: Integration
+        uses: ./.github/workflows/integration.yml
+
     release:
         name: Release
+        needs: integration
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
