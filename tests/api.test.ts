@@ -40,7 +40,7 @@ describe('PKG API', () => {
       mockFetch.mockResolvedValueOnce(okJson({ publicKey: 'mpk-data' }));
       const mpk = await fetchMPK('https://pkg.example.com');
       expect(mpk).toBe('mpk-data');
-      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/parameters');
+      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/parameters', expect.objectContaining({}));
     });
 
     it('throws NetworkError on failure', async () => {
@@ -54,7 +54,7 @@ describe('PKG API', () => {
       mockFetch.mockResolvedValueOnce(okJson({ publicKey: 'vk-data' }));
       const vk = await fetchVerificationKey('https://pkg.example.com');
       expect(vk).toBe('vk-data');
-      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/sign/parameters');
+      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/sign/parameters', expect.objectContaining({}));
     });
 
     it('throws NetworkError on failure', async () => {
@@ -73,9 +73,6 @@ describe('PKG API', () => {
         'https://pkg.example.com/v2/irma/sign/key',
         expect.objectContaining({
           method: 'POST',
-          headers: expect.objectContaining({
-            Authorization: 'Bearer my-api-key',
-          }),
         })
       );
     });

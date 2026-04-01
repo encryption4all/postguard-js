@@ -1,7 +1,8 @@
 /** Configuration for the PostGuard client */
 export interface PostGuardConfig {
   pkgUrl: string;
-  cryptifyUrl: string;
+  cryptifyUrl?: string;
+  headers?: HeadersInit;
 }
 
 /** A recipient identified by exact email address (citizen) */
@@ -16,7 +17,14 @@ export interface EmailDomainRecipient {
   email: string;
 }
 
-export type Recipient = EmailRecipient | EmailDomainRecipient;
+/** A recipient with a custom attribute policy */
+export interface CustomPolicyRecipient {
+  type: 'customPolicy';
+  email: string;
+  policy: { t: string; v: string }[];
+}
+
+export type Recipient = EmailRecipient | EmailDomainRecipient | CustomPolicyRecipient;
 
 /** Signing via API key (PostGuard for Business) */
 export interface ApiKeySign {
@@ -32,7 +40,25 @@ export interface YiviSign {
   includeSender?: boolean;
 }
 
-export type SignMethod = ApiKeySign | YiviSign;
+/** Signing via a custom session callback (email addons, etc.) */
+export interface SessionSign {
+  type: 'session';
+  callback: SessionCallback;
+  senderEmail: string;
+}
+
+export type SignMethod = ApiKeySign | YiviSign | SessionSign;
+
+/** Callback for custom Yivi session handling */
+export type SessionCallback = (request: SessionRequest) => Promise<string>;
+
+/** Request passed to the session callback */
+export interface SessionRequest {
+  con: { t: string; v?: string }[];
+  sort: 'Signing' | 'Decryption';
+  hints?: { t: string; v?: string }[];
+  senderId?: string;
+}
 
 /** Options for encrypt + upload (no email delivery) */
 export interface EncryptAndUploadOptions {
@@ -52,25 +78,52 @@ export interface EncryptAndDeliverOptions extends EncryptAndUploadOptions {
   };
 }
 
-/** Options for decryption */
-export interface DecryptOptions {
+/** Options for encrypting raw data (no Cryptify upload) */
+export interface EncryptOptions {
+  sign: SignMethod;
+  recipients: Recipient[];
+  data: Uint8Array | ReadableStream<Uint8Array>;
+}
+
+/** Options for decryption from Cryptify UUID */
+export interface DecryptUuidOptions {
   uuid: string;
-  element: string;
+  element?: string;
+  session?: SessionCallback;
   recipient?: string;
   signal?: AbortSignal;
 }
 
-/** Result of a successful decryption */
-export interface DecryptResult {
+/** Options for decryption from raw data */
+export interface DecryptDataOptions {
+  data: Uint8Array | ReadableStream<Uint8Array>;
+  element?: string;
+  session?: SessionCallback;
+  recipient?: string;
+  signal?: AbortSignal;
+}
+
+/** Unified decrypt options */
+export type DecryptOptions = DecryptUuidOptions | DecryptDataOptions;
+
+/** Result of a successful decryption from Cryptify (files) */
+export interface DecryptFileResult {
   files: string[];
   sender: SenderIdentity | null;
   blob: Blob;
   download: (filename?: string) => void;
 }
 
+/** Result of a successful decryption from raw data */
+export interface DecryptDataResult {
+  plaintext: Uint8Array;
+  sender: SenderIdentity | null;
+}
+
 /** Sender identity extracted from sealed file */
 export interface SenderIdentity {
-  con: { t: string; v?: string }[];
+  public: { con: { t: string; v?: string }[] };
+  private?: { con: { t: string; v?: string }[] };
 }
 
 /** Encryption policy entry */
@@ -88,4 +141,58 @@ export interface UploadResult {
 export interface SigningKeys {
   pubSignKey: unknown;
   privSignKey?: unknown;
+}
+
+/** PKG session start result */
+export interface SessionStartResult {
+  sessionPtr: {
+    u: string;
+    irmaqr: string;
+  };
+  token: string;
+}
+
+/** Attribute constraint list */
+export type AttributeCon = { t: string; v?: string }[];
+
+// --- Email helper types ---
+
+/** Options for building an inner MIME message */
+export interface BuildMimeOptions {
+  from: string;
+  to: string[];
+  cc?: string[];
+  subject: string;
+  htmlBody?: string;
+  plainTextBody?: string;
+  date?: Date;
+  inReplyTo?: string;
+  references?: string;
+  attachments?: Array<{
+    name: string;
+    type: string;
+    data: ArrayBuffer;
+  }>;
+}
+
+/** Options for creating an encrypted email envelope */
+export interface CreateEnvelopeOptions {
+  encrypted: Uint8Array;
+  from: string;
+  websiteUrl?: string;
+  unencryptedMessage?: string;
+}
+
+/** Result of creating an encrypted email envelope */
+export interface EnvelopeResult {
+  subject: string;
+  htmlBody: string;
+  plainTextBody: string;
+  attachment: File;
+}
+
+/** Options for extracting ciphertext from a received email */
+export interface ExtractCiphertextOptions {
+  htmlBody?: string;
+  attachments?: Array<{ name: string; data: ArrayBuffer }>;
 }

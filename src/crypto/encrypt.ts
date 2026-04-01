@@ -3,28 +3,11 @@ import type { Recipient, SignMethod, SigningKeys, UploadResult } from '../types.
 import { fetchMPK } from '../api/pkg.js';
 import { createUploadStream } from '../api/cryptify.js';
 import { buildEncryptionPolicy } from '../recipients/builders.js';
-import { resolveSigningKeysFromApiKey } from '../signing/api-key.js';
-import { resolveSigningKeysFromYivi } from '../signing/yivi.js';
+import { resolveSigningKeys } from './signing.js';
 import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
 
 const UPLOAD_CHUNK_SIZE = 1024 * 1024;
-
-async function resolveSigningKeys(
-  pkgUrl: string,
-  sign: SignMethod
-): Promise<SigningKeys> {
-  switch (sign.type) {
-    case 'apiKey':
-      return resolveSigningKeysFromApiKey(pkgUrl, sign.apiKey);
-    case 'yivi':
-      return resolveSigningKeysFromYivi(pkgUrl, {
-        element: sign.element,
-        senderEmail: sign.senderEmail,
-        includeSender: sign.includeSender,
-      });
-  }
-}
 
 export interface EncryptPipelineOptions {
   pkgUrl: string;
@@ -39,11 +22,12 @@ export interface EncryptPipelineOptions {
     language?: 'EN' | 'NL';
     confirmToSender?: boolean;
   };
+  headers?: HeadersInit;
 }
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
 export async function encryptPipeline(options: EncryptPipelineOptions): Promise<UploadResult> {
-  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery } = options;
+  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } = options;
 
   const abortController = new AbortController();
   const effectiveSignal = signal
@@ -52,8 +36,8 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
 
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
-    fetchMPK(pkgUrl),
-    resolveSigningKeys(pkgUrl, sign),
+    fetchMPK(pkgUrl, headers),
+    resolveSigningKeys(pkgUrl, sign, headers),
   ]);
 
   // Build encryption policy
@@ -103,4 +87,63 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   );
 
   return { uuid: uploadStream.getUuid() };
+}
+
+export interface SealRawOptions {
+  pkgUrl: string;
+  sign: SignMethod;
+  recipients: Recipient[];
+  data: Uint8Array | ReadableStream<Uint8Array>;
+  headers?: HeadersInit;
+}
+
+/** Seal raw data: sign -> policy -> sealStream -> return encrypted bytes */
+export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
+  const { pkgUrl, sign, recipients, data, headers } = options;
+
+  // Fetch MPK and signing keys in parallel
+  const [mpk, signingKeys] = await Promise.all([
+    fetchMPK(pkgUrl, headers),
+    resolveSigningKeys(pkgUrl, sign, headers),
+  ]);
+
+  // Build encryption policy
+  const ts = Math.round(Date.now() / 1000);
+  const policy = buildEncryptionPolicy(recipients, ts);
+
+  const sealOptions: ISealOptions = {
+    policy,
+    pubSignKey: signingKeys.pubSignKey as ISealOptions['pubSignKey'],
+  };
+  if (signingKeys.privSignKey) {
+    sealOptions.privSignKey = signingKeys.privSignKey as ISealOptions['pubSignKey'];
+  }
+
+  // Dynamic import for WASM
+  const { sealStream } = await import('@e4a/pg-wasm');
+
+  // Create readable from input
+  const readable = data instanceof ReadableStream
+    ? data
+    : new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(data);
+          controller.close();
+        },
+      });
+
+  // Collect encrypted output
+  let encrypted = new Uint8Array(0);
+  const writable = new WritableStream<Uint8Array>({
+    write(chunk: Uint8Array) {
+      const combined = new Uint8Array(encrypted.length + chunk.length);
+      combined.set(encrypted);
+      combined.set(chunk, encrypted.length);
+      encrypted = combined;
+    },
+  });
+
+  await sealStream(mpk, sealOptions, readable, writable);
+
+  return encrypted;
 }
