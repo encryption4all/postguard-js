@@ -1,5 +1,5 @@
 import type { ISealOptions } from '@e4a/pg-wasm';
-import type { Recipient, SignMethod, SigningKeys, UploadResult } from '../types.js';
+import type { Recipient, SignMethod, SigningKeys, UploadResult, WasmModule } from '../types.js';
 import { fetchMPK } from '../api/pkg.js';
 import { createUploadStream } from '../api/cryptify.js';
 import { buildEncryptionPolicy } from '../recipients/builders.js';
@@ -23,11 +23,12 @@ export interface EncryptPipelineOptions {
     confirmToSender?: boolean;
   };
   headers?: HeadersInit;
+  wasm?: WasmModule;
 }
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
 export async function encryptPipeline(options: EncryptPipelineOptions): Promise<UploadResult> {
-  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } = options;
+  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers, wasm } = options;
 
   const abortController = new AbortController();
   const effectiveSignal = signal
@@ -52,8 +53,8 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     sealOptions.privSignKey = signingKeys.privSignKey as ISealOptions['pubSignKey'];
   }
 
-  // Dynamic imports for WASM
-  const { sealStream } = await import('@e4a/pg-wasm');
+  // Load WASM
+  const { sealStream } = wasm ?? await import('@e4a/pg-wasm');
 
   // Create ZIP stream from files
   const readable = await createZipReadable(files);
@@ -95,11 +96,12 @@ export interface SealRawOptions {
   recipients: Recipient[];
   data: Uint8Array | ReadableStream<Uint8Array>;
   headers?: HeadersInit;
+  wasm?: WasmModule;
 }
 
 /** Seal raw data: sign -> policy -> sealStream -> return encrypted bytes */
 export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
-  const { pkgUrl, sign, recipients, data, headers } = options;
+  const { pkgUrl, sign, recipients, data, headers, wasm } = options;
 
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
@@ -119,8 +121,8 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
     sealOptions.privSignKey = signingKeys.privSignKey as ISealOptions['pubSignKey'];
   }
 
-  // Dynamic import for WASM
-  const { sealStream } = await import('@e4a/pg-wasm');
+  // Load WASM
+  const { sealStream } = wasm ?? await import('@e4a/pg-wasm');
 
   // Create readable from input
   const readable = data instanceof ReadableStream

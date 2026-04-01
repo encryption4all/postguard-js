@@ -1,4 +1,4 @@
-import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallback } from '../types.js';
+import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallback, WasmModule } from '../types.js';
 import { DecryptionError, IdentityMismatchError } from '../errors.js';
 import { fetchVerificationKey } from '../api/pkg.js';
 import { getUSK } from '../api/pkg.js';
@@ -17,11 +17,12 @@ export interface DecryptFromUuidOptions {
   recipient?: string;
   signal?: AbortSignal;
   headers?: HeadersInit;
+  wasm?: WasmModule;
 }
 
 /** Decrypt from Cryptify UUID: download -> unseal -> ZIP parse */
 export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<DecryptFileResult> {
-  const { pkgUrl, cryptifyUrl, uuid, element, session, recipient, signal, headers } = options;
+  const { pkgUrl, cryptifyUrl, uuid, element, session, recipient, signal, headers, wasm } = options;
 
   // Fetch verification key and download file in parallel
   const [vk, fileStream] = await Promise.all([
@@ -30,7 +31,7 @@ export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<
   ]);
 
   const { unsealer, key, senderIdentity: preUnsealSender } = await inspectAndResolveRecipient(
-    fileStream, vk, recipient
+    fileStream, vk, recipient, wasm
   );
 
   // Get USK via Yivi or session callback
@@ -79,11 +80,12 @@ export interface DecryptFromDataOptions {
   recipient?: string;
   signal?: AbortSignal;
   headers?: HeadersInit;
+  wasm?: WasmModule;
 }
 
 /** Decrypt from raw data: unseal -> return plaintext bytes */
 export async function decryptFromData(options: DecryptFromDataOptions): Promise<DecryptDataResult> {
-  const { pkgUrl, data, element, session, recipient, headers } = options;
+  const { pkgUrl, data, element, session, recipient, headers, wasm } = options;
 
   const vk = await fetchVerificationKey(pkgUrl, headers);
 
@@ -97,7 +99,7 @@ export async function decryptFromData(options: DecryptFromDataOptions): Promise<
         },
       });
 
-  const { StreamUnsealer } = await import('@e4a/pg-wasm');
+  const { StreamUnsealer } = wasm ?? await import('@e4a/pg-wasm');
   const unsealer = await StreamUnsealer.new(readable, vk);
 
   // Inspect header to get policies
@@ -169,9 +171,10 @@ function resolveRecipientKey(policies: Map<string, any>, recipient?: string): st
 async function inspectAndResolveRecipient(
   fileStream: ReadableStream<Uint8Array>,
   vk: unknown,
-  recipient?: string
+  recipient?: string,
+  wasm?: WasmModule
 ): Promise<{ unsealer: any; key: string; senderIdentity: SenderIdentity | null }> {
-  const { StreamUnsealer } = await import('@e4a/pg-wasm');
+  const { StreamUnsealer } = wasm ?? await import('@e4a/pg-wasm');
   const unsealer = await StreamUnsealer.new(fileStream, vk);
   const policies: Map<string, any> = unsealer.inspect_header();
 

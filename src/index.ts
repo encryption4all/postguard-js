@@ -1,6 +1,7 @@
 export { PostGuard } from './postguard.js';
 
 export type {
+  WasmModule,
   PostGuardConfig,
   EmailRecipient,
   EmailDomainRecipient,

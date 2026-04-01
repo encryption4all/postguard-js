@@ -74,6 +74,7 @@ export class PostGuard {
       recipients: options.recipients,
       data: options.data,
       headers: this.config.headers,
+      wasm: this.config.wasm,
     });
   }
 
@@ -93,6 +94,7 @@ export class PostGuard {
       onProgress: options.onProgress,
       signal: options.signal,
       headers: this.config.headers,
+      wasm: this.config.wasm,
     });
   }
 
@@ -113,6 +115,7 @@ export class PostGuard {
       signal: options.signal,
       delivery: options.delivery,
       headers: this.config.headers,
+      wasm: this.config.wasm,
     });
   }
 
@@ -137,6 +140,7 @@ export class PostGuard {
       recipient: options.recipient,
       signal: options.signal,
       headers: this.config.headers,
+      wasm: this.config.wasm,
     });
   }
 
@@ -149,6 +153,7 @@ export class PostGuard {
       recipient: options.recipient,
       signal: options.signal,
       headers: this.config.headers,
+      wasm: this.config.wasm,
     });
   }
 }
