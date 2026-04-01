@@ -12,9 +12,6 @@ export default defineConfig({
     neverBundle: [
     '@e4a/pg-wasm',
     '@transcend-io/conflux',
-    '@privacybydesign/yivi-core',
-    '@privacybydesign/yivi-web',
-    '@privacybydesign/yivi-client',
   ],
   },
   target: false,

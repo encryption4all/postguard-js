@@ -1,4 +1,7 @@
-import { YiviNotInstalledError, PostGuardError } from '../errors.js';
+import { YiviCore } from '@privacybydesign/yivi-core';
+import { YiviClient } from '@privacybydesign/yivi-client';
+import { YiviWeb } from '@privacybydesign/yivi-web';
+import { PostGuardError } from '../errors.js';
 
 // Re-export utilities from shared module
 export { sortPolicies, secondsTill4AM, buildKeyRequest } from '../util/policy.js';
@@ -10,15 +13,6 @@ export async function retrieveUSKViaYivi(
   keyRequest: { con: { t: string; v?: string }[]; validity: number },
   timestamp: number
 ): Promise<unknown> {
-  let YiviCore: any, YiviClient: any, YiviWeb: any;
-  try {
-    ({ YiviCore } = await import('@privacybydesign/yivi-core'));
-    ({ YiviClient } = await import('@privacybydesign/yivi-client'));
-    ({ YiviWeb } = await import('@privacybydesign/yivi-web'));
-  } catch {
-    throw new YiviNotInstalledError();
-  }
-
   const session = {
     url: pkgUrl,
     start: {

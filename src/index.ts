@@ -52,3 +52,7 @@ export { buildEncryptionPolicy } from './recipients/builders.js';
 export { buildMime, injectMimeHeaders } from './email/mime.js';
 export { createEnvelope } from './email/envelope.js';
 export { extractCiphertext, extractArmoredPayload, armorBase64 } from './email/extract.js';
+
+// Yivi session runner
+export { runYiviSession } from './yivi/run-session.js';
+export type { RunYiviSessionOptions } from './yivi/run-session.js';

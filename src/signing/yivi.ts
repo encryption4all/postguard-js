@@ -1,4 +1,6 @@
-import { YiviNotInstalledError } from '../errors.js';
+import { YiviCore } from '@privacybydesign/yivi-core';
+import { YiviClient } from '@privacybydesign/yivi-client';
+import { YiviWeb } from '@privacybydesign/yivi-web';
 import type { SigningKeys } from '../types.js';
 
 export interface YiviSignOptions {
@@ -12,15 +14,6 @@ export async function resolveSigningKeysFromYivi(
   pkgUrl: string,
   opts: YiviSignOptions
 ): Promise<SigningKeys> {
-  let YiviCore: any, YiviClient: any, YiviWeb: any;
-  try {
-    ({ YiviCore } = await import('@privacybydesign/yivi-core'));
-    ({ YiviClient } = await import('@privacybydesign/yivi-client'));
-    ({ YiviWeb } = await import('@privacybydesign/yivi-web'));
-  } catch {
-    throw new YiviNotInstalledError();
-  }
-
   const session = {
     url: pkgUrl,
     start: {
@@ -72,7 +65,7 @@ export async function resolveSigningKeysFromYivi(
   yivi.use(YiviWeb);
   yivi.use(YiviClient);
 
-  const result = await yivi.start();
+  const result = await yivi.start() as any;
   return {
     pubSignKey: result.pubSignKey,
     privSignKey: result.privSignKey,
