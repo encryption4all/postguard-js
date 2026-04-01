@@ -40,3 +40,15 @@ export {
   DecryptionError,
   IdentityMismatchError,
 } from './errors.js';
+
+// PKG API functions (for custom startup checks, caching, etc.)
+export { fetchMPK, fetchVerificationKey } from './api/pkg.js';
+
+// Policy utilities
+export { buildKeyRequest, sortPolicies, secondsTill4AM } from './util/policy.js';
+export { buildEncryptionPolicy } from './recipients/builders.js';
+
+// Email helpers (also available via PostGuard.email)
+export { buildMime, injectMimeHeaders } from './email/mime.js';
+export { createEnvelope } from './email/envelope.js';
+export { extractCiphertext, extractArmoredPayload, armorBase64 } from './email/extract.js';
