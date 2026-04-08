@@ -1,38 +1,47 @@
+// Main class
 export { PostGuard } from './postguard.js';
 
+// Lazy builders
+export { Sealed } from './sealed.js';
+export { Opened } from './opened.js';
+
+// Types consumers need
 export type {
-  WasmModule,
   PostGuardConfig,
+  WasmModule,
+  // Recipients
+  Recipient,
   EmailRecipient,
   EmailDomainRecipient,
   CustomPolicyRecipient,
-  Recipient,
+  // Signing
+  SignMethod,
   ApiKeySign,
   YiviSign,
   SessionSign,
-  SignMethod,
   SessionCallback,
   SessionRequest,
-  EncryptAndUploadOptions,
-  EncryptAndDeliverOptions,
-  EncryptOptions,
-  DecryptOptions,
-  DecryptUuidOptions,
-  DecryptDataOptions,
+  // New API input/output
+  EncryptInput,
+  UploadOptions,
+  OpenInput,
+  DecryptInput,
+  InspectResult,
+  DecryptResult,
   DecryptFileResult,
   DecryptDataResult,
-  SenderIdentity,
   UploadResult,
-  SigningKeys,
-  PolicyEntry,
-  SessionStartResult,
-  AttributeCon,
+  // Email
   BuildMimeOptions,
   CreateEnvelopeOptions,
   EnvelopeResult,
   ExtractCiphertextOptions,
 } from './types.js';
 
+// Friendly sender identity
+export type { FriendlySender } from './util/identity.js';
+
+// Errors
 export {
   PostGuardError,
   NetworkError,
@@ -40,19 +49,3 @@ export {
   DecryptionError,
   IdentityMismatchError,
 } from './errors.js';
-
-// PKG API functions (for custom startup checks, caching, etc.)
-export { fetchMPK, fetchVerificationKey } from './api/pkg.js';
-
-// Policy utilities
-export { buildKeyRequest, sortPolicies, secondsTill4AM } from './util/policy.js';
-export { buildEncryptionPolicy } from './recipients/builders.js';
-
-// Email helpers (also available via PostGuard.email)
-export { buildMime, injectMimeHeaders } from './email/mime.js';
-export { createEnvelope } from './email/envelope.js';
-export { extractCiphertext, extractArmoredPayload, armorBase64 } from './email/extract.js';
-
-// Yivi session runner
-export { runYiviSession } from './yivi/run-session.js';
-export type { RunYiviSessionOptions } from './yivi/run-session.js';

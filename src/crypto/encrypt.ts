@@ -6,6 +6,7 @@ import { buildEncryptionPolicy } from '../recipients/builders.js';
 import { resolveSigningKeys } from './signing.js';
 import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
+import { loadWasm } from '../util/wasm.js';
 
 const UPLOAD_CHUNK_SIZE = 1024 * 1024;
 
@@ -54,7 +55,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   }
 
   // Load WASM
-  const { sealStream } = wasm ?? await import('@e4a/pg-wasm');
+  const { sealStream } = await loadWasm(wasm);
 
   // Create ZIP stream from files
   const readable = await createZipReadable(files);
@@ -122,7 +123,7 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   }
 
   // Load WASM
-  const { sealStream } = wasm ?? await import('@e4a/pg-wasm');
+  const { sealStream } = await loadWasm(wasm);
 
   // Create readable from input
   const readable = data instanceof ReadableStream

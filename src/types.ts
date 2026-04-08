@@ -1,3 +1,7 @@
+import type { FriendlySender } from './util/identity.js';
+
+// --- Config ---
+
 /** Pre-loaded pg-wasm module (for environments where dynamic import doesn't work) */
 export interface WasmModule {
   sealStream: (...args: any[]) => Promise<void>;
@@ -12,6 +16,8 @@ export interface PostGuardConfig {
   /** Pre-loaded pg-wasm module. If not provided, the SDK imports @e4a/pg-wasm dynamically. */
   wasm?: WasmModule;
 }
+
+// --- Recipients ---
 
 /** A recipient identified by exact email address (citizen) */
 export interface EmailRecipient {
@@ -33,6 +39,8 @@ export interface CustomPolicyRecipient {
 }
 
 export type Recipient = EmailRecipient | EmailDomainRecipient | CustomPolicyRecipient;
+
+// --- Signing ---
 
 /** Signing via API key (PostGuard for Business) */
 export interface ApiKeySign {
@@ -68,67 +76,88 @@ export interface SessionRequest {
   senderId?: string;
 }
 
-/** Options for encrypt + upload (no email delivery) */
-export interface EncryptAndUploadOptions {
-  sign: SignMethod;
-  files: File[] | FileList;
+// --- New API: Encrypt input ---
+
+/** Input for pg.encrypt() — provide either files (zipped) or data (raw) */
+export interface EncryptInput {
+  /** Files to encrypt (will be zipped). Mutually exclusive with `data`. */
+  files?: File[] | FileList;
+  /** Raw data to encrypt (no zipping). Mutually exclusive with `files`. */
+  data?: Uint8Array | ReadableStream<Uint8Array>;
+  /** Recipients who can decrypt */
   recipients: Recipient[];
+  /** Signing method */
+  sign: SignMethod;
+  /** Progress callback (0-100) for upload operations */
   onProgress?: (percentage: number) => void;
+  /** Abort signal for cancellation */
   signal?: AbortSignal;
 }
 
-/** Options for encrypt + upload + email delivery via Cryptify */
-export interface EncryptAndDeliverOptions extends EncryptAndUploadOptions {
-  delivery: {
+/** Options for sealed.upload() */
+export interface UploadOptions {
+  /** If provided, Cryptify sends email notifications to recipients */
+  notify?: {
     message?: string;
     language?: 'EN' | 'NL';
     confirmToSender?: boolean;
   };
 }
 
-/** Options for encrypting raw data (no Cryptify upload) */
-export interface EncryptOptions {
-  sign: SignMethod;
-  recipients: Recipient[];
-  data: Uint8Array | ReadableStream<Uint8Array>;
-}
+// --- New API: Open/decrypt input ---
 
-/** Options for decryption from Cryptify UUID */
-export interface DecryptUuidOptions {
-  uuid: string;
+/** Input for pg.open() — provide either a UUID or raw encrypted data */
+export type OpenInput =
+  | { uuid: string; signal?: AbortSignal }
+  | { data: Uint8Array | ReadableStream<Uint8Array> };
+
+/** Options for opened.decrypt() */
+export interface DecryptInput {
+  /** DOM selector for Yivi QR code (web browser) */
   element?: string;
+  /** Custom session callback (email addons) */
   session?: SessionCallback;
+  /** Hint: which recipient to decrypt for (required if multiple recipients) */
   recipient?: string;
-  signal?: AbortSignal;
 }
 
-/** Options for decryption from raw data */
-export interface DecryptDataOptions {
-  data: Uint8Array | ReadableStream<Uint8Array>;
-  element?: string;
-  session?: SessionCallback;
-  recipient?: string;
-  signal?: AbortSignal;
+// --- Results ---
+
+/** Result of opened.inspect() */
+export interface InspectResult {
+  /** Email addresses of all recipients who can decrypt */
+  recipients: string[];
+  /** Sender identity (if available before decryption) */
+  sender: FriendlySender | null;
+  /** Raw policy map for power users */
+  policies: Map<string, any>;
 }
 
-/** Unified decrypt options */
-export type DecryptOptions = DecryptUuidOptions | DecryptDataOptions;
-
-/** Result of a successful decryption from Cryptify (files) */
+/** Result of decrypting files (from UUID) */
 export interface DecryptFileResult {
   files: string[];
-  sender: SenderIdentity | null;
+  sender: FriendlySender | null;
   blob: Blob;
   download: (filename?: string) => void;
 }
 
-/** Result of a successful decryption from raw data */
+/** Result of decrypting raw data */
 export interface DecryptDataResult {
   plaintext: Uint8Array;
-  sender: SenderIdentity | null;
+  sender: FriendlySender | null;
 }
 
-/** Sender identity extracted from sealed file */
+/** Unified decrypt result */
+export type DecryptResult = DecryptFileResult | DecryptDataResult;
+
+/** Upload result */
+export interface UploadResult {
+  uuid: string;
+}
+
+// --- Internal types (used by SDK internals, not exported from index.ts) ---
+
+/** Sender identity extracted from sealed file (raw format from pg-wasm) */
 export interface SenderIdentity {
   public: { con: { t: string; v?: string }[] };
   private?: { con: { t: string; v?: string }[] };
@@ -138,11 +167,6 @@ export interface SenderIdentity {
 export interface PolicyEntry {
   ts: number;
   con: { t: string; v?: string }[];
-}
-
-/** Upload result */
-export interface UploadResult {
-  uuid: string;
 }
 
 /** Internal signing keys resolved from either API key or Yivi */
@@ -185,9 +209,13 @@ export interface BuildMimeOptions {
 
 /** Options for creating an encrypted email envelope */
 export interface CreateEnvelopeOptions {
-  encrypted: Uint8Array;
+  /** Sealed encryption builder — will be encrypted via toBytes() internally */
+  sealed: import('./sealed.js').Sealed;
+  /** Sender email address */
   from: string;
+  /** PostGuard website URL for decrypt links */
   websiteUrl?: string;
+  /** Optional unencrypted message to show in the envelope */
   unencryptedMessage?: string;
 }
 

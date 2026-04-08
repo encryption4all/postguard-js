@@ -3,16 +3,42 @@ import { armorBase64, toUrlSafeBase64, PG_ARMOR_DIV_ID, PG_MAX_URL_FRAGMENT_SIZE
 
 const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
 
-/** Create an encrypted email envelope (placeholder HTML + attachment) */
-export function createEnvelope(options: CreateEnvelopeOptions): EnvelopeResult {
-  const { encrypted, from, unencryptedMessage } = options;
+/** Create an encrypted email envelope (placeholder HTML + attachment).
+ *  Encrypts the Sealed data via toBytes(). If the payload is too large for
+ *  email embedding and cryptifyUrl is configured, auto-uploads to Cryptify. */
+export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
+  const { sealed, from, unencryptedMessage } = options;
   const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
   const logoUrl = `${websiteUrl}/pg_logo_no_text.png`;
+
+  // Encrypt the data
+  const encrypted = await sealed.toBytes();
 
   // Encode encrypted data to base64
   const base64Encrypted = uint8ArrayToBase64(encrypted);
 
-  const fallbackLink = buildFallbackLink(base64Encrypted, websiteUrl);
+  // Determine fallback link: if small enough, embed in URL; if large, try upload
+  let fallbackLink: string;
+  if (base64Encrypted.length <= PG_MAX_URL_FRAGMENT_SIZE) {
+    fallbackLink = buildSmallFallbackLink(base64Encrypted, websiteUrl);
+  } else {
+    // Try to upload to Cryptify for a download link
+    let uploadUuid: string | null = null;
+    try {
+      const result = await sealed.upload();
+      uploadUuid = result.uuid;
+    } catch {
+      // Upload not available (no cryptifyUrl configured) — fall back to manual upload instructions
+    }
+
+    if (uploadUuid) {
+      const downloadUrl = `${websiteUrl}/download?uuid=${uploadUuid}`;
+      fallbackLink = buildDownloadLink(downloadUrl);
+    } else {
+      fallbackLink = buildManualUploadLink(websiteUrl);
+    }
+  }
+
   const armorDiv = buildArmorDiv(base64Encrypted);
   const messageSection = unencryptedMessage
     ? buildUnencryptedSection(unencryptedMessage)
@@ -86,15 +112,23 @@ function buildUnencryptedSection(message: string): string {
                 </div>`;
 }
 
-function buildFallbackLink(base64Encrypted: string, websiteUrl: string): string {
-  if (base64Encrypted.length <= PG_MAX_URL_FRAGMENT_SIZE) {
-    const urlSafe = toUrlSafeBase64(base64Encrypted);
-    const fallbackUrl = `${websiteUrl}/decrypt#${urlSafe}`;
-    return `
+function buildSmallFallbackLink(base64Encrypted: string, websiteUrl: string): string {
+  const urlSafe = toUrlSafeBase64(base64Encrypted);
+  const fallbackUrl = `${websiteUrl}/decrypt#${urlSafe}`;
+  return `
                 <a href="${fallbackUrl}" style="display:inline-block;font-weight:600;margin:25px 0;max-width:350px;width:100%;background:#030E17;border:none;border-radius:6px;color:#ffffff;padding:14px 0;text-decoration:none;font-size:16px;">
                     Decrypt in your browser
                 </a>`;
-  }
+}
+
+function buildDownloadLink(downloadUrl: string): string {
+  return `
+                <a href="${downloadUrl}" style="display:inline-block;font-weight:600;margin:25px 0;max-width:350px;width:100%;background:#030E17;border:none;border-radius:6px;color:#ffffff;padding:14px 0;text-decoration:none;font-size:16px;">
+                    Decrypt in your browser
+                </a>`;
+}
+
+function buildManualUploadLink(websiteUrl: string): string {
   return `
                 <div style="text-align:left;padding-top:30px;">
                     <p style="color:#5F7381;font-size:16px;font-weight:600;margin:0 0 4px 0;">Decrypt in your browser</p>
