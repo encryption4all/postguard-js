@@ -10,9 +10,9 @@ export default defineConfig({
   sourcemap: true,
   deps: {
     neverBundle: [
-    '@e4a/pg-wasm',
-    '@transcend-io/conflux',
-  ],
+      '@e4a/pg-wasm',
+      '@transcend-io/conflux',
+    ],
   },
   target: false,
 });
