@@ -40,6 +40,11 @@ export type {
 // Friendly sender identity
 export type { FriendlySender } from './util/identity.js';
 
+// Standalone email helpers (no PostGuard instance needed)
+export { buildMime, injectMimeHeaders } from './email/mime.js';
+export { extractCiphertext } from './email/extract.js';
+export { createEnvelope } from './email/envelope.js';
+
 // Errors
 export {
   PostGuardError,
