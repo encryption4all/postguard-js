@@ -14,9 +14,4 @@ export default defineConfig({
     ],
   },
   target: false,
-  rolldownOptions: {
-    // The pg-wasm web target's init() loads the .wasm via import.meta.url at runtime.
-    // Keep .wasm files external so rolldown doesn't try to process them.
-    external: [/\.wasm$/],
-  },
 });
