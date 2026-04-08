@@ -1,4 +1,4 @@
-import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallback, WasmModule } from '../types.js';
+import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallback } from '../types.js';
 import { DecryptionError, IdentityMismatchError } from '../errors.js';
 import { fetchVerificationKey } from '../api/pkg.js';
 import { getUSK } from '../api/pkg.js';
@@ -19,7 +19,6 @@ export interface InspectSealedOptions {
   data?: Uint8Array | ReadableStream<Uint8Array>;
   signal?: AbortSignal;
   headers?: HeadersInit;
-  wasm?: WasmModule;
 }
 
 export interface InspectSealedResult {
@@ -30,7 +29,7 @@ export interface InspectSealedResult {
 
 /** Inspect a sealed file/data without decrypting. Returns unsealer + metadata. */
 export async function inspectSealed(options: InspectSealedOptions): Promise<InspectSealedResult> {
-  const { pkgUrl, cryptifyUrl, uuid, data, signal, headers, wasm } = options;
+  const { pkgUrl, cryptifyUrl, uuid, data, signal, headers } = options;
 
   // Get the readable stream (either from Cryptify or raw data)
   let readable: ReadableStream<Uint8Array>;
@@ -59,7 +58,7 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
   }
 
   const vk = await vkPromise;
-  const { StreamUnsealer } = await loadWasm(wasm);
+  const { StreamUnsealer } = await loadWasm();
   const unsealer = await StreamUnsealer.new(readable, vk);
 
   const policies: Map<string, any> = unsealer.inspect_header();
@@ -161,15 +160,14 @@ export interface DecryptFromUuidOptions {
   recipient?: string;
   signal?: AbortSignal;
   headers?: HeadersInit;
-  wasm?: WasmModule;
 }
 
 /** Decrypt from Cryptify UUID: download -> unseal -> ZIP parse */
 export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<DecryptFileResult> {
-  const { pkgUrl, cryptifyUrl, uuid, element, session, recipient, signal, headers, wasm } = options;
+  const { pkgUrl, cryptifyUrl, uuid, element, session, recipient, signal, headers } = options;
 
   const { unsealer, policies, sender: preUnsealSender } = await inspectSealed({
-    pkgUrl, cryptifyUrl, uuid, signal, headers, wasm,
+    pkgUrl, cryptifyUrl, uuid, signal, headers,
   });
 
   const key = resolveRecipientKey(policies, recipient);
@@ -197,15 +195,14 @@ export interface DecryptFromDataOptions {
   recipient?: string;
   signal?: AbortSignal;
   headers?: HeadersInit;
-  wasm?: WasmModule;
 }
 
 /** Decrypt from raw data: unseal -> return plaintext bytes */
 export async function decryptFromData(options: DecryptFromDataOptions): Promise<DecryptDataResult> {
-  const { pkgUrl, data, element, session, recipient, headers, wasm } = options;
+  const { pkgUrl, data, element, session, recipient, headers } = options;
 
   const { unsealer, policies, sender: preUnsealSender } = await inspectSealed({
-    pkgUrl, data, headers, wasm,
+    pkgUrl, data, headers,
   });
 
   const key = resolveRecipientKey(policies, recipient);

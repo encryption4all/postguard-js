@@ -51,7 +51,6 @@ export class Opened {
       data: !isUuid ? this.options.data : undefined,
       signal: isUuid ? this.options.signal : undefined,
       headers: this.config.headers,
-      wasm: this.config.wasm,
     });
 
     this.unsealer = unsealer;

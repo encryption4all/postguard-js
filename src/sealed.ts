@@ -23,7 +23,7 @@ export class Sealed {
         recipients,
         data: this.options.data,
         headers: this.config.headers,
-        wasm: this.config.wasm,
+        
       });
     }
 
@@ -36,7 +36,7 @@ export class Sealed {
       recipients,
       data: zipReadable,
       headers: this.config.headers,
-      wasm: this.config.wasm,
+      
     });
   }
 
@@ -60,7 +60,7 @@ export class Sealed {
       signal,
       delivery: opts?.notify,
       headers: this.config.headers,
-      wasm: this.config.wasm,
+      
     });
   }
 

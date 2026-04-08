@@ -2,19 +2,11 @@ import type { FriendlySender } from './util/identity.js';
 
 // --- Config ---
 
-/** Pre-loaded pg-wasm module (for environments where dynamic import doesn't work) */
-export interface WasmModule {
-  sealStream: (...args: any[]) => Promise<void>;
-  StreamUnsealer: { new: (...args: any[]) => Promise<any> };
-}
-
 /** Configuration for the PostGuard client */
 export interface PostGuardConfig {
   pkgUrl: string;
   cryptifyUrl?: string;
   headers?: HeadersInit;
-  /** Pre-loaded pg-wasm module. If not provided, the SDK imports @e4a/pg-wasm dynamically. */
-  wasm?: WasmModule;
 }
 
 // --- Recipients ---

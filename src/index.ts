@@ -8,7 +8,6 @@ export { Opened } from './opened.js';
 // Types consumers need
 export type {
   PostGuardConfig,
-  WasmModule,
   // Recipients
   Recipient,
   EmailRecipient,
