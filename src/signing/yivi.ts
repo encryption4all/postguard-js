@@ -12,20 +12,26 @@ export interface YiviSignOptions {
 /** Resolve signing keys via a Yivi session (peer-to-peer sending) */
 export async function resolveSigningKeysFromYivi(
   pkgUrl: string,
-  opts: YiviSignOptions
+  opts: YiviSignOptions,
+  headers?: HeadersInit
 ): Promise<SigningKeys> {
+  const extraHeaders = headers ? Object.fromEntries(new Headers(headers)) : {};
+
   const session = {
     url: pkgUrl,
     start: {
       url: (o: any) => `${o.url}/v2/request/start`,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...extraHeaders,
+      },
       body: JSON.stringify({
         con: [{ t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }],
       }),
     },
     result: {
-      url: (o: any, { sessionToken }: any) => `${o.url}/v2/irma/jwt/${sessionToken}`,
+      url: (o: any, { sessionToken }: any) => `${o.url}/v2/request/jwt/${sessionToken}`,
       parseResponse: (r: Response) => {
         return r
           .text()
@@ -35,6 +41,7 @@ export async function resolveSigningKeysFromYivi(
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${jwt}`,
+                ...extraHeaders,
               },
               body: JSON.stringify({
                 pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],

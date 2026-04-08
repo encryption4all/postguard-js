@@ -41,10 +41,6 @@ export type {
 // Friendly sender identity
 export type { FriendlySender } from './util/identity.js';
 
-// Yivi session runner (for custom UIs like browser extension popups)
-export { runYiviSession } from './yivi/run-session.js';
-export type { RunYiviSessionOptions } from './yivi/run-session.js';
-
 // Errors
 export {
   PostGuardError,

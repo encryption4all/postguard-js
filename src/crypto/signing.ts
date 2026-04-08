@@ -17,7 +17,7 @@ export async function resolveSigningKeys(
         element: sign.element,
         senderEmail: sign.senderEmail,
         includeSender: sign.includeSender,
-      });
+      }, headers);
     case 'session':
       return resolveSigningKeysFromSession(pkgUrl, sign.callback, sign.senderEmail, headers);
   }
