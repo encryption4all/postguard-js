@@ -6,11 +6,15 @@ import { getSigningKeysWithJwt } from '../api/pkg.js';
 export async function resolveSigningKeysFromSession(
   pkgUrl: string,
   callback: SessionCallback,
-  senderEmail: string,
+  senderEmail: string | undefined,
   headers?: HeadersInit
 ): Promise<SigningKeys> {
+  const emailAttr = senderEmail
+    ? { t: 'pbdf.sidn-pbdf.email.email', v: senderEmail }
+    : { t: 'pbdf.sidn-pbdf.email.email' };
+
   const jwt = await callback({
-    con: [{ t: 'pbdf.sidn-pbdf.email.email', v: senderEmail }],
+    con: [emailAttr],
     sort: 'Signing',
   });
 

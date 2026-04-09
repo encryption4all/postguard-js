@@ -30,6 +30,8 @@ export type {
   DecryptFileResult,
   DecryptDataResult,
   UploadResult,
+  // Attribute types
+  AttributeCon,
   // Email
   BuildMimeOptions,
   CreateEnvelopeOptions,

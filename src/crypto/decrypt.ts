@@ -94,7 +94,8 @@ export async function resolveUSK(
   policy: { ts: number; con: { t: string; v?: string }[] },
   element?: string,
   session?: SessionCallback,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  enableCache?: boolean
 ): Promise<unknown> {
   const keyRequest = buildKeyRequest(recipientKey, policy);
 
@@ -111,7 +112,7 @@ export async function resolveUSK(
   }
 
   if (element) {
-    return retrieveUSKViaYivi(pkgUrl, element, keyRequest, policy.ts);
+    return retrieveUSKViaYivi(pkgUrl, element, keyRequest, policy.ts, enableCache, recipientKey);
   }
 
   throw new DecryptionError('Either element or session callback must be provided for decryption.');
