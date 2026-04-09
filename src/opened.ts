@@ -83,6 +83,7 @@ export class Opened {
       opts.element,
       opts.session,
       this.config.headers,
+      opts.enableCache,
     );
 
     const { chunks, sender } = await unsealAndCollect(

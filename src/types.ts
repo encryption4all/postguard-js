@@ -44,7 +44,10 @@ export interface ApiKeySign {
 export interface YiviSign {
   type: 'yivi';
   element: string;
-  senderEmail: string;
+  senderEmail?: string;
+  /** Additional attributes to request in the Yivi session (e.g. name).
+   *  Email is always included automatically. */
+  attributes?: { t: string; v?: string }[];
   includeSender?: boolean;
 }
 
@@ -111,6 +114,8 @@ export interface DecryptInput {
   session?: SessionCallback;
   /** Hint: which recipient to decrypt for (required if multiple recipients) */
   recipient?: string;
+  /** Enable JWT caching to avoid re-scanning QR for repeated decryptions */
+  enableCache?: boolean;
 }
 
 // --- Results ---

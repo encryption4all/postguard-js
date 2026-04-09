@@ -5,7 +5,8 @@ import type { SigningKeys } from '../types.js';
 
 export interface YiviSignOptions {
   element: string;
-  senderEmail: string;
+  senderEmail?: string;
+  attributes?: { t: string; v?: string }[];
   includeSender?: boolean;
 }
 
@@ -27,7 +28,12 @@ export async function resolveSigningKeysFromYivi(
         ...extraHeaders,
       },
       body: JSON.stringify({
-        con: [{ t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }],
+        con: [
+          opts.senderEmail
+            ? { t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }
+            : { t: 'pbdf.sidn-pbdf.email.email' },
+          ...(opts.attributes ?? []),
+        ],
       }),
     },
     result: {
