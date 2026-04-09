@@ -31,9 +31,9 @@
   },
   "dependencies": {
     "@e4a/pg-wasm": "^0.5.5",
-    "@privacybydesign/yivi-client": "file:../yivi-frontend-packages/plugins/yivi-client",
-    "@privacybydesign/yivi-core": "file:../yivi-frontend-packages/yivi-core",
-    "@privacybydesign/yivi-web": "file:../yivi-frontend-packages/plugins/yivi-web",
+    "@privacybydesign/yivi-client": "^1.0.0-beta.4",
+    "@privacybydesign/yivi-core": "^1.0.0-beta.4",
+    "@privacybydesign/yivi-web": "^1.0.0-beta.4",
     "@transcend-io/conflux": "^6.1.3"
   },
   "devDependencies": {
