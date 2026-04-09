@@ -170,6 +170,8 @@ export interface PolicyEntry {
 export interface SigningKeys {
   pubSignKey: unknown;
   privSignKey?: unknown;
+  /** Email address of the sender, extracted from the Yivi session JWT */
+  senderEmail?: string;
 }
 
 /** PKG session start result */

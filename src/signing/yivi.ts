@@ -10,6 +10,25 @@ export interface YiviSignOptions {
   includeSender?: boolean;
 }
 
+/** Extract the sender's email from an IRMA/Yivi session result JWT */
+function extractEmailFromJwt(jwt: string): string | undefined {
+  try {
+    const payload = JSON.parse(atob(jwt.split('.')[1]));
+    // IRMA session result JWT has disclosed attributes in various formats
+    const disclosed: any[][] = payload.disclosed ?? [];
+    for (const group of disclosed) {
+      for (const attr of group) {
+        if (attr.id?.endsWith('.email.email') || attr.id?.includes('email')) {
+          return attr.rawvalue ?? attr.value?.[''] ?? attr.value;
+        }
+      }
+    }
+  } catch {
+    // JWT decoding failed — not critical, caller handles missing email
+  }
+  return undefined;
+}
+
 /** Resolve signing keys via a Yivi session (peer-to-peer sending) */
 export async function resolveSigningKeysFromYivi(
   pkgUrl: string,
@@ -17,6 +36,7 @@ export async function resolveSigningKeysFromYivi(
   headers?: HeadersInit
 ): Promise<SigningKeys> {
   const extraHeaders = headers ? Object.fromEntries(new Headers(headers)) : {};
+  let senderEmail: string | undefined;
 
   const session = {
     url: pkgUrl,
@@ -41,8 +61,11 @@ export async function resolveSigningKeysFromYivi(
       parseResponse: (r: Response) => {
         return r
           .text()
-          .then((jwt: string) =>
-            fetch(`${pkgUrl}/v2/irma/sign/key`, {
+          .then((jwt: string) => {
+            // Extract sender email from the Yivi session JWT
+            senderEmail = extractEmailFromJwt(jwt);
+
+            return fetch(`${pkgUrl}/v2/irma/sign/key`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -52,8 +75,8 @@ export async function resolveSigningKeysFromYivi(
               body: JSON.stringify({
                 pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],
               }),
-            })
-          )
+            });
+          })
           .then((r: Response) => r.json());
       },
     },
@@ -82,5 +105,6 @@ export async function resolveSigningKeysFromYivi(
   return {
     pubSignKey: result.pubSignKey,
     privSignKey: result.privSignKey,
+    senderEmail: senderEmail ?? opts.senderEmail,
   };
 }

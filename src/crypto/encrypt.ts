@@ -1,5 +1,5 @@
 import type { ISealOptions } from '@e4a/pg-wasm';
-import type { Recipient, SignMethod, SigningKeys, UploadResult } from '../types.js';
+import type { Recipient, SignMethod, SigningKeys, UploadResult, YiviSign } from '../types.js';
 import { fetchMPK } from '../api/pkg.js';
 import { createUploadStream } from '../api/cryptify.js';
 import { buildEncryptionPolicy } from '../recipients/builders.js';
@@ -44,6 +44,15 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   // Build encryption policy
   const ts = Math.round(Date.now() / 1000);
   const policy = buildEncryptionPolicy(recipients, ts);
+
+  // If the sign method requests including the sender, add a sender entry
+  // so the sender can also decrypt the sealed file.
+  if (sign.type === 'yivi' && (sign as YiviSign).includeSender && signingKeys.senderEmail) {
+    policy[signingKeys.senderEmail] = {
+      ts,
+      con: [{ t: 'pbdf.sidn-pbdf.email.email', v: signingKeys.senderEmail }],
+    };
+  }
 
   const sealOptions: ISealOptions = {
     policy,
@@ -111,6 +120,14 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   // Build encryption policy
   const ts = Math.round(Date.now() / 1000);
   const policy = buildEncryptionPolicy(recipients, ts);
+
+  // Include sender in policy if requested
+  if (sign.type === 'yivi' && (sign as YiviSign).includeSender && signingKeys.senderEmail) {
+    policy[signingKeys.senderEmail] = {
+      ts,
+      con: [{ t: 'pbdf.sidn-pbdf.email.email', v: signingKeys.senderEmail }],
+    };
+  }
 
   const sealOptions: ISealOptions = {
     policy,
