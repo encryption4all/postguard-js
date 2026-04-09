@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "prebuild": "node scripts/generate-wasm-base64.mjs",
+    "pretypecheck": "node scripts/generate-wasm-base64.mjs",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
