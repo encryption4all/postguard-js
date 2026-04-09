@@ -10,12 +10,8 @@ export default defineConfig({
   sourcemap: true,
   deps: {
     neverBundle: [
-    '@e4a/pg-wasm',
-    '@transcend-io/conflux',
-    '@privacybydesign/yivi-core',
-    '@privacybydesign/yivi-web',
-    '@privacybydesign/yivi-client',
-  ],
+      '@transcend-io/conflux',
+    ],
   },
   target: false,
 });

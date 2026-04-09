@@ -25,6 +25,12 @@ export function buildEncryptionPolicy(
           con: [{ t: 'pbdf.sidn-pbdf.email.domain', v: extractDomain(r.email) }],
         };
         break;
+      case 'customPolicy':
+        policy[r.email] = {
+          ts: timestamp,
+          con: r.policy,
+        };
+        break;
     }
   }
 
