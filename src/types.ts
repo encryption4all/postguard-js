@@ -46,8 +46,8 @@ export interface YiviSign {
   element: string;
   senderEmail?: string;
   /** Additional attributes to request in the Yivi session (e.g. name).
-   *  Email is always included automatically. */
-  attributes?: { t: string; v?: string }[];
+   *  Email is always included automatically. Mark as optional to let the user skip. */
+  attributes?: { t: string; v?: string; optional?: boolean }[];
   includeSender?: boolean;
 }
 

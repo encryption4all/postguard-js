@@ -6,27 +6,36 @@ import type { SigningKeys } from '../types.js';
 export interface YiviSignOptions {
   element: string;
   senderEmail?: string;
-  attributes?: { t: string; v?: string }[];
+  attributes?: { t: string; v?: string; optional?: boolean }[];
   includeSender?: boolean;
 }
 
-/** Extract the sender's email from an IRMA/Yivi session result JWT */
-function extractEmailFromJwt(jwt: string): string | undefined {
+/**
+ * Extract all disclosed attributes from an IRMA/Yivi session result JWT.
+ *
+ * Returns the sender email and a list of all other disclosed attribute type ids.
+ */
+function parseDisclosedJwt(jwt: string): { email?: string; otherAttrTypes: string[] } {
   try {
     const payload = JSON.parse(atob(jwt.split('.')[1]));
-    // IRMA session result JWT has disclosed attributes in various formats
     const disclosed: any[][] = payload.disclosed ?? [];
+    let email: string | undefined;
+    const otherAttrTypes: string[] = [];
+
     for (const group of disclosed) {
       for (const attr of group) {
-        if (attr.id?.endsWith('.email.email') || attr.id?.includes('email')) {
-          return attr.rawvalue ?? attr.value?.[''] ?? attr.value;
+        if (!attr.id || attr.rawvalue == null) continue;
+        if (attr.id.endsWith('.email.email') || attr.id.includes('email')) {
+          email ??= attr.rawvalue ?? attr.value?.[''] ?? attr.value;
+        } else {
+          otherAttrTypes.push(attr.id);
         }
       }
     }
+    return { email, otherAttrTypes };
   } catch {
-    // JWT decoding failed — not critical, caller handles missing email
+    return { otherAttrTypes: [] };
   }
-  return undefined;
 }
 
 /** Resolve signing keys via a Yivi session (peer-to-peer sending) */
@@ -62,8 +71,18 @@ export async function resolveSigningKeysFromYivi(
         return r
           .text()
           .then((jwt: string) => {
-            // Extract sender email from the Yivi session JWT
-            senderEmail = extractEmailFromJwt(jwt);
+            const { email, otherAttrTypes } = parseDisclosedJwt(jwt);
+            senderEmail = email;
+
+            // Build signing key request:
+            // - pubSignId: email (always public)
+            // - privSignId: any other disclosed attributes (optional sender identity)
+            const keyRequest: Record<string, unknown> = {
+              pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],
+            };
+            if (otherAttrTypes.length > 0) {
+              keyRequest.privSignId = otherAttrTypes.map(t => ({ t }));
+            }
 
             return fetch(`${pkgUrl}/v2/irma/sign/key`, {
               method: 'POST',
@@ -72,9 +91,7 @@ export async function resolveSigningKeysFromYivi(
                 Authorization: `Bearer ${jwt}`,
                 ...extraHeaders,
               },
-              body: JSON.stringify({
-                pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],
-              }),
+              body: JSON.stringify(keyRequest),
             });
           })
           .then((r: Response) => r.json());

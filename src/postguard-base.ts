@@ -29,7 +29,7 @@ export class PostGuardBase {
       type: 'apiKey',
       apiKey,
     }),
-    yivi: (opts: { element: string; senderEmail?: string; attributes?: { t: string; v?: string }[]; includeSender?: boolean }): YiviSign => ({
+    yivi: (opts: { element: string; senderEmail?: string; attributes?: { t: string; v?: string; optional?: boolean }[]; includeSender?: boolean }): YiviSign => ({
       type: 'yivi',
       ...opts,
     }),
