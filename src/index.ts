@@ -32,8 +32,6 @@ export type {
   UploadResult,
   // Attribute types
   AttributeCon,
-  AttributeRequest,
-  ConDisCon,
   // Email
   BuildMimeOptions,
   CreateEnvelopeOptions,
