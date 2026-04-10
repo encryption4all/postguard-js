@@ -16,6 +16,7 @@ export async function resolveSigningKeys(
       return resolveSigningKeysFromYivi(pkgUrl, {
         element: sign.element,
         senderEmail: sign.senderEmail,
+        attributes: sign.attributes,
         includeSender: sign.includeSender,
       }, headers);
     case 'session':
