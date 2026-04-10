@@ -5,14 +5,14 @@ export { PostGuard } from './postguard.js';
 export { Sealed } from './sealed.js';
 export { Opened } from './opened.js';
 
+// Recipient builder
+export { RecipientBuilder } from './recipients/builder.js';
+
 // Types consumers need
 export type {
   PostGuardConfig,
   // Recipients
   Recipient,
-  EmailRecipient,
-  EmailDomainRecipient,
-  CustomPolicyRecipient,
   // Signing
   SignMethod,
   ApiKeySign,
