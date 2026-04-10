@@ -40,14 +40,51 @@ export interface ApiKeySign {
   apiKey: string;
 }
 
+// --- Condiscon types ---
+
+/**
+ * A single attribute request in the IRMA condiscon format.
+ *
+ * - `string`: shorthand for requesting any value of that attribute type
+ * - `object`: request with optional value constraint and notNull flag
+ */
+export type AttributeRequest =
+  | string
+  | { type: string; value?: string; notNull?: boolean };
+
+/**
+ * IRMA ConDisCon: conjunction of disjunctions of conjunctions.
+ *
+ * Structure: `AttributeRequest[][][]`
+ * - Outer array: conjunction (AND) — user must satisfy ALL entries
+ * - Middle array: disjunction (OR) — user picks ONE option
+ * - Inner array: inner conjunction — attributes grouped from one credential
+ *
+ * An empty inner conjunction (`[]`) as the first option in a disjunction
+ * makes that disjunction optional (user may skip it).
+ *
+ * @example
+ * // Email required, fullname optional:
+ * [
+ *   [[ { type: 'pbdf.sidn-pbdf.email.email', notNull: true } ]],
+ *   [ [], [{ type: 'pbdf.gemeente.personalData.fullname', notNull: true }] ],
+ * ]
+ */
+export type ConDisCon = AttributeRequest[][][];
+
 /** Signing via Yivi session (peer-to-peer) */
 export interface YiviSign {
   type: 'yivi';
   element: string;
   senderEmail?: string;
-  /** Additional attributes to request in the Yivi session (e.g. name).
-   *  Email is always included automatically. */
-  attributes?: { t: string; v?: string }[];
+  /** Simple builder: each attribute becomes its own discon entry.
+   *  Email is always included automatically. Mark as optional to let the user skip.
+   *  Mutually exclusive with `condiscon`. */
+  attributes?: { t: string; v?: string; optional?: boolean }[];
+  /** Advanced: raw condiscon disclosure request. Gives full control over the
+   *  IRMA session structure (e.g. multi-credential-source disjunctions).
+   *  When provided, `attributes` is ignored and email is NOT auto-added. */
+  condiscon?: ConDisCon;
   includeSender?: boolean;
 }
 
