@@ -4,6 +4,16 @@ function extractDomain(email: string): string {
   return email.split('@')[1] || '';
 }
 
+/** Build the full attribute constraint list for a recipient. */
+function buildCon(r: Recipient): { t: string; v: string }[] {
+  const base =
+    r._baseType === 'email'
+      ? [{ t: 'pbdf.sidn-pbdf.email.email', v: r.email }]
+      : [{ t: 'pbdf.sidn-pbdf.email.domain', v: extractDomain(r.email) }];
+
+  return [...base, ...r._extras];
+}
+
 /** Build an encryption policy map from a list of recipients */
 export function buildEncryptionPolicy(
   recipients: Recipient[],
@@ -12,26 +22,10 @@ export function buildEncryptionPolicy(
   const policy: Record<string, PolicyEntry> = {};
 
   for (const r of recipients) {
-    switch (r.type) {
-      case 'email':
-        policy[r.email] = {
-          ts: timestamp,
-          con: [{ t: 'pbdf.sidn-pbdf.email.email', v: r.email }],
-        };
-        break;
-      case 'emailDomain':
-        policy[r.email] = {
-          ts: timestamp,
-          con: [{ t: 'pbdf.sidn-pbdf.email.domain', v: extractDomain(r.email) }],
-        };
-        break;
-      case 'customPolicy':
-        policy[r.email] = {
-          ts: timestamp,
-          con: r.policy,
-        };
-        break;
-    }
+    policy[r.email] = {
+      ts: timestamp,
+      con: buildCon(r),
+    };
   }
 
   return policy;

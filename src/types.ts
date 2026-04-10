@@ -11,26 +11,9 @@ export interface PostGuardConfig {
 
 // --- Recipients ---
 
-/** A recipient identified by exact email address (citizen) */
-export interface EmailRecipient {
-  type: 'email';
-  email: string;
-}
+import { RecipientBuilder } from './recipients/builder.js';
 
-/** A recipient identified by email domain (organisation) */
-export interface EmailDomainRecipient {
-  type: 'emailDomain';
-  email: string;
-}
-
-/** A recipient with a custom attribute policy */
-export interface CustomPolicyRecipient {
-  type: 'customPolicy';
-  email: string;
-  policy: { t: string; v: string }[];
-}
-
-export type Recipient = EmailRecipient | EmailDomainRecipient | CustomPolicyRecipient;
+export type Recipient = RecipientBuilder;
 
 // --- Signing ---
 

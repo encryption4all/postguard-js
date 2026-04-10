@@ -24,37 +24,43 @@ const pg = new PostGuard({
 });
 ```
 
-## Supported Flows
+## Architecture
 
-| Flow | Method | Description |
-|------|--------|-------------|
-| Yivi → Yivi | `encryptAndUpload` | Peer-to-peer: sender signs with Yivi, recipient decrypts with Yivi |
-| API → Yivi (with email) | `encryptAndDeliver` | Business signs with API key, Cryptify sends email notification |
-| API → Yivi (no email) | `encryptAndUpload` | Business signs with API key, returns UUID for custom delivery |
-| Raw encrypt | `encrypt` | Encrypt raw data (for email addons, custom transports) |
-| Raw decrypt | `decrypt({ data })` | Decrypt raw data (for email addons) |
+The SDK uses a lazy builder pattern. `pg.encrypt()` and `pg.open()` return builder objects that capture parameters but do no work. The actual operation runs when you call a terminal method.
+
+```ts
+// Encrypt: nothing happens until .upload() or .toBytes()
+const sealed = pg.encrypt({ files, recipients, sign });
+await sealed.upload();                                // encrypt + stream to Cryptify
+await sealed.upload({ notify: { message: 'Hi' } });  // + email notification
+const bytes = await sealed.toBytes();                 // encrypt + buffer in memory
+
+// Decrypt: nothing happens until .inspect() or .decrypt()
+const opened = pg.open({ uuid });
+const info = await opened.inspect();                  // peek at recipients and sender
+const result = await opened.decrypt({ element: '#yivi-web' });
+result.download();
+```
 
 ## Encryption
 
 ### Encrypt files + upload to Cryptify
 
 ```ts
-const { uuid } = await pg.encryptAndUpload({
+const sealed = pg.encrypt({
   sign: pg.sign.apiKey('your-api-key'),
   recipients: [pg.recipient.email('bob@example.com')],
   files: fileList,
   onProgress: (pct) => console.log(`${pct}%`),
+  signal: abortController.signal,
 });
-```
 
-### Encrypt files + upload + email delivery
+// Upload only (returns UUID for custom delivery)
+const { uuid } = await sealed.upload();
 
-```ts
-const { uuid } = await pg.encryptAndDeliver({
-  sign: pg.sign.apiKey('your-api-key'),
-  recipients: [pg.recipient.email('bob@example.com')],
-  files: fileList,
-  delivery: { message: 'Here are your documents.', language: 'EN' },
+// Upload and have Cryptify send email notifications
+const { uuid } = await sealed.upload({
+  notify: { message: 'Here are your documents.', language: 'EN' },
 });
 ```
 
@@ -63,23 +69,35 @@ const { uuid } = await pg.encryptAndDeliver({
 For email clients and custom integrations that handle their own transport:
 
 ```ts
-const encrypted = await pg.encrypt({
+const sealed = pg.encrypt({
   sign: pg.sign.apiKey('your-api-key'),
   recipients: [pg.recipient.email('bob@example.com')],
   data: myDataBytes, // Uint8Array or ReadableStream
 });
+
+const encrypted = await sealed.toBytes();
 // encrypted is a Uint8Array — attach it, send it, store it however you want
 ```
 
 ## Decryption
 
+### Inspect before decrypt
+
+```ts
+const opened = pg.open({ uuid: 'the-file-uuid' });
+const info = await opened.inspect();
+// info.recipients: ['bob@example.com']
+// info.sender: { email: 'alice@example.com', attributes: [...] }
+```
+
 ### Decrypt from Cryptify UUID (Yivi web)
 
 ```ts
-const result = await pg.decrypt({
-  uuid: 'the-file-uuid',
+const opened = pg.open({ uuid: 'the-file-uuid' });
+const result = await opened.decrypt({
   element: '#yivi-popup',
   recipient: 'bob@example.com', // optional hint
+  enableCache: true,            // cache JWT for repeated decryptions
 });
 
 result.download('decrypted-files.zip');
@@ -89,8 +107,8 @@ console.log('Sender:', result.sender);
 ### Decrypt raw data
 
 ```ts
-const result = await pg.decrypt({
-  data: encryptedBytes,
+const opened = pg.open({ data: encryptedBytes });
+const result = await opened.decrypt({
   element: '#yivi-popup',
   recipient: 'bob@example.com',
 });
@@ -105,7 +123,15 @@ const result = await pg.decrypt({
 pg.sign.apiKey('your-api-key')
 
 // Yivi web session (browser, inline QR code)
-pg.sign.yivi({ element: '#yivi-popup', senderEmail: 'alice@example.com' })
+pg.sign.yivi({
+  element: '#yivi-popup',
+  senderEmail: 'alice@example.com',
+  attributes: [                    // optional: request extra attributes
+    { t: 'pbdf.gemeente.personalData.fullname', optional: true },
+    { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', optional: true },
+  ],
+  includeSender: true,             // optional: also encrypt for the sender
+})
 
 // Custom session callback (email addons, mobile apps, etc.)
 pg.sign.session(
@@ -126,11 +152,10 @@ pg.recipient.email('bob@example.com')
 // Encrypt for anyone with an email at a domain
 pg.recipient.emailDomain('bob@example-org.com')
 
-// Encrypt with custom attribute policy
-pg.recipient.withPolicy('bob@example.com', [
-  { t: 'pbdf.sidn-pbdf.email.email', v: 'bob@example.com' },
-  { t: 'pbdf.gemeente.personalData.surname', v: 'Smith' },
-])
+// Require extra attributes (fluent chaining)
+pg.recipient.email('bob@example.com')
+  .extraAttribute('pbdf.gemeente.personalData.surname', 'Smith')
+  .extraAttribute('pbdf.sidn-pbdf.mobilenumber.mobilenumber', '0612345678')
 ```
 
 ## Email Integration
@@ -139,7 +164,7 @@ For email clients (Thunderbird, Outlook, etc.) that need to encrypt/decrypt emai
 
 ```ts
 // Build inner MIME message
-const mime = pg.email.buildMime({
+const mime = buildMime({
   from: 'alice@example.com',
   to: ['bob@example.com'],
   subject: 'Hello',
@@ -147,15 +172,14 @@ const mime = pg.email.buildMime({
   attachments: [{ name: 'doc.pdf', type: 'application/pdf', data: pdfBuffer }],
 });
 
-// Encrypt the MIME content
-const encrypted = await pg.encrypt({
-  sign: pg.sign.session(myYiviHandler, { senderEmail: 'alice@example.com' }),
+// Encrypt the MIME content and create email envelope
+const sealed = pg.encrypt({
+  sign: pg.sign.yivi({ element: '#yivi-popup', senderEmail: 'alice@example.com' }),
   recipients: [pg.recipient.email('bob@example.com')],
   data: mime,
 });
 
-// Create the encrypted email envelope (placeholder HTML + attachment)
-const envelope = pg.email.createEnvelope({ encrypted, from: 'alice@example.com' });
+const envelope = await pg.email.createEnvelope({ sealed, from: 'alice@example.com' });
 // envelope.subject → "PostGuard Encrypted Email"
 // envelope.htmlBody → Placeholder HTML with PostGuard branding
 // envelope.plainTextBody → Plain text fallback
@@ -164,19 +188,25 @@ const envelope = pg.email.createEnvelope({ encrypted, from: 'alice@example.com' 
 // --- On the receiving side ---
 
 // Extract ciphertext from a received email
-const ciphertext = pg.email.extractCiphertext({
+const ciphertext = extractCiphertext({
   htmlBody: emailBodyHtml,
   attachments: [{ name: 'postguard.encrypted', data: attachmentBuffer }],
 });
 
 // Decrypt
-const result = await pg.decrypt({
-  data: ciphertext,
+const opened = pg.open({ data: ciphertext });
+const result = await opened.decrypt({
+  element: '#yivi-popup',
   recipient: 'bob@example.com',
-  session: async ({ con, sort, hints }) => myYiviHandler(con, sort, hints),
 });
 // result.plaintext → decrypted MIME content
 // result.sender → verified sender identity
+```
+
+Standalone email helpers (`buildMime`, `extractCiphertext`, `injectMimeHeaders`) can be imported directly without creating a PostGuard instance:
+
+```ts
+import { buildMime, extractCiphertext, injectMimeHeaders } from '@e4a/pg-js';
 ```
 
 ## Error Handling
@@ -191,7 +221,7 @@ import {
 } from '@e4a/pg-js';
 
 try {
-  await pg.encrypt(options);
+  await sealed.upload();
 } catch (err) {
   if (err instanceof IdentityMismatchError) {
     // Yivi attributes didn't match the encryption policy

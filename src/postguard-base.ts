@@ -1,13 +1,11 @@
 import type {
   PostGuardConfig,
-  EmailRecipient,
-  EmailDomainRecipient,
-  CustomPolicyRecipient,
   ApiKeySign,
   YiviSign,
   SessionSign,
   SessionCallback,
 } from './types.js';
+import { RecipientBuilder } from './recipients/builder.js';
 import { EmailHelpers } from './email/index.js';
 
 /** Base class with config, builders, and email helpers shared by PostGuard variants. */
@@ -29,7 +27,7 @@ export class PostGuardBase {
       type: 'apiKey',
       apiKey,
     }),
-    yivi: (opts: { element: string; senderEmail?: string; attributes?: { t: string; v?: string }[]; includeSender?: boolean }): YiviSign => ({
+    yivi: (opts: { element: string; senderEmail?: string; attributes?: { t: string; v?: string; optional?: boolean }[]; includeSender?: boolean }): YiviSign => ({
       type: 'yivi',
       ...opts,
     }),
@@ -42,18 +40,9 @@ export class PostGuardBase {
 
   /** Recipient builders */
   readonly recipient = {
-    email: (email: string): EmailRecipient => ({
-      type: 'email',
-      email,
-    }),
-    emailDomain: (email: string): EmailDomainRecipient => ({
-      type: 'emailDomain',
-      email,
-    }),
-    withPolicy: (email: string, policy: { t: string; v: string }[]): CustomPolicyRecipient => ({
-      type: 'customPolicy',
-      email,
-      policy,
-    }),
+    email: (email: string): RecipientBuilder =>
+      new RecipientBuilder(email, 'email'),
+    emailDomain: (email: string): RecipientBuilder =>
+      new RecipientBuilder(email, 'emailDomain'),
   };
 }
