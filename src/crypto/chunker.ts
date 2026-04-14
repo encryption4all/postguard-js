@@ -40,13 +40,16 @@ export default class Chunker extends TransformStream<Uint8Array, Uint8Array> {
   }
 }
 
+export interface TransformResult {
+  writable: WritableStream<Uint8Array>;
+  pipeDone: Promise<void>;
+}
+
 export function withTransform(
   writable: WritableStream<Uint8Array>,
   transform: TransformStream<Uint8Array, Uint8Array>,
   signal: AbortSignal
-): WritableStream<Uint8Array> {
-  transform.readable.pipeTo(writable, { signal }).catch((err) => {
-    console.error('Error in withTransform pipe:', err);
-  });
-  return transform.writable;
+): TransformResult {
+  const pipeDone = transform.readable.pipeTo(writable, { signal });
+  return { writable: transform.writable, pipeDone };
 }
