@@ -9,7 +9,7 @@ const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
 export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
   const { sealed, from, unencryptedMessage } = options;
   const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
-  const logoUrl = `${websiteUrl}/pg_logo_no_text.png`;
+  const logoUrl = `${websiteUrl}/pg_logo.png`;
 
   // Encrypt the data
   const encrypted = await sealed.toBytes();
@@ -56,7 +56,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
     <div style="background:#F2F8FD;background-color:#F2F8FD;padding:1em;">
         <div style="background:#F2F8FD;width:100%;max-width:600px;margin-left:auto;margin-right:auto;text-align:center;">
             <div style="margin:50px 0 20px 0">
-                <img src="${logoUrl}" alt="PostGuard" width="82" height="82" style="display:block;margin:0 auto;" />
+                <img src="${logoUrl}" alt="PostGuard" width="200" height="109" style="display:block;margin:0 auto;" />
             </div>
             <div style="background:#FFFFFF;padding:60px 50px;border-radius:8px;text-align:center;">
                 <p style="font-size:22px;font-weight:700;color:#030E17;margin:0 0 5px 0;line-height:30px;">
@@ -66,9 +66,9 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
                     This email is protected with PostGuard encryption.
                 </p>${messageSection}${fallbackLink}
                 <div style="text-align:left;padding-top:30px;">
-                    <p style="color:#5F7381;font-size:16px;font-weight:600;margin:0 0 4px 0;">Or visit</p>
-                    <a style="color:#3095DE;font-size:13px;font-weight:400;line-height:18px;word-break:break-all;" href="${websiteUrl}">
-                        ${websiteUrl}
+                    <p style="color:#5F7381;font-size:16px;font-weight:600;margin:0 0 4px 0;">Or use our extension</p>
+                    <a style="color:#3095DE;font-size:13px;font-weight:400;line-height:18px;word-break:break-all;" href="${websiteUrl}/addons">
+                        Decrypt seamlessly with the PostGuard extension for your email client
                     </a>
                 </div>
                 <div style="margin-top:40px;padding-top:30px;border-top:1px solid #C6E2F6;text-align:center;">
