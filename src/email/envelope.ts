@@ -60,16 +60,24 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
             </div>
             <div style="background:#FFFFFF;padding:60px 50px;border-radius:8px;text-align:center;">
                 <p style="font-size:22px;font-weight:700;color:#030E17;margin:0 0 5px 0;line-height:30px;">
-                    ${escapeHtml(from)}
+                    You received an encrypted email
                 </p>
-                <p style="font-size:16px;color:#5F7381;margin:15px 0 0 0;">
-                    sent you an encrypted email via PostGuard.
-                </p>${messageSection}
-                <p style="font-size:14px;color:#5F7381;margin:25px 0 0 0;">
-                    To decrypt this message, you need the
-                    <a href="${websiteUrl}" style="color:#3095DE;text-decoration:none;font-weight:600;">PostGuard</a>
-                    extension for Thunderbird.
-                </p>${fallbackLink}
+                <p style="font-size:14px;color:#5F7381;margin:15px 0 0 0;">
+                    This email is protected with PostGuard encryption.
+                </p>${messageSection}${fallbackLink}
+                <div style="text-align:left;padding-top:30px;">
+                    <p style="color:#5F7381;font-size:16px;font-weight:600;margin:0 0 4px 0;">Or visit</p>
+                    <a style="color:#3095DE;font-size:13px;font-weight:400;line-height:18px;word-break:break-all;" href="${websiteUrl}">
+                        ${websiteUrl}
+                    </a>
+                </div>
+                <div style="margin-top:40px;padding-top:30px;border-top:1px solid #C6E2F6;text-align:center;">
+                    <div style="margin-bottom:12px;">
+                        <span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;border:2px solid #5F7381;text-align:center;font-size:16px;color:#5F7381;box-sizing:border-box;">&#10003;</span>
+                    </div>
+                    <p style="font-size:13px;color:#5F7381;margin:0 0 6px 0;">Sent by</p>
+                    <p style="font-size:15px;font-weight:700;color:#030E17;margin:0 0 12px 0;">${escapeHtml(from)}</p>
+                </div>
             </div>
             <div style="height:40px;"></div>
         </div>

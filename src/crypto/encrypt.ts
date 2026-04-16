@@ -78,14 +78,11 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   });
 
   const uploadChunker = new Chunker(UPLOAD_CHUNK_SIZE);
+  const { writable, pipeDone } = withTransform(uploadStream.writable, uploadChunker, effectiveSignal);
 
   // Encrypt: ZIP -> sealStream -> chunker -> upload
-  await sealStream(
-    mpk,
-    sealOptions,
-    readable,
-    withTransform(uploadStream.writable, uploadChunker, effectiveSignal)
-  );
+  await sealStream(mpk, sealOptions, readable, writable);
+  await pipeDone;
 
   return { uuid: uploadStream.getUuid() };
 }
