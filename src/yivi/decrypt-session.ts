@@ -2,6 +2,7 @@ import { YiviCore } from '@privacybydesign/yivi-core';
 import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
 import { PostGuardError } from '../errors.js';
+import { injectYiviCss } from './inject-css.js';
 
 // Re-export utilities from shared module
 export { sortPolicies, secondsTill4AM, buildKeyRequest } from '../util/policy.js';
@@ -146,6 +147,8 @@ export async function retrieveUSKViaYivi(
       },
     },
   });
+
+  injectYiviCss();
 
   // Small delay to ensure DOM element is ready
   await new Promise((resolve) => setTimeout(resolve, 500));

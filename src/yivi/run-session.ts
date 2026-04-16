@@ -1,6 +1,7 @@
 import { YiviCore } from '@privacybydesign/yivi-core';
 import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
+import { injectYiviCss } from './inject-css.js';
 
 export interface RunYiviSessionOptions {
   /** PKG server URL */
@@ -26,6 +27,8 @@ export interface RunYiviSessionOptions {
  */
 export async function runYiviSession(options: RunYiviSessionOptions): Promise<string> {
   const { pkgUrl, element, con, sort, headers, language = 'en' } = options;
+
+  injectYiviCss();
 
   // Determine the correct PKG endpoints based on session type
   const isDecryption = sort === 'Decryption';

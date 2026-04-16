@@ -22,8 +22,8 @@
     "dist"
   ],
   "scripts": {
-    "prebuild": "node scripts/generate-wasm-base64.mjs",
-    "pretypecheck": "node scripts/generate-wasm-base64.mjs",
+    "prebuild": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
+    "pretypecheck": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
@@ -34,6 +34,7 @@
     "@e4a/pg-wasm": "^0.5.5",
     "@privacybydesign/yivi-client": "^1.0.0-beta.4",
     "@privacybydesign/yivi-core": "^1.0.0-beta.4",
+    "@privacybydesign/yivi-css": "^1.0.0-beta.4",
     "@privacybydesign/yivi-web": "^1.0.0-beta.4",
     "@transcend-io/conflux": "^6.1.3"
   },
