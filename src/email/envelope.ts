@@ -7,7 +7,7 @@ const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
  *  Encrypts the Sealed data via toBytes(). If the payload is too large for
  *  email embedding and cryptifyUrl is configured, auto-uploads to Cryptify. */
 export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
-  const { sealed, from, unencryptedMessage } = options;
+  const { sealed, from, unencryptedMessage, senderAttributes } = options;
   const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
   const logoUrl = `${websiteUrl}/pg_logo.png`;
 
@@ -72,11 +72,8 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
                     </a>
                 </div>
                 <div style="margin-top:40px;padding-top:30px;border-top:1px solid #C6E2F6;text-align:center;">
-                    <div style="margin-bottom:12px;">
-                        <span style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:50%;border:2px solid #5F7381;text-align:center;font-size:16px;color:#5F7381;box-sizing:border-box;">&#10003;</span>
-                    </div>
                     <p style="font-size:13px;color:#5F7381;margin:0 0 6px 0;">Sent by</p>
-                    <p style="font-size:15px;font-weight:700;color:#030E17;margin:0 0 12px 0;">${escapeHtml(from)}</p>
+                    <p style="font-size:15px;font-weight:700;color:#030E17;margin:0 0 12px 0;">${escapeHtml(from)}</p>${buildAttributePills(senderAttributes)}
                 </div>
             </div>
             <div style="height:40px;"></div>
@@ -144,6 +141,17 @@ function buildManualUploadLink(websiteUrl: string): string {
                         Upload the attached postguard.encrypted file at ${websiteUrl}/decrypt
                     </a>
                 </div>`;
+}
+
+function buildAttributePills(attributes?: string[]): string {
+  if (!attributes || attributes.length === 0) return '';
+  const pills = attributes
+    .map(
+      (attr) =>
+        `<span style="display:inline-block;border:1px solid #C6E2F6;border-radius:100px;padding:4px 14px;margin:3px 4px;font-size:12px;color:#5F7381;">${escapeHtml(attr)}</span>`
+    )
+    .join('');
+  return `\n                    <div style="text-align:center;">${pills}</div>`;
 }
 
 function buildArmorDiv(base64Encrypted: string): string {

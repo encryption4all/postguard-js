@@ -199,6 +199,8 @@ export interface CreateEnvelopeOptions {
   websiteUrl?: string;
   /** Optional unencrypted message to show in the envelope */
   unencryptedMessage?: string;
+  /** Verified sender attributes to display (e.g. name, phone number) */
+  senderAttributes?: string[];
 }
 
 /** Result of creating an encrypted email envelope */
