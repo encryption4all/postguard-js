@@ -1,19 +1,35 @@
-import type { PostGuardConfig, EncryptInput, UploadOptions, UploadResult } from './types.js';
+import type { PostGuardConfig, EncryptInput, SigningKeys, UploadOptions, UploadResult } from './types.js';
 import { sealRaw } from './crypto/encrypt.js';
 import { encryptPipeline } from './crypto/encrypt.js';
 import { createZipReadable } from './util/zip.js';
+import { resolveSigningKeys } from './crypto/signing.js';
 
 /** Lazy encryption builder. Nothing executes until a terminal method is called. */
 export class Sealed {
+  private cachedSigningKeys?: SigningKeys;
+
   /** @internal */
   constructor(
     private readonly config: PostGuardConfig,
     private readonly options: EncryptInput,
   ) {}
 
+  /** Resolve signing keys once and cache for subsequent calls. */
+  private async getSigningKeys(): Promise<SigningKeys> {
+    if (!this.cachedSigningKeys) {
+      this.cachedSigningKeys = await resolveSigningKeys(
+        this.config.pkgUrl,
+        this.options.sign,
+        this.config.headers,
+      );
+    }
+    return this.cachedSigningKeys;
+  }
+
   /** Encrypt and return raw bytes (buffers entire result in memory). */
   async toBytes(): Promise<Uint8Array> {
     const { recipients, sign } = this.options;
+    const signingKeys = await this.getSigningKeys();
 
     if (this.options.data) {
       // Raw data — seal directly, no ZIP
@@ -23,7 +39,7 @@ export class Sealed {
         recipients,
         data: this.options.data,
         headers: this.config.headers,
-        
+        signingKeys,
       });
     }
 
@@ -36,7 +52,7 @@ export class Sealed {
       recipients,
       data: zipReadable,
       headers: this.config.headers,
-      
+      signingKeys,
     });
   }
 
@@ -48,6 +64,7 @@ export class Sealed {
     }
 
     const { recipients, sign, onProgress, signal } = this.options;
+    const signingKeys = await this.getSigningKeys();
     const files = this.resolveFiles();
 
     return encryptPipeline({
@@ -60,7 +77,7 @@ export class Sealed {
       signal,
       delivery: opts?.notify,
       headers: this.config.headers,
-      
+      signingKeys,
     });
   }
 
