@@ -1,6 +1,7 @@
 import { YiviCore } from '@privacybydesign/yivi-core';
 import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
+import { injectYiviCss } from '../yivi/inject-css.js';
 import type { SigningKeys } from '../types.js';
 
 export interface YiviSignOptions {
@@ -114,6 +115,8 @@ export async function resolveSigningKeysFromYivi(
       },
     },
   });
+
+  injectYiviCss();
 
   yivi.use(YiviWeb);
   yivi.use(YiviClient);
