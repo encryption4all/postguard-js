@@ -24,6 +24,8 @@
   "scripts": {
     "prebuild": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
     "pretypecheck": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
+    "pretest": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
+    "pretest:watch": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
