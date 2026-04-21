@@ -24,6 +24,8 @@ export interface EncryptPipelineOptions {
     confirmToSender?: boolean;
   };
   headers?: HeadersInit;
+  /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
+  signingKeys?: SigningKeys;
 }
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
@@ -38,7 +40,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
     fetchMPK(pkgUrl, headers),
-    resolveSigningKeys(pkgUrl, sign, headers),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers),
   ]);
 
   // Build encryption policy
@@ -102,6 +104,8 @@ export interface SealRawOptions {
   recipients: Recipient[];
   data: Uint8Array | ReadableStream<Uint8Array>;
   headers?: HeadersInit;
+  /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
+  signingKeys?: SigningKeys;
 }
 
 /** Seal raw data: sign -> policy -> sealStream -> return encrypted bytes */
@@ -111,7 +115,7 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
     fetchMPK(pkgUrl, headers),
-    resolveSigningKeys(pkgUrl, sign, headers),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers),
   ]);
 
   // Build encryption policy
