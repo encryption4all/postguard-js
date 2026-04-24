@@ -75,6 +75,7 @@ export class Sealed {
       recipients,
       onProgress,
       signal,
+      uploadChunkSize: this.config.uploadChunkSize,
       delivery: opts?.notify,
       headers: this.config.headers,
       signingKeys,

@@ -1,4 +1,4 @@
-const DEFAULT_CHUNK_SIZE = 1024 * 1024;
+const DEFAULT_CHUNK_SIZE = 5_000_000;
 
 export default class Chunker extends TransformStream<Uint8Array, Uint8Array> {
   constructor(chunkSize: number = DEFAULT_CHUNK_SIZE, offset?: number) {
