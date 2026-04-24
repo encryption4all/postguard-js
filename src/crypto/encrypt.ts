@@ -8,7 +8,7 @@ import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
 import { loadWasm } from '../util/wasm.js';
 
-const UPLOAD_CHUNK_SIZE = 1024 * 1024;
+const DEFAULT_UPLOAD_CHUNK_SIZE = 5_000_000;
 
 export interface EncryptPipelineOptions {
   pkgUrl: string;
@@ -18,6 +18,8 @@ export interface EncryptPipelineOptions {
   recipients: Recipient[];
   onProgress?: (percentage: number) => void;
   signal?: AbortSignal;
+  /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
+  uploadChunkSize?: number;
   delivery?: {
     message?: string;
     language?: 'EN' | 'NL';
@@ -88,7 +90,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     },
   });
 
-  const uploadChunker = new Chunker(UPLOAD_CHUNK_SIZE);
+  const uploadChunker = new Chunker(options.uploadChunkSize ?? DEFAULT_UPLOAD_CHUNK_SIZE);
   const { writable, pipeDone } = withTransform(uploadStream.writable, uploadChunker, effectiveSignal);
 
   // Encrypt: ZIP -> sealStream -> chunker -> upload

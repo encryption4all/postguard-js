@@ -7,6 +7,8 @@ export interface PostGuardConfig {
   pkgUrl: string;
   cryptifyUrl?: string;
   headers?: HeadersInit;
+  /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
+  uploadChunkSize?: number;
 }
 
 // --- Recipients ---
