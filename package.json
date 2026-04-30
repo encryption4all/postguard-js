@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "tsdown": "^0.21.9",
-    "typescript": "^5.9.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.4"
   },
   "keywords": [
