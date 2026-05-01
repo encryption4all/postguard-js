@@ -1,7 +1,7 @@
 import { YiviCore } from '@privacybydesign/yivi-core';
 import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
-import { PostGuardError } from '../errors.js';
+import { PostGuardError, YiviSessionError } from '../errors.js';
 import { injectYiviCss } from './inject-css.js';
 
 // Re-export utilities from shared module
@@ -156,5 +156,26 @@ export async function retrieveUSKViaYivi(
   yivi.use(YiviWeb);
   yivi.use(YiviClient);
 
-  return yivi.start();
+  // yivi-core's start() rejects with a bare string final-state name on
+  // anything other than Success ("Cancelled", "TimedOut", "Aborted").
+  // Translate to a proper Error so consumer try/catch + instanceof
+  // checks behave, and clear the widget host so the cancelled red-X UI
+  // doesn't linger past the rejection.
+  try {
+    return await yivi.start();
+  } catch (raw) {
+    cleanupYiviHost(element);
+    if (raw instanceof Error) throw raw;
+    if (typeof raw === 'string') throw new YiviSessionError(raw);
+    throw new YiviSessionError(String(raw ?? 'Unknown'));
+  }
+}
+
+function cleanupYiviHost(selector: string): void {
+  try {
+    const host = typeof document !== 'undefined' ? document.querySelector(selector) : null;
+    if (host) host.innerHTML = '';
+  } catch {
+    // ignore — non-DOM environments or detached selectors
+  }
 }
