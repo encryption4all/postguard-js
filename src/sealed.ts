@@ -14,6 +14,20 @@ export class Sealed {
     private readonly options: EncryptInput,
   ) {}
 
+  /** Was this Sealed built from raw `data` (typically an RFC 5322 MIME
+   *  envelope) or from a list of `files`? Consumers like createEnvelope
+   *  use this to pick the right recipient-side route — `data` mode wants
+   *  a MIME-aware page (`/decrypt?uuid=…`) and `files` mode wants the
+   *  file-list page (`/download?uuid=…`). */
+  get mode(): 'data' | 'files' {
+    return this.options.data !== undefined ? 'data' : 'files';
+  }
+
+  /** True if this Sealed has a cryptifyUrl configured and can be uploaded. */
+  get canUpload(): boolean {
+    return !!this.config.cryptifyUrl;
+  }
+
   /** Resolve signing keys once and cache for subsequent calls. */
   private async getSigningKeys(): Promise<SigningKeys> {
     if (!this.cachedSigningKeys) {

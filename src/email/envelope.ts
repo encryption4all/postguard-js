@@ -1,45 +1,81 @@
-import type { CreateEnvelopeOptions, EnvelopeResult } from '../types.js';
-import { armorBase64, toUrlSafeBase64, PG_ARMOR_DIV_ID, PG_MAX_URL_FRAGMENT_SIZE } from './extract.js';
+import type { CreateEnvelopeOptions, EnvelopeResult, EnvelopeTier } from '../types.js';
+import {
+  toUrlSafeBase64,
+  PG_MAX_URL_FRAGMENT_SIZE,
+  PG_MAX_ATTACHMENT_SIZE,
+} from './extract.js';
 
 const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
 
-/** Create an encrypted email envelope (placeholder HTML + attachment).
- *  Encrypts the Sealed data via toBytes(). If the payload is too large for
- *  email embedding and cryptifyUrl is configured, auto-uploads to Cryptify. */
+/** Create an encrypted email envelope (placeholder HTML + optional attachment).
+ *
+ *  Three size tiers, picked from the encrypted byte length:
+ *
+ *    Tier 1  ciphertext base64 ≤ PG_MAX_URL_FRAGMENT_SIZE
+ *      • Local attachment: yes
+ *      • Cryptify upload:  no
+ *      • Body link:        /decrypt#<base64-in-fragment>
+ *
+ *    Tier 2  ciphertext bytes  ≤ PG_MAX_ATTACHMENT_SIZE
+ *      • Local attachment: yes
+ *      • Cryptify upload:  yes (unless options.uploadToCryptify === false)
+ *      • Body link:        /decrypt?uuid=…  (data mode)
+ *                          /download?uuid=… (files mode)
+ *
+ *    Tier 3  ciphertext bytes  > PG_MAX_ATTACHMENT_SIZE
+ *      • Local attachment: no  (too large to send via SMTP/Exchange)
+ *      • Cryptify upload:  yes (always — there is no fallback)
+ *      • Body link:        /decrypt?uuid=…  (data mode)
+ *                          /download?uuid=… (files mode)
+ *
+ *  Note: the prior in-body armor block (a hidden div carrying the full
+ *  base64 ciphertext) is no longer emitted. It pushed bodies past
+ *  Outlook's 1 M-char setAsync limit and was redundant with the
+ *  attachment / fragment link. */
 export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
   const { sealed, from, unencryptedMessage, senderAttributes } = options;
   const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
+  const uploadToCryptify = options.uploadToCryptify ?? true;
   const logoUrl = `${websiteUrl}/pg_logo.png`;
 
-  // Encrypt the data
   const encrypted = await sealed.toBytes();
-
-  // Encode encrypted data to base64
   const base64Encrypted = uint8ArrayToBase64(encrypted);
 
-  // Determine fallback link: if small enough, embed in URL; if large, try upload
+  // Pick tier from the encrypted size.
+  const tier = pickTier(encrypted.length, base64Encrypted.length);
+
+  let uploadUuid: string | null = null;
   let fallbackLink: string;
-  if (base64Encrypted.length <= PG_MAX_URL_FRAGMENT_SIZE) {
+
+  if (tier === 'tier1') {
     fallbackLink = buildSmallFallbackLink(base64Encrypted, websiteUrl);
   } else {
-    // Try to upload to Cryptify for a download link
-    let uploadUuid: string | null = null;
-    try {
-      const result = await sealed.upload();
-      uploadUuid = result.uuid;
-    } catch {
-      // Upload not available (no cryptifyUrl configured) — fall back to manual upload instructions
+    // Tier 2 or 3 — both want a Cryptify-backed link in the body, but
+    // tier 2 will also keep the local attachment and may opt out of the
+    // upload entirely.
+    const tryUpload =
+      tier === 'tier3' /* tier 3 has no fallback so always try */ ||
+      (tier === 'tier2' && uploadToCryptify && sealed.canUpload);
+
+    if (tryUpload) {
+      try {
+        const result = await sealed.upload();
+        uploadUuid = result.uuid;
+      } catch {
+        // Network / CORS / Cryptify-unavailable. Fall through to
+        // manual-upload instructions; tier 2 still has the attachment.
+      }
     }
 
     if (uploadUuid) {
-      const downloadUrl = `${websiteUrl}/download?uuid=${uploadUuid}`;
+      const route = sealed.mode === 'data' ? 'decrypt' : 'download';
+      const downloadUrl = `${websiteUrl}/${route}?uuid=${uploadUuid}`;
       fallbackLink = buildDownloadLink(downloadUrl);
     } else {
       fallbackLink = buildManualUploadLink(websiteUrl);
     }
   }
 
-  const armorDiv = buildArmorDiv(base64Encrypted);
   const messageSection = unencryptedMessage
     ? buildUnencryptedSection(unencryptedMessage)
     : '';
@@ -78,22 +114,34 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
             </div>
             <div style="height:40px;"></div>
         </div>
-    </div>${armorDiv}
+    </div>
 </body>
 </html>`;
 
   const plainTextBody = buildPlainText(from, websiteUrl, unencryptedMessage);
 
-  const attachment = new File([encrypted as BlobPart], 'postguard.encrypted', {
-    type: 'application/postguard; charset=utf-8',
-  });
+  // Tier 3: skip the local attachment entirely. Tier 1 + 2: include it.
+  const attachment =
+    tier === 'tier3'
+      ? null
+      : new File([encrypted as BlobPart], 'postguard.encrypted', {
+          type: 'application/postguard; charset=utf-8',
+        });
 
   return {
     subject: 'PostGuard Encrypted Email',
     htmlBody,
     plainTextBody,
     attachment,
+    tier,
+    uploadUuid,
   };
+}
+
+function pickTier(encryptedBytes: number, base64Length: number): EnvelopeTier {
+  if (base64Length <= PG_MAX_URL_FRAGMENT_SIZE) return 'tier1';
+  if (encryptedBytes <= PG_MAX_ATTACHMENT_SIZE) return 'tier2';
+  return 'tier3';
 }
 
 function buildPlainText(from: string, websiteUrl: string, unencryptedMessage?: string): string {
@@ -152,10 +200,6 @@ function buildAttributePills(attributes?: string[]): string {
     )
     .join('');
   return `\n                    <div style="text-align:center;">${pills}</div>`;
-}
-
-function buildArmorDiv(base64Encrypted: string): string {
-  return `\n  <div id="${PG_ARMOR_DIV_ID}" style="display:none;font-size:0;max-height:0;overflow:hidden;mso-hide:all">${armorBase64(base64Encrypted)}</div>`;
 }
 
 function escapeHtml(str: string): string {

@@ -36,6 +36,7 @@ export type {
   BuildMimeOptions,
   CreateEnvelopeOptions,
   EnvelopeResult,
+  EnvelopeTier,
   ExtractCiphertextOptions,
 } from './types.js';
 
@@ -44,7 +45,12 @@ export type { FriendlySender } from './util/identity.js';
 
 // Standalone email helpers (no PostGuard instance needed)
 export { buildMime, injectMimeHeaders } from './email/mime.js';
-export { extractCiphertext } from './email/extract.js';
+export {
+  extractCiphertext,
+  extractUploadUuid,
+  PG_MAX_URL_FRAGMENT_SIZE,
+  PG_MAX_ATTACHMENT_SIZE,
+} from './email/extract.js';
 export { createEnvelope } from './email/envelope.js';
 
 // Errors
