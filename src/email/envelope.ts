@@ -79,6 +79,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
   const messageSection = unencryptedMessage
     ? buildUnencryptedSection(unencryptedMessage)
     : '';
+  const checkmarkUrl = `${websiteUrl}/checkmark.png`;
 
   const htmlBody = `<!DOCTYPE html>
 <html lang="en">
@@ -109,7 +110,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
                 </div>
                 <div style="margin-top:40px;padding-top:30px;border-top:1px solid #C6E2F6;text-align:center;">
                     <p style="font-size:13px;color:#5F7381;margin:0 0 6px 0;">Sent by</p>
-                    <p style="font-size:15px;font-weight:700;color:#030E17;margin:0 0 12px 0;">${escapeHtml(from)}</p>${buildAttributePills(senderAttributes)}
+                    <p style="font-size:15px;font-weight:700;color:#030E17;margin:0 0 12px 0;"><img src="${checkmarkUrl}" alt="" width="14" height="12" style="vertical-align:middle;margin-right:6px;display:inline-block;" />${escapeHtml(from)}</p>${buildAttributePills(senderAttributes)}
                 </div>
             </div>
             <div style="height:40px;"></div>
