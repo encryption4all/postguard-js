@@ -2,6 +2,7 @@ import { YiviCore } from '@privacybydesign/yivi-core';
 import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
 import { injectYiviCss } from '../yivi/inject-css.js';
+import { YiviSessionError } from '../errors.js';
 import type { SigningKeys } from '../types.js';
 
 export interface YiviSignOptions {
@@ -121,10 +122,33 @@ export async function resolveSigningKeysFromYivi(
   yivi.use(YiviWeb);
   yivi.use(YiviClient);
 
-  const result = await yivi.start() as any;
+  // yivi-core's start() rejects with a bare string final-state name on
+  // anything other than Success ("Cancelled", "TimedOut", "Aborted").
+  // Translate that into a proper Error so consumers' try/catch +
+  // instanceof checks work, and so the rejection has a useful stack and
+  // message instead of a one-word primitive. Also clear the widget host
+  // element so the cancelled/red-X UI doesn't linger past the rejection.
+  let result: any;
+  try {
+    result = await yivi.start();
+  } catch (raw) {
+    cleanupYiviHost(opts.element);
+    if (raw instanceof Error) throw raw;
+    if (typeof raw === 'string') throw new YiviSessionError(raw);
+    throw new YiviSessionError(String(raw ?? 'Unknown'));
+  }
   return {
     pubSignKey: result.pubSignKey,
     privSignKey: result.privSignKey,
     senderEmail: senderEmail ?? opts.senderEmail,
   };
+}
+
+function cleanupYiviHost(selector: string): void {
+  try {
+    const host = typeof document !== 'undefined' ? document.querySelector(selector) : null;
+    if (host) host.innerHTML = '';
+  } catch {
+    // ignore — non-DOM environments or detached selectors
+  }
 }

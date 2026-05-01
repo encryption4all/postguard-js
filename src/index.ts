@@ -58,6 +58,7 @@ export {
   PostGuardError,
   NetworkError,
   YiviNotInstalledError,
+  YiviSessionError,
   DecryptionError,
   IdentityMismatchError,
 } from './errors.js';

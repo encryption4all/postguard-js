@@ -39,3 +39,21 @@ export class IdentityMismatchError extends DecryptionError {
     this.name = 'IdentityMismatchError';
   }
 }
+
+/** Thrown when a Yivi session ends without a successful disclosure —
+ *  user dismissed the QR widget, declined disclosure in the Yivi app,
+ *  or the session timed out. The `reason` field carries the raw
+ *  yivi-core final-state string (`"Cancelled"`, `"TimedOut"`,
+ *  `"Aborted"`, …) for callers that want to distinguish. */
+export class YiviSessionError extends PostGuardError {
+  public readonly reason: string;
+  constructor(reason: string) {
+    super(`Yivi session ended without disclosure: ${reason}`);
+    this.name = 'YiviSessionError';
+    this.reason = reason;
+  }
+  /** Convenience: `reason === 'Cancelled'`. */
+  get cancelled(): boolean {
+    return this.reason === 'Cancelled';
+  }
+}
