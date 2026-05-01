@@ -1,7 +1,14 @@
 // Use pg-wasm's web target — it provides an init() function that accepts
-// a URL, Response, or ArrayBuffer for the WASM binary.
-// @ts-ignore — bypasses package exports to import the web target directly
-import init, * as pgWasm from '../../node_modules/@e4a/pg-wasm/web/index.js';
+// a URL, Response, or ArrayBuffer for the WASM binary. We import a
+// pre-patched copy generated at prebuild time (see
+// scripts/generate-wasm-base64.mjs) which has wasm-bindgen's dead
+// `new URL("index_bg.wasm", import.meta.url)` default-value branch
+// stripped — that branch never fires at runtime (loadWasm always passes
+// a defined `module_or_path`) but webpack 5 statically analyses the
+// `new URL` and fails consumer builds because no separate wasm file
+// ships in pg-js's dist.
+// @ts-ignore — generated JS shim, no .d.ts
+import init, * as pgWasm from './pg-wasm-shim.js';
 import { WASM_BASE64 } from './wasm-binary.js';
 
 let initialized = false;
