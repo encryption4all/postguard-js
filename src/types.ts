@@ -203,14 +203,32 @@ export interface CreateEnvelopeOptions {
   unencryptedMessage?: string;
   /** Verified sender attributes to display (e.g. name, phone number) */
   senderAttributes?: string[];
+  /** Set false to keep the encrypted bytes purely as a local attachment and
+   *  skip the Cryptify upload + body link. Default true. Only applies to
+   *  Tier 2; Tier 3 (over `PG_MAX_ATTACHMENT_SIZE`) always uploads because
+   *  there is no attachment fallback. */
+  uploadToCryptify?: boolean;
 }
+
+/** Which tier the envelope falls into based on encrypted payload size.
+ *  - tier1: very small. Whole ciphertext fits in a URL fragment, no upload.
+ *  - tier2: small/medium. Local attachment plus optional Cryptify upload.
+ *  - tier3: large. Cryptify upload only; no local attachment. */
+export type EnvelopeTier = 'tier1' | 'tier2' | 'tier3';
 
 /** Result of creating an encrypted email envelope */
 export interface EnvelopeResult {
   subject: string;
   htmlBody: string;
   plainTextBody: string;
-  attachment: File;
+  /** Encrypted attachment to include locally on the message. Null in tier3
+   *  (the payload is too large to attach; recipients use the Cryptify link
+   *  in the body instead). Always non-null in tier1 and tier2. */
+  attachment: File | null;
+  /** Which size tier was selected. */
+  tier: EnvelopeTier;
+  /** Cryptify UUID if the payload was uploaded; null otherwise. */
+  uploadUuid: string | null;
 }
 
 /** Options for extracting ciphertext from a received email */

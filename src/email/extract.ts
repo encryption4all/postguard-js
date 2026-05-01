@@ -1,58 +1,43 @@
 import type { ExtractCiphertextOptions } from '../types.js';
 
-export const PG_ARMOR_BEGIN = '-----BEGIN POSTGUARD MESSAGE-----';
-export const PG_ARMOR_END = '-----END POSTGUARD MESSAGE-----';
-export const PG_ARMOR_DIV_ID = 'postguard-armor';
+/** Tier 1 cap (chars of base64). At/below this size the entire ciphertext
+ *  fits in the recipient-side URL fragment so no Cryptify upload is needed. */
 export const PG_MAX_URL_FRAGMENT_SIZE = 100_000;
 
-/** Extract ciphertext from a received email (attachment or armored payload in HTML body) */
+/** Tier 2/3 boundary in *binary* bytes of ciphertext. At or below this we
+ *  ship the encrypted bytes as a local message attachment. Above it the
+ *  attachment is omitted and the recipient relies on the Cryptify link.
+ *  10 MB is comfortably below typical 25 MB Exchange tenant message-size
+ *  limits while keeping a reasonable amount of mail self-contained. */
+export const PG_MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+
+/** Extract ciphertext from a received email by looking for the
+ *  `postguard.encrypted` attachment. Body-armor extraction is no longer
+ *  supported — older messages with an armored block in the HTML body must
+ *  also have shipped the matching attachment, and Tier 3 messages
+ *  intentionally have no attachment (recipients use the Cryptify link
+ *  in the body, surfaced via `extractUploadUuid`). */
 export function extractCiphertext(options: ExtractCiphertextOptions): Uint8Array | null {
-  // Primary: look for postguard.encrypted attachment
   if (options.attachments) {
     const pgAtt = options.attachments.find((att) => att.name === 'postguard.encrypted');
     if (pgAtt) {
       return new Uint8Array(pgAtt.data);
     }
   }
-
-  // Fallback: extract armored payload from HTML body
-  if (options.htmlBody) {
-    const base64 = extractArmoredPayload(options.htmlBody);
-    if (base64) {
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      return bytes;
-    }
-  }
-
   return null;
-}
-
-/** Extract base64-encoded payload from PostGuard armor block in HTML */
-export function extractArmoredPayload(html: string): string | null {
-  const regex = new RegExp(
-    PG_ARMOR_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-      '\\s*([A-Za-z0-9+/=\\s]+?)\\s*' +
-      PG_ARMOR_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  );
-  const match = html.match(regex);
-  if (!match) return null;
-  return match[1].replace(/\s/g, '');
-}
-
-/** Wrap base64 in PostGuard armor block */
-export function armorBase64(base64: string): string {
-  const lines: string[] = [];
-  for (let i = 0; i < base64.length; i += 76) {
-    lines.push(base64.substring(i, i + 76));
-  }
-  return `${PG_ARMOR_BEGIN}\n${lines.join('\n')}\n${PG_ARMOR_END}`;
 }
 
 /** Convert standard base64 to URL-safe base64 */
 export function toUrlSafeBase64(base64: string): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Find a Cryptify UUID embedded in an email body. Looks for either of the
+ *  recipient routes `<websiteUrl>/decrypt?uuid=…` or
+ *  `<websiteUrl>/download?uuid=…` produced by createEnvelope's tier 2/3
+ *  paths. Returns the UUID or null. */
+export function extractUploadUuid(html: string): string | null {
+  if (!html) return null;
+  const match = html.match(/[?&]uuid=([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
 }
