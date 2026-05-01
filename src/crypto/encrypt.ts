@@ -94,10 +94,48 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   const { writable, pipeDone } = withTransform(uploadStream.writable, uploadChunker, effectiveSignal);
 
   // Encrypt: ZIP -> sealStream -> chunker -> upload
-  await sealStream(mpk, sealOptions, readable, writable);
-  await pipeDone;
+  //
+  // sealStream and pipeDone are linked through the stream graph: when the
+  // upload writable errors (Cryptify CORS failure, network error, abort)
+  // the pipeTo rejects and that propagates back through the chunker so
+  // sealStream's writes start failing too. We must observe BOTH promises,
+  // otherwise the loser of the race surfaces as an unhandled rejection
+  // alongside the legitimate caller-facing error. We also explicitly
+  // abort the controller on the first failure so any in-flight fetch in
+  // createUploadStream / pipeTo tears down rather than dangling. */
+  await awaitAllOrAbort(
+    sealStream(mpk, sealOptions, readable, writable),
+    pipeDone,
+    abortController
+  );
 
   return { uuid: uploadStream.getUuid() };
+}
+
+/** Await two stream-pipeline promises, aborting on first failure and
+ *  re-throwing the first error. The losers' eventual rejections are
+ *  observed (`.catch(() => {})`) so they don't surface as unhandled. */
+async function awaitAllOrAbort(
+  seal: Promise<void>,
+  pipe: Promise<void>,
+  abortController: AbortController
+): Promise<void> {
+  let firstErr: unknown;
+  const observed = (p: Promise<void>): Promise<void> =>
+    p.catch((e) => {
+      if (firstErr === undefined) {
+        firstErr = e;
+        try {
+          abortController.abort(e);
+        } catch {
+          // Some environments throw if abort() is called with a reason
+          // they don't understand; fall back to a parameterless abort.
+          abortController.abort();
+        }
+      }
+    });
+  await Promise.all([observed(seal), observed(pipe)]);
+  if (firstErr !== undefined) throw firstErr;
 }
 
 export interface SealRawOptions {
