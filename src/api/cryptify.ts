@@ -9,7 +9,16 @@ export interface InitUploadOptions {
   recipient: string;
   mailContent?: string;
   mailLang?: 'EN' | 'NL';
+  /** Send a confirmation email to the sender. Default false. Maps to
+   *  the wire-level `confirm` field. */
   confirm?: boolean;
+  /** Send a notification email to each recipient. Default false in the
+   *  SDK (overrides Cryptify's server-side default of true for clients
+   *  that don't send the field, so callers get a silent upload by
+   *  default). Requires cryptify ≥ the release that added the
+   *  `notifyRecipients` field; older servers ignore it and continue to
+   *  email recipients. */
+  notifyRecipients?: boolean;
   signal?: AbortSignal;
 }
 
@@ -27,6 +36,10 @@ export async function initUpload(
       recipient: options.recipient,
       mailContent: options.mailContent ?? '',
       mailLang: options.mailLang ?? 'EN',
+      // Always send the field so older Cryptify deployments (default
+      // notifyRecipients: true) get explicitly overridden to the SDK's
+      // silent-by-default semantics.
+      notifyRecipients: options.notifyRecipients ?? false,
     }),
   });
 

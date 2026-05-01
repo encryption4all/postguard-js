@@ -71,7 +71,11 @@ export class Sealed {
   }
 
   /** Encrypt and upload to Cryptify (streams internally for efficiency).
-   *  Pass `notify` to have Cryptify send email notifications to recipients. */
+   *  Silent by default — pass `notify.recipients = true` to have
+   *  Cryptify email each recipient a download link, and/or
+   *  `notify.sender = true` for a confirmation back to the sender.
+   *  `notify.message` adds an optional unencrypted body shared by both
+   *  mails. */
   async upload(opts?: UploadOptions): Promise<UploadResult> {
     if (!this.config.cryptifyUrl) {
       throw new Error('cryptifyUrl is required for upload');

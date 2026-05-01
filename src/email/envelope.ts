@@ -33,7 +33,7 @@ const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
  *  Outlook's 1 M-char setAsync limit and was redundant with the
  *  attachment / fragment link. */
 export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
-  const { sealed, from, unencryptedMessage, senderAttributes } = options;
+  const { sealed, from, unencryptedMessage, senderAttributes, notify } = options;
   const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
   const uploadToCryptify = options.uploadToCryptify ?? true;
   const logoUrl = `${websiteUrl}/pg_logo.png`;
@@ -59,7 +59,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
 
     if (tryUpload) {
       try {
-        const result = await sealed.upload();
+        const result = await sealed.upload(notify ? { notify } : undefined);
         uploadUuid = result.uuid;
       } catch {
         // Network / CORS / Cryptify-unavailable. Fall through to

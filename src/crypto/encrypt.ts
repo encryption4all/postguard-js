@@ -21,9 +21,12 @@ export interface EncryptPipelineOptions {
   /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
   uploadChunkSize?: number;
   delivery?: {
+    /** Send a notification email to each recipient. Default false. */
+    recipients?: boolean;
+    /** Send a confirmation email to the sender. Default false. */
+    sender?: boolean;
     message?: string;
     language?: 'EN' | 'NL';
-    confirmToSender?: boolean;
   };
   headers?: HeadersInit;
   /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
@@ -80,7 +83,8 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     recipient: recipientEmails,
     mailContent: delivery?.message,
     mailLang: delivery?.language,
-    confirm: delivery?.confirmToSender,
+    confirm: delivery?.sender,
+    notifyRecipients: delivery?.recipients,
     abortSignal: effectiveSignal,
     onProgress: (uploaded, last) => {
       if (onProgress) {
