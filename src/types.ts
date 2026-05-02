@@ -76,11 +76,25 @@ export interface EncryptInput {
 
 /** Options for sealed.upload() */
 export interface UploadOptions {
-  /** If provided, Cryptify sends email notifications to recipients */
+  /** Cryptify notification settings. Both recipient and sender mails
+   *  are opt-in: omit `notify` (or omit the `recipients` / `sender`
+   *  fields) and the upload is silent. Use this when the encrypted
+   *  payload is being delivered through another channel (e.g. an email
+   *  client) — pass an explicit toggle when Cryptify itself should
+   *  email anyone. */
   notify?: {
+    /** Send a notification email to each recipient with a download
+     *  link. Default false. */
+    recipients?: boolean;
+    /** Send a confirmation email back to the sender. Default false.
+     *  Independent of `recipients`. */
+    sender?: boolean;
+    /** Optional unencrypted message body included in any notification
+     *  email(s) sent — both the per-recipient mail and the sender
+     *  confirmation, when those are enabled. */
     message?: string;
+    /** Notification email template language. Default 'EN'. */
     language?: 'EN' | 'NL';
-    confirmToSender?: boolean;
   };
 }
 
@@ -208,6 +222,12 @@ export interface CreateEnvelopeOptions {
    *  Tier 2; Tier 3 (over `PG_MAX_ATTACHMENT_SIZE`) always uploads because
    *  there is no attachment fallback. */
   uploadToCryptify?: boolean;
+  /** Notification settings for the underlying Cryptify upload. Same
+   *  shape as `Sealed.upload`'s `notify`. Silent by default — set
+   *  `notify.recipients = true` to opt into per-recipient mails, etc.
+   *  Has no effect on Tier 1 (no upload happens) or when
+   *  `uploadToCryptify: false` already skipped the upload. */
+  notify?: UploadOptions['notify'];
 }
 
 /** Which tier the envelope falls into based on encrypted payload size.
