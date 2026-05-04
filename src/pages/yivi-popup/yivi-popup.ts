@@ -2,7 +2,7 @@
 export {};
 
 import { PostGuard } from "@e4a/pg-js";
-import type { DecryptDataResult } from "@e4a/pg-js";
+import type { DecryptDataResult, DecryptFileResult } from "@e4a/pg-js";
 import { toBase64, fromBase64 } from "../../lib/encoding";
 import type {
   CryptoPopupInitData,
@@ -123,8 +123,16 @@ async function handleEncrypt(pg: PostGuard, data: EncryptPopupData, windowId: nu
     senderAttributes: data.senderAttributes?.map((attr) => attr.v),
   });
 
-  // Read the attachment File into base64
-  const attBytes = new Uint8Array(await envelope.attachment.arrayBuffer());
+  // pg-js 1.1.0+: envelope.attachment is null in tier 3 (the encrypted
+  // payload was too large for a local attachment; the body has the
+  // Cryptify download link instead).
+  let attachmentBase64: string | null = null;
+  let attachmentSize = 0;
+  if (envelope.attachment) {
+    const attBytes = new Uint8Array(await envelope.attachment.arrayBuffer());
+    attachmentBase64 = toBase64(attBytes);
+    attachmentSize = attBytes.byteLength;
+  }
 
   await browser.runtime.sendMessage({
     type: "cryptoPopupDone",
@@ -134,31 +142,123 @@ async function handleEncrypt(pg: PostGuard, data: EncryptPopupData, windowId: nu
       subject: envelope.subject,
       htmlBody: envelope.htmlBody,
       plainTextBody: envelope.plainTextBody,
-      attachmentBase64: toBase64(attBytes),
-      attachmentSize: attBytes.byteLength,
+      attachmentBase64,
+      attachmentSize,
+      tier: envelope.tier,
+      uploadUuid: envelope.uploadUuid,
     },
   });
 }
 
 async function handleDecrypt(pg: PostGuard, data: DecryptPopupData, windowId: number) {
-  const ciphertext = fromBase64(data.ciphertextBase64);
+  // Background hands us either tier-1/2 ciphertext bytes (from the
+  // postguard.encrypted attachment) or a tier-3 Cryptify uuid (no
+  // attachment exists; the encrypted payload is on Cryptify).
+  let plaintext: Uint8Array;
+  let sender: DecryptDataResult["sender"];
 
-  // Decrypt with element-based Yivi
-  const opened = pg.open({ data: ciphertext });
-  const result = (await opened.decrypt({
-    element: "#yivi-web-form",
-    recipient: data.recipientEmail,
-  })) as DecryptDataResult;
+  if (data.uuid) {
+    const opened = pg.open({ uuid: data.uuid });
+    const result = (await opened.decrypt({
+      element: "#yivi-web-form",
+      recipient: data.recipientEmail,
+    })) as DecryptFileResult;
+    // pg-js's upload pipeline always wraps `data:`-mode payloads as a
+    // single-file zip (`data.bin` = the raw MIME) before sealing, so the
+    // uuid-mode decrypt yields a zip blob even though our caller used
+    // `data:` on the encrypt side. Unwrap it here. Tracked upstream at
+    // encryption4all/postguard-js#39 — once that lands the SDK will hand
+    // back a DecryptDataResult directly and this branch can collapse.
+    plaintext = await extractFromZip(result.blob, "data.bin");
+    sender = result.sender;
+  } else if (data.ciphertextBase64) {
+    const ciphertext = fromBase64(data.ciphertextBase64);
+    const opened = pg.open({ data: ciphertext });
+    const result = (await opened.decrypt({
+      element: "#yivi-web-form",
+      recipient: data.recipientEmail,
+    })) as DecryptDataResult;
+    plaintext = result.plaintext;
+    sender = result.sender;
+  } else {
+    throw new Error("Decrypt popup requires either ciphertextBase64 or uuid");
+  }
 
   await browser.runtime.sendMessage({
     type: "cryptoPopupDone",
     windowId,
     result: {
       operation: "decrypt",
-      plaintextBase64: toBase64(result.plaintext),
-      sender: result.sender,
+      plaintextBase64: toBase64(plaintext),
+      sender,
     },
   });
+}
+
+/** Extract a single file from a ZIP blob and return its uncompressed
+ *  bytes. Reads via the central directory because conflux (pg-js's zip
+ *  writer) emits streaming-mode local file headers with `compressedSize:
+ *  0`. Supports stored (method 0) and deflate (method 8); the latter via
+ *  DecompressionStream('deflate-raw'), the right decoder for ZIP-embedded
+ *  deflate. */
+async function extractFromZip(blob: Blob, filename: string): Promise<Uint8Array> {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  const decoder = new TextDecoder("utf-8");
+
+  // Locate the End-of-Central-Directory record (signature 0x06054b50);
+  // it sits in the last 22 + comment(<=64KB) bytes.
+  let eocdOffset = -1;
+  for (
+    let i = bytes.length - 22;
+    i >= Math.max(0, bytes.length - 65557);
+    i--
+  ) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error("ZIP EOCD record not found");
+
+  const cdOffset = view.getUint32(eocdOffset + 16, true);
+  const numEntries = view.getUint16(eocdOffset + 10, true);
+
+  let pos = cdOffset;
+  for (let i = 0; i < numEntries; i++) {
+    if (view.getUint32(pos, true) !== 0x02014b50) break; // CDR signature
+
+    const method = view.getUint16(pos + 10, true);
+    const compressedSize = view.getUint32(pos + 20, true);
+    const nameLen = view.getUint16(pos + 28, true);
+    const extraLen = view.getUint16(pos + 30, true);
+    const commentLen = view.getUint16(pos + 32, true);
+    const lfhOffset = view.getUint32(pos + 42, true);
+    const name = decoder.decode(
+      bytes.slice(pos + 46, pos + 46 + nameLen)
+    );
+
+    if (name === filename) {
+      const lfhNameLen = view.getUint16(lfhOffset + 26, true);
+      const lfhExtraLen = view.getUint16(lfhOffset + 28, true);
+      const dataStart = lfhOffset + 30 + lfhNameLen + lfhExtraLen;
+      const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+
+      if (method === 0) return compressed;
+      if (method === 8) {
+        const stream = new Blob([compressed as BlobPart])
+          .stream()
+          .pipeThrough(new DecompressionStream("deflate-raw"));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      }
+      throw new Error(`Unsupported zip compression method ${method} for ${filename}`);
+    }
+
+    pos += 46 + nameLen + extraLen + commentLen;
+  }
+
+  throw new Error(`File "${filename}" not found in zip`);
 }
 
 function showError(msg: string) {

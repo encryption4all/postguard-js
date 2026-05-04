@@ -39,7 +39,14 @@ export interface EncryptPopupData {
 export interface DecryptPopupData {
   operation: "decrypt";
   config: CryptoPopupConfig;
-  ciphertextBase64: string;
+  /** Tier 1/2 source — bytes extracted from the postguard.encrypted
+   *  attachment. Mutually exclusive with `uuid`; exactly one of the two
+   *  must be set. */
+  ciphertextBase64?: string;
+  /** Tier 3 source — Cryptify uuid extracted from the in-body decrypt
+   *  link (the message ships no postguard.encrypted attachment). The
+   *  popup will fetch + decrypt via `pg.open({ uuid })`. */
+  uuid?: string;
   recipientEmail: string;
 }
 
@@ -50,8 +57,12 @@ export interface EncryptPopupResult {
   subject: string;
   htmlBody: string;
   plainTextBody: string;
-  attachmentBase64: string;
+  /** null in tier 3 — pg-js decided the encrypted payload was too large
+   *  for a local attachment; the body's Cryptify link carries it. */
+  attachmentBase64: string | null;
   attachmentSize: number;
+  tier: "tier1" | "tier2" | "tier3";
+  uploadUuid: string | null;
 }
 
 export interface DecryptPopupResult {

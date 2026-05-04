@@ -1,6 +1,6 @@
 /// <reference path="../types/thunderbird.d.ts" />
 
-import { buildMime, extractCiphertext, injectMimeHeaders } from "@e4a/pg-js";
+import { buildMime, extractCiphertext, extractUploadUuid, injectMimeHeaders } from "@e4a/pg-js";
 import { composeTabs, decryptedMessages, persistEncryptState, restoreEncryptState } from "./state";
 import { PKG_URL, CRYPTIFY_URL, POSTGUARD_WEBSITE_URL } from "../lib/pkg-client";
 import { toBase64, fromBase64 } from "../lib/encoding";
@@ -245,13 +245,19 @@ async function shouldEncrypt(tabId: number): Promise<boolean> {
 }
 
 async function isPGEncrypted(msgId: number): Promise<boolean> {
+  // Tier 1/2 envelopes ship a postguard.encrypted attachment. Tier 3 has
+  // no attachment — the encrypted payload only lives in Cryptify, with
+  // a /decrypt?uuid=… link in the body. Both shapes are handled by the
+  // popup's decrypt path; we just need to detect "looks like a PostGuard
+  // message" here so the banner offers the Decrypt button instead of
+  // falling back to the wasEncrypted info banner.
   const attachments = await browser.messages.listAttachments(msgId);
   if (attachments.some((att) => att.name === "postguard.encrypted")) return true;
 
   try {
     const full = await browser.messages.getFull(msgId);
     const bodyHtml = findHtmlBody(full);
-    if (bodyHtml && bodyHtml.includes("-----BEGIN POSTGUARD MESSAGE-----")) return true;
+    if (bodyHtml && extractUploadUuid(bodyHtml)) return true;
   } catch {
     // ignore
   }
@@ -461,9 +467,14 @@ async function handleBeforeSend(tab: { id: number }, details: any) {
         senderAttributes,
       }) as EncryptPopupResult;
 
-      // Only attach the encrypted file if it's under 5 MB
+      // pg-js 1.1.0+ may already decide to skip the attachment in tier 3.
+      // We additionally enforce a stricter 5 MB local cap for Thunderbird
+      // (some SMTP servers refuse messages larger than that).
       const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
-      if (result.attachmentSize <= MAX_ATTACHMENT_SIZE) {
+      if (
+        result.attachmentBase64 != null &&
+        result.attachmentSize <= MAX_ATTACHMENT_SIZE
+      ) {
         const attBytes = fromBase64(result.attachmentBase64);
         const attFile = new File([attBytes as BlobPart], "postguard.encrypted", {
           type: "application/postguard; charset=utf-8",
@@ -692,13 +703,17 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
       // ignore
     }
 
+    // Tier 1/2: ciphertext lives in the postguard.encrypted attachment.
+    // Tier 3: no attachment — we extract the Cryptify uuid from the body
+    // and let the popup fetch+decrypt via pg.open({ uuid }).
     const ciphertext = extractCiphertext({
       htmlBody: htmlBody ?? undefined,
       attachments: attData,
     });
+    const uploadUuid = ciphertext ? null : extractUploadUuid(htmlBody ?? "");
 
-    if (!ciphertext) {
-      console.error("[PostGuard] No ciphertext found in message");
+    if (!ciphertext && !uploadUuid) {
+      console.error("[PostGuard] No ciphertext or upload uuid found in message");
       return { ok: false, error: "decryptionError" };
     }
 
@@ -714,7 +729,8 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
         cryptifyUrl: CRYPTIFY_URL,
         headers: PG_CLIENT_HEADER,
       },
-      ciphertextBase64: toBase64(ciphertext),
+      ciphertextBase64: ciphertext ? toBase64(ciphertext) : undefined,
+      uuid: uploadUuid ?? undefined,
       recipientEmail: myAddresses[0],
     }) as DecryptPopupResult;
 
