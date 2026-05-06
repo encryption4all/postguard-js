@@ -105,7 +105,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
                 <div style="text-align:left;padding-top:30px;">
                     <p style="color:#5F7381;font-size:16px;font-weight:600;margin:0 0 4px 0;">Or use our extension</p>
                     <a style="color:#3095DE;font-size:13px;font-weight:400;line-height:18px;word-break:break-all;" href="${websiteUrl}/addons">
-                        Decrypt seamlessly with the PostGuard extension for your email client
+                        Decrypt with the PostGuard extension for your email client
                     </a>
                 </div>
                 <div style="margin-top:40px;padding-top:30px;border-top:1px solid #C6E2F6;text-align:center;">
