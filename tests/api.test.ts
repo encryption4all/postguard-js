@@ -109,6 +109,51 @@ describe('Cryptify API', () => {
         initUpload('https://cryptify.example.com', { recipient: 'a@b.com' })
       ).rejects.toThrow(NetworkError);
     });
+
+    it('omits Authorization header when no apiKey is set', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ uuid: 'u' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 't' }),
+      });
+
+      await initUpload('https://cryptify.example.com', { recipient: 'a@b.com' });
+
+      // Without an apiKey, the Authorization key must not appear at all in
+      // the outgoing init — using `not.objectContaining` rather than
+      // checking for `undefined` so we don't depend on whether the spread
+      // produced an explicit `undefined` value vs. an absent key.
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://cryptify.example.com/fileupload/init',
+        expect.objectContaining({
+          headers: expect.not.objectContaining({ Authorization: expect.anything() }),
+        })
+      );
+    });
+
+    it('sends Authorization: Bearer <apiKey> when apiKey is set', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ uuid: 'u' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 't' }),
+      });
+
+      await initUpload('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        apiKey: 'PG-test-key',
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://cryptify.example.com/fileupload/init',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
+        })
+      );
+    });
   });
 
   describe('storeChunk', () => {
@@ -136,6 +181,30 @@ describe('Cryptify API', () => {
           headers: expect.objectContaining({
             'content-range': 'bytes 0-4/*',
           }),
+        })
+      );
+    });
+
+    it('forwards Authorization: Bearer <apiKey> when set', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ cryptifytoken: 'tok' }),
+      });
+
+      await storeChunk(
+        'https://cryptify.example.com',
+        { token: 't', uuid: 'u' },
+        new Uint8Array([1]),
+        0,
+        undefined,
+        'PG-test-key'
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://cryptify.example.com/fileupload/u',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
         })
       );
     });
@@ -171,6 +240,46 @@ describe('Cryptify API', () => {
           100
         )
       ).rejects.toThrow(NetworkError);
+    });
+
+    it('forwards Authorization: Bearer <apiKey> when set', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('') });
+
+      await finalizeUpload(
+        'https://cryptify.example.com',
+        { token: 't', uuid: 'u' },
+        100,
+        undefined,
+        'PG-test-key'
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://cryptify.example.com/fileupload/finalize/u',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
+        })
+      );
+    });
+
+    it('surfaces 503 from cryptify as NetworkError when pkg is unreachable', async () => {
+      // When cryptify cannot validate the API key against pkg AND the
+      // upload exceeds the default tier, cryptify returns 503. The SDK
+      // surfaces this as a NetworkError with status 503 so callers can
+      // distinguish it from quota / auth errors.
+      mockFetch.mockResolvedValueOnce(errorResponse(503, 'pg-pkg unreachable'));
+
+      await expect(
+        finalizeUpload(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u' },
+          200_000_000_000,
+          undefined,
+          'PG-test-key'
+        )
+      ).rejects.toMatchObject({
+        name: 'NetworkError',
+        status: 503,
+      });
     });
   });
 

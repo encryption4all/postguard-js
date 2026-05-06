@@ -79,12 +79,19 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   const recipientEmails = recipients.map((r) => r.email).join(', ');
   const totalSize = files.reduce((a, f) => a + f.size, 0);
 
+  // Forward the business API key (when signing via apiKey) to Cryptify so
+  // the upload runs under the higher quota tier. Cryptify validates the
+  // bearer against PKG; an unrecognised or missing key falls back to the
+  // default 5 GB caps.
+  const cryptifyApiKey = sign.type === 'apiKey' ? sign.apiKey : undefined;
+
   const uploadStream = createUploadStream(cryptifyUrl, {
     recipient: recipientEmails,
     mailContent: delivery?.message,
     mailLang: delivery?.language,
     confirm: delivery?.sender,
     notifyRecipients: delivery?.recipients,
+    apiKey: cryptifyApiKey,
     abortSignal: effectiveSignal,
     onProgress: (uploaded, last) => {
       if (onProgress) {

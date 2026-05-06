@@ -19,7 +19,17 @@ export interface InitUploadOptions {
    *  `notifyRecipients` field; older servers ignore it and continue to
    *  email recipients. */
   notifyRecipients?: boolean;
+  /** PostGuard for Business API key (`PG-…`). When set, sent to Cryptify
+   *  as `Authorization: Bearer <apiKey>` on every upload request. Cryptify
+   *  forwards the bearer to PKG's `/v2/api-key/validate`; a validated key
+   *  unlocks the higher upload-quota tier (100 GB/upload + 100 GB rolling
+   *  vs. the default 5 GB caps). */
+  apiKey?: string;
   signal?: AbortSignal;
+}
+
+function bearerHeader(apiKey?: string): Record<string, string> {
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
 
 /** Initialize a file upload, returns token and uuid */
@@ -30,7 +40,10 @@ export async function initUpload(
   const response = await fetch(`${cryptifyUrl}/fileupload/init`, {
     signal: options.signal,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...bearerHeader(options.apiKey),
+    },
     body: JSON.stringify({
       confirm: options.confirm ?? false,
       recipient: options.recipient,
@@ -59,7 +72,8 @@ export async function storeChunk(
   state: FileState,
   chunk: Uint8Array,
   offset: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  apiKey?: string
 ): Promise<FileState> {
   const response = await fetch(`${cryptifyUrl}/fileupload/${state.uuid}`, {
     signal,
@@ -68,6 +82,7 @@ export async function storeChunk(
       cryptifytoken: state.token,
       'Content-Type': 'application/octet-stream',
       'content-range': `bytes ${offset}-${offset + chunk.length}/*`,
+      ...bearerHeader(apiKey),
     },
     body: new Blob([chunk as BlobPart]),
   });
@@ -86,7 +101,8 @@ export async function finalizeUpload(
   cryptifyUrl: string,
   state: FileState,
   size: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  apiKey?: string
 ): Promise<void> {
   const response = await fetch(`${cryptifyUrl}/fileupload/finalize/${state.uuid}`, {
     signal,
@@ -94,6 +110,7 @@ export async function finalizeUpload(
     headers: {
       cryptifytoken: state.token,
       'content-range': `bytes */${size}`,
+      ...bearerHeader(apiKey),
     },
   });
 
@@ -155,7 +172,7 @@ export function createUploadStream(
       },
       async write(chunk, c) {
         try {
-          state = await storeChunk(cryptifyUrl, state, chunk, processed, signal);
+          state = await storeChunk(cryptifyUrl, state, chunk, processed, signal, options.apiKey);
           processed += chunk.length;
           onProgress?.(processed, false);
           if (signal?.aborted) throw new Error('Abort signaled during storeChunk.');
@@ -169,7 +186,7 @@ export function createUploadStream(
         const combinedSignal = signal
           ? AbortSignal.any([signal, controller.signal])
           : controller.signal;
-        await finalizeUpload(cryptifyUrl, state, processed, combinedSignal);
+        await finalizeUpload(cryptifyUrl, state, processed, combinedSignal, options.apiKey);
         onProgress?.(processed, true);
         clearTimeout(timeoutId);
         if (signal?.aborted) throw new Error('Abort signaled during finalize.');
