@@ -16,7 +16,7 @@ PostGuard
 ## Short summary (250 chars max)
 
 End-to-end email encryption for Thunderbird. Encrypt to any email address
-without keys or certificates. Recipients unlock with Yivi, a free app that
+without keys or certificates. Recipients decrypt with Yivi, a free app that
 proves their identity attributes (email, phone, etc.) without creating an
 account.
 

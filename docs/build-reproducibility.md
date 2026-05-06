@@ -10,7 +10,7 @@ unmodified result of building this repository at a tagged commit. Tracks
 Running `npm run package` produces a single ZIP (`*.xpi`) containing only
 the contents of `dist/`. There are five JavaScript bundles, three HTML
 files, the manifest, locale strings, icons, and a CSS file. There is no
-separate `.wasm` file in the package — the WebAssembly binary is
+separate `.wasm` file in the package; the WebAssembly binary is
 base64-inlined into `dist/pages/yivi-popup/yivi-popup.js` by esbuild at
 build time.
 
@@ -74,7 +74,7 @@ sha256sum /tmp/package/bundler/index_bg.wasm
 ```
 
 The two hashes must be identical. If they differ, the local
-`node_modules` has been modified after install — investigate before
+`node_modules` has been modified after install. Investigate before
 shipping anything.
 
 ## Reproducing the WASM binary from source
@@ -88,7 +88,7 @@ release; a reviewer can re-run it locally:
 git clone https://github.com/encryption4all/postguard
 cd postguard
 # Match the toolchain CI uses (stable). For full determinism, pin to the
-# Rust release current at the pg-wasm publish date — see
+# Rust release current at the pg-wasm publish date; see
 # .github/workflows/delivery.yml history.
 rustup install stable
 rustup target add wasm32-unknown-unknown
