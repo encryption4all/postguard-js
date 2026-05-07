@@ -1,4 +1,5 @@
 import type { FriendlySender } from './util/identity.js';
+import type { RetryOptions } from './util/retry.js';
 
 // --- Config ---
 
@@ -15,7 +16,7 @@ export interface PostGuardConfig {
    * jitter. 4xx responses (including the structured `upload_session_not_found`
    * 404) and caller-driven aborts are not retried.
    */
-  retry?: import('./util/retry.js').RetryOptions;
+  retry?: RetryOptions;
 }
 
 // --- Recipients ---

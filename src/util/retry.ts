@@ -13,7 +13,14 @@ export interface RetryOptions {
   chunkTimeoutMs?: number;
   /** Per-attempt timeout for finalize. Default 120 000. */
   finalizeTimeoutMs?: number;
-  /** Per-attempt timeout for download. Default disabled — let retry budget bound it. */
+  /**
+   * Per-attempt timeout for the download GET. Default disabled — let the
+   * retry budget bound it instead. Note this only bounds the request
+   * handshake (until the response headers + body stream are returned);
+   * stream consumption happens after the call returns and is *not*
+   * affected by this timeout. If you need to cap mid-stream stalls,
+   * implement that at the stream-reader level.
+   */
   downloadTimeoutMs?: number;
   /** Notification fired when a retry is about to be attempted (after a failure, before the delay). */
   onRetry?: (info: RetryEvent) => void;

@@ -59,14 +59,14 @@ const UPLOAD_SESSION_NOT_FOUND_ERROR = 'upload_session_not_found';
  */
 function throwSessionExpiredOrNetworkError(message: string, status: number, body: string, uuid: string): never {
   if (status === 404) {
+    let parsed: { error?: string; reason?: string; uuid?: string } | undefined;
     try {
-      const parsed = JSON.parse(body) as { error?: string; reason?: string; uuid?: string };
-      if (parsed.error === UPLOAD_SESSION_NOT_FOUND_ERROR) {
-        throw new UploadSessionExpiredError(parsed.uuid ?? uuid, parsed.reason ?? 'unknown', body);
-      }
-    } catch (e) {
-      if (e instanceof UploadSessionExpiredError) throw e;
-      // JSON parse failure or other — fall through to NetworkError below.
+      parsed = JSON.parse(body);
+    } catch {
+      // Body wasn't JSON — fall through to plain NetworkError below.
+    }
+    if (parsed?.error === UPLOAD_SESSION_NOT_FOUND_ERROR) {
+      throw new UploadSessionExpiredError(parsed.uuid ?? uuid, parsed.reason ?? 'unknown', body);
     }
   }
   throw new NetworkError(message, status, body);
