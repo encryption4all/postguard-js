@@ -97,6 +97,7 @@ export class Sealed {
       delivery: opts?.notify,
       headers: this.config.headers,
       signingKeys,
+      retry: this.config.retry,
     });
   }
 

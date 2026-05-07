@@ -2,7 +2,8 @@ import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallb
 import { DecryptionError, IdentityMismatchError } from '../errors.js';
 import { fetchVerificationKey } from '../api/pkg.js';
 import { getUSK } from '../api/pkg.js';
-import { downloadFile } from '../api/cryptify.js';
+import { downloadFile, downloadFileWithRetry } from '../api/cryptify.js';
+import { resolveRetryOptions, type RetryOptions } from '../util/retry.js';
 import { buildKeyRequest } from '../util/policy.js';
 import { retrieveUSKViaYivi } from '../yivi/decrypt-session.js';
 import { readZipFilenames } from '../util/zip.js';
@@ -19,6 +20,7 @@ export interface InspectSealedOptions {
   data?: Uint8Array | ReadableStream<Uint8Array>;
   signal?: AbortSignal;
   headers?: HeadersInit;
+  retry?: RetryOptions;
 }
 
 export interface InspectSealedResult {
@@ -37,9 +39,10 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
 
   if (uuid && cryptifyUrl) {
     // Download from Cryptify and fetch VK in parallel
+    const retry = resolveRetryOptions(options.retry);
     const [vk, fileStream] = await Promise.all([
       fetchVerificationKey(pkgUrl, headers),
-      downloadFile(cryptifyUrl, uuid, signal),
+      downloadFileWithRetry(cryptifyUrl, uuid, retry, signal),
     ]);
     readable = fileStream;
     vkPromise = Promise.resolve(vk);

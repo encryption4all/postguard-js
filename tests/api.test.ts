@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { NetworkError } from '../src/errors.js';
+import { NetworkError, UploadSessionExpiredError } from '../src/errors.js';
 import { fetchMPK, fetchVerificationKey, fetchSigningKeysWithApiKey } from '../src/api/pkg.js';
-import { initUpload, storeChunk, finalizeUpload, downloadFile } from '../src/api/cryptify.js';
+import {
+  initUpload,
+  storeChunk,
+  storeChunkWithRetry,
+  finalizeUpload,
+  downloadFile,
+  downloadFileWithRetry,
+} from '../src/api/cryptify.js';
+import { resolveRetryOptions } from '../src/util/retry.js';
 
 // Mock global fetch
 const mockFetch = vi.fn();
 
 beforeEach(() => {
+  mockFetch.mockReset();
   vi.stubGlobal('fetch', mockFetch);
 });
 
@@ -208,6 +217,233 @@ describe('Cryptify API', () => {
         })
       );
     });
+
+    it('surfaces upload_session_not_found 404 as UploadSessionExpiredError', async () => {
+      const body = JSON.stringify({
+        error: 'upload_session_not_found',
+        uuid: 'file-uuid',
+        reason: 'expired_or_unknown',
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve(body),
+        headers: new Headers(),
+      });
+
+      await expect(
+        storeChunk(
+          'https://cryptify.example.com',
+          { token: 'tok', uuid: 'file-uuid' },
+          new Uint8Array([1]),
+          0
+        )
+      ).rejects.toMatchObject({
+        name: 'UploadSessionExpiredError',
+        status: 404,
+        uuid: 'file-uuid',
+        reason: 'expired_or_unknown',
+      });
+    });
+
+    it('plain 404 (non-structured body) still falls through as NetworkError', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve('plain 404 body'),
+        headers: new Headers(),
+      });
+
+      const err = await storeChunk(
+        'https://cryptify.example.com',
+        { token: 'tok', uuid: 'u' },
+        new Uint8Array([1]),
+        0
+      ).catch((e) => e);
+
+      expect(err).toBeInstanceOf(NetworkError);
+      expect(err).not.toBeInstanceOf(UploadSessionExpiredError);
+      expect(err.status).toBe(404);
+    });
+  });
+
+  describe('storeChunkWithRetry', () => {
+    const fastRetry = resolveRetryOptions({
+      maxAttempts: 3,
+      initialDelayMs: 1,
+      maxDelayMs: 5,
+      multiplier: 2,
+    });
+
+    it('returns the new token on first-attempt success', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ cryptifytoken: 'tok-after' }),
+      });
+
+      const result = await storeChunkWithRetry(
+        'https://cryptify.example.com',
+        { token: 'tok-before', uuid: 'u' },
+        new Uint8Array([1]),
+        0,
+        fastRetry
+      );
+
+      expect(result.token).toBe('tok-after');
+      expect(result.prevToken).toBe('tok-before');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries on 503 and succeeds on the next attempt', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          text: () => Promise.resolve('busy'),
+          headers: new Headers(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ cryptifytoken: 'tok-after' }),
+        });
+
+      const result = await storeChunkWithRetry(
+        'https://cryptify.example.com',
+        { token: 'tok-before', uuid: 'u' },
+        new Uint8Array([1]),
+        0,
+        fastRetry
+      );
+
+      expect(result.token).toBe('tok-after');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('sends prevToken on retry so cryptify can detect a duplicate', async () => {
+      mockFetch
+        .mockRejectedValueOnce(new TypeError('network error'))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ cryptifytoken: 'tok-after' }),
+        });
+
+      const result = await storeChunkWithRetry(
+        'https://cryptify.example.com',
+        { token: 'tok-current', prevToken: 'tok-prev', uuid: 'u' },
+        new Uint8Array([1]),
+        0,
+        fastRetry
+      );
+
+      expect(result.token).toBe('tok-after');
+      // Attempt 1 sends `state.token` (tok-current).
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        'https://cryptify.example.com/fileupload/u',
+        expect.objectContaining({
+          headers: expect.objectContaining({ cryptifytoken: 'tok-current' }),
+        })
+      );
+      // Attempt 2 sends `state.prevToken` (tok-prev) so cryptify's
+      // idempotent-retry path replays the cached response if the original
+      // PUT had been committed before the response was lost.
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        'https://cryptify.example.com/fileupload/u',
+        expect.objectContaining({
+          headers: expect.objectContaining({ cryptifytoken: 'tok-prev' }),
+        })
+      );
+    });
+
+    it('does NOT retry on UploadSessionExpiredError (4xx fail-fast)', async () => {
+      const body = JSON.stringify({
+        error: 'upload_session_not_found',
+        uuid: 'u',
+        reason: 'expired_or_unknown',
+      });
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve(body),
+        headers: new Headers(),
+      });
+
+      await expect(
+        storeChunkWithRetry(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u' },
+          new Uint8Array([1]),
+          0,
+          fastRetry
+        )
+      ).rejects.toBeInstanceOf(UploadSessionExpiredError);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT retry on 413 (quota exceeded)', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 413,
+        text: () => Promise.resolve('{"error":"per_upload"}'),
+        headers: new Headers(),
+      });
+
+      await expect(
+        storeChunkWithRetry(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u' },
+          new Uint8Array([1]),
+          0,
+          fastRetry
+        )
+      ).rejects.toMatchObject({ name: 'NetworkError', status: 413 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('exhausts maxAttempts on persistent 503 then throws the last error', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: () => Promise.resolve('busy'),
+        headers: new Headers(),
+      });
+
+      await expect(
+        storeChunkWithRetry(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u' },
+          new Uint8Array([1]),
+          0,
+          fastRetry
+        )
+      ).rejects.toMatchObject({ name: 'NetworkError', status: 503 });
+      expect(mockFetch).toHaveBeenCalledTimes(fastRetry.maxAttempts);
+    });
+
+    it('does NOT retry when the caller-provided AbortSignal aborts', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      mockFetch.mockRejectedValueOnce(
+        new DOMException('Aborted', 'AbortError')
+      );
+
+      await expect(
+        storeChunkWithRetry(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u' },
+          new Uint8Array([1]),
+          0,
+          fastRetry,
+          controller.signal
+        )
+      ).rejects.toMatchObject({ name: 'AbortError' });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('finalizeUpload', () => {
@@ -312,6 +548,53 @@ describe('Cryptify API', () => {
       await expect(
         downloadFile('https://cryptify.example.com', 'uuid')
       ).rejects.toThrow('Response body is null');
+    });
+  });
+
+  describe('downloadFileWithRetry', () => {
+    const fastRetry = resolveRetryOptions({
+      maxAttempts: 3,
+      initialDelayMs: 1,
+      maxDelayMs: 5,
+    });
+
+    it('retries on 502 and succeeds on the next attempt', async () => {
+      const stream = new ReadableStream();
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 502,
+          text: () => Promise.resolve('bad gateway'),
+          headers: new Headers(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          body: stream,
+        });
+
+      const result = await downloadFileWithRetry(
+        'https://cryptify.example.com',
+        'uuid',
+        fastRetry
+      );
+
+      expect(result).toBe(stream);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry on 404', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve('not found'),
+        headers: new Headers(),
+      });
+
+      await expect(
+        downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry)
+      ).rejects.toMatchObject({ name: 'NetworkError', status: 404 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 });

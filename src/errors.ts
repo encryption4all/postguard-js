@@ -17,6 +17,28 @@ export class NetworkError extends PostGuardError {
   }
 }
 
+/**
+ * Thrown when Cryptify reports the upload session is no longer known to
+ * the server — either it was idle past the configured TTL, the server
+ * was restarted, or the path UUID is malformed. Distinct from
+ * `NetworkError` so retry policies can short-circuit instead of burning
+ * the budget on something that will never recover. The user must start
+ * a new upload.
+ *
+ * `reason` mirrors Cryptify's structured 404 body
+ * (`expired_or_unknown`, `invalid_uuid`, `file_missing`).
+ */
+export class UploadSessionExpiredError extends NetworkError {
+  public readonly uuid: string;
+  public readonly reason: string;
+  constructor(uuid: string, reason: string, body: string) {
+    super(`Upload session ${uuid} is no longer known to the server (${reason})`, 404, body);
+    this.name = 'UploadSessionExpiredError';
+    this.uuid = uuid;
+    this.reason = reason;
+  }
+}
+
 export class YiviNotInstalledError extends PostGuardError {
   constructor() {
     super(
