@@ -1,7 +1,23 @@
-import { NetworkError } from '../errors.js';
+import { NetworkError, UploadSessionExpiredError } from '../errors.js';
+import {
+  resolveRetryOptions,
+  withRetry,
+  withTimeout,
+  type ResolvedRetryOptions,
+  type RetryOptions,
+} from '../util/retry.js';
 
 interface FileState {
+  /** Current rolling token — what the next chunk PUT should send. */
   token: string;
+  /**
+   * Token sent on the most recent chunk PUT (i.e., the value of `token`
+   * before that PUT advanced it). On a retry whose response was lost,
+   * the caller resends with this value so cryptify's idempotent-retry
+   * path replays the cached response. `undefined` until at least one
+   * chunk has been committed.
+   */
+  prevToken?: string;
   uuid: string;
 }
 
@@ -30,6 +46,30 @@ export interface InitUploadOptions {
 
 function bearerHeader(apiKey?: string): Record<string, string> {
   return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
+/** Cryptify's `upload_session_not_found` error code in the structured 404 body. */
+const UPLOAD_SESSION_NOT_FOUND_ERROR = 'upload_session_not_found';
+
+/**
+ * Inspect a 404 response body. If it's the structured
+ * `upload_session_not_found` JSON cryptify started returning, throw the
+ * dedicated error so retry policies can short-circuit. Otherwise fall
+ * through to a plain NetworkError.
+ */
+function throwSessionExpiredOrNetworkError(message: string, status: number, body: string, uuid: string): never {
+  if (status === 404) {
+    try {
+      const parsed = JSON.parse(body) as { error?: string; reason?: string; uuid?: string };
+      if (parsed.error === UPLOAD_SESSION_NOT_FOUND_ERROR) {
+        throw new UploadSessionExpiredError(parsed.uuid ?? uuid, parsed.reason ?? 'unknown', body);
+      }
+    } catch (e) {
+      if (e instanceof UploadSessionExpiredError) throw e;
+      // JSON parse failure or other — fall through to NetworkError below.
+    }
+  }
+  throw new NetworkError(message, status, body);
 }
 
 /** Initialize a file upload, returns token and uuid */
@@ -66,7 +106,15 @@ export async function initUpload(
   return { token, uuid: resJson['uuid'] };
 }
 
-/** Upload a single chunk */
+/**
+ * Upload a single chunk.
+ *
+ * On retry callers should pass the *previous* token (in `prevToken`) so
+ * that cryptify's idempotent-retry path can recognise a duplicate of the
+ * just-committed chunk. The first attempt sends `state.token`; subsequent
+ * attempts send `state.prevToken ?? state.token` to cover the case where
+ * the previous response was lost in flight.
+ */
 export async function storeChunk(
   cryptifyUrl: string,
   state: FileState,
@@ -89,11 +137,44 @@ export async function storeChunk(
 
   if (!response.ok) {
     const body = await response.text();
-    throw new NetworkError(`Error uploading chunk`, response.status, body);
+    throwSessionExpiredOrNetworkError(`Error uploading chunk`, response.status, body, state.uuid);
   }
 
   const token = response.headers.get('cryptifytoken') as string;
-  return { token, uuid: state.uuid };
+  return { token, uuid: state.uuid, prevToken: state.token };
+}
+
+/**
+ * Upload a chunk with retry on transient failures. On retry the *previous*
+ * token is sent so cryptify can detect this as a duplicate of the
+ * just-committed chunk and replay the cached response without re-writing
+ * or double-counting against quotas. See cryptify's idempotent-retry
+ * contract on `PUT /fileupload/{uuid}`.
+ */
+export async function storeChunkWithRetry(
+  cryptifyUrl: string,
+  state: FileState,
+  chunk: Uint8Array,
+  offset: number,
+  retry: ResolvedRetryOptions,
+  signal?: AbortSignal,
+  apiKey?: string
+): Promise<FileState> {
+  return withRetry(
+    async (attempt) => {
+      const tokenForThisAttempt = attempt === 1 ? state.token : (state.prevToken ?? state.token);
+      const stateForAttempt: FileState = { ...state, token: tokenForThisAttempt };
+      const { signal: timed, cleanup } = withTimeout(signal, retry.chunkTimeoutMs);
+      try {
+        return await storeChunk(cryptifyUrl, stateForAttempt, chunk, offset, timed, apiKey);
+      } finally {
+        cleanup();
+      }
+    },
+    retry,
+    undefined,
+    signal
+  );
 }
 
 /** Finalize the upload */
@@ -116,7 +197,7 @@ export async function finalizeUpload(
 
   if (!response.ok) {
     const body = await response.text();
-    throw new NetworkError(`Error finalizing upload`, response.status, body);
+    throwSessionExpiredOrNetworkError(`Error finalizing upload`, response.status, body, state.uuid);
   }
 }
 
@@ -140,6 +221,38 @@ export async function downloadFile(
   return response.body as ReadableStream<Uint8Array>;
 }
 
+/**
+ * Download with retry on transient failures. Cryptify's `FileServer`
+ * already supports HTTP Range requests, so this could be extended to
+ * resume mid-stream — that's tracked separately. Today the retry simply
+ * re-issues the GET on transient failure.
+ */
+export async function downloadFileWithRetry(
+  cryptifyUrl: string,
+  uuid: string,
+  retry: ResolvedRetryOptions,
+  signal?: AbortSignal
+): Promise<ReadableStream<Uint8Array>> {
+  return withRetry(
+    async () => {
+      const { signal: timed, cleanup } = withTimeout(signal, retry.downloadTimeoutMs);
+      try {
+        return await downloadFile(cryptifyUrl, uuid, timed);
+      } finally {
+        // Note: downloadFile returns a stream that is read *after* this
+        // function returns, so a per-attempt timeout that aborts the
+        // stream mid-read would surface as a stream error. We only
+        // bound the GET handshake here; if downloadTimeoutMs is 0 (the
+        // default) cleanup is a no-op.
+        cleanup();
+      }
+    },
+    retry,
+    undefined,
+    signal
+  );
+}
+
 export interface UploadStream {
   writable: WritableStream<Uint8Array>;
   getUuid: () => string;
@@ -151,12 +264,14 @@ export function createUploadStream(
   options: InitUploadOptions & {
     onProgress?: (uploaded: number, last: boolean) => void;
     abortSignal?: AbortSignal;
+    retry?: RetryOptions;
   }
 ): UploadStream {
   let state: FileState = { token: '', uuid: '' };
   let processed = 0;
   const signal = options.abortSignal;
   const onProgress = options.onProgress;
+  const retry = resolveRetryOptions(options.retry);
   const queuingStrategy = new CountQueuingStrategy({ highWaterMark: 1 });
 
   const writable = new WritableStream<Uint8Array>(
@@ -172,7 +287,15 @@ export function createUploadStream(
       },
       async write(chunk, c) {
         try {
-          state = await storeChunk(cryptifyUrl, state, chunk, processed, signal, options.apiKey);
+          state = await storeChunkWithRetry(
+            cryptifyUrl,
+            state,
+            chunk,
+            processed,
+            retry,
+            signal,
+            options.apiKey
+          );
           processed += chunk.length;
           onProgress?.(processed, false);
           if (signal?.aborted) throw new Error('Abort signaled during storeChunk.');
@@ -181,14 +304,13 @@ export function createUploadStream(
         }
       },
       async close() {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
-        const combinedSignal = signal
-          ? AbortSignal.any([signal, controller.signal])
-          : controller.signal;
-        await finalizeUpload(cryptifyUrl, state, processed, combinedSignal, options.apiKey);
+        const { signal: timed, cleanup } = withTimeout(signal, retry.finalizeTimeoutMs);
+        try {
+          await finalizeUpload(cryptifyUrl, state, processed, timed, options.apiKey);
+        } finally {
+          cleanup();
+        }
         onProgress?.(processed, true);
-        clearTimeout(timeoutId);
         if (signal?.aborted) throw new Error('Abort signaled during finalize.');
       },
       async abort() {

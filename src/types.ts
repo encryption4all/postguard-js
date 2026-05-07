@@ -9,6 +9,13 @@ export interface PostGuardConfig {
   headers?: HeadersInit;
   /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
   uploadChunkSize?: number;
+  /**
+   * Retry behaviour for Cryptify chunk uploads and downloads. Failed chunk
+   * PUTs and download GETs are retried with exponential backoff + full
+   * jitter. 4xx responses (including the structured `upload_session_not_found`
+   * 404) and caller-driven aborts are not retried.
+   */
+  retry?: import('./util/retry.js').RetryOptions;
 }
 
 // --- Recipients ---

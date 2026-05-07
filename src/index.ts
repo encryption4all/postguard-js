@@ -57,8 +57,12 @@ export { createEnvelope } from './email/envelope.js';
 export {
   PostGuardError,
   NetworkError,
+  UploadSessionExpiredError,
   YiviNotInstalledError,
   YiviSessionError,
   DecryptionError,
   IdentityMismatchError,
 } from './errors.js';
+
+// Retry types for callers configuring transient-failure behaviour
+export type { RetryOptions, RetryEvent } from './util/retry.js';

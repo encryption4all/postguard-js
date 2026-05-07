@@ -7,6 +7,7 @@ import { resolveSigningKeys } from './signing.js';
 import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
 import { loadWasm } from '../util/wasm.js';
+import type { RetryOptions } from '../util/retry.js';
 
 const DEFAULT_UPLOAD_CHUNK_SIZE = 5_000_000;
 
@@ -31,6 +32,8 @@ export interface EncryptPipelineOptions {
   headers?: HeadersInit;
   /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
   signingKeys?: SigningKeys;
+  /** Retry behaviour for chunk uploads. See PostGuardConfig.retry. */
+  retry?: RetryOptions;
 }
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
@@ -93,6 +96,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     notifyRecipients: delivery?.recipients,
     apiKey: cryptifyApiKey,
     abortSignal: effectiveSignal,
+    retry: options.retry,
     onProgress: (uploaded, last) => {
       if (onProgress) {
         const pct = totalSize > 0 ? Math.min(100, Math.round((uploaded / totalSize) * 100)) : 0;
