@@ -58,6 +58,7 @@ function createBanner(text: string, buttonLabel: string, messageId: number) {
   btn.textContent = buttonLabel;
   btn.addEventListener("click", async () => {
     btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
     btn.textContent = browser.i18n.getMessage("decryptingButton") || "Decrypting...";
     try {
       const result = await browser.runtime.sendMessage({
@@ -70,11 +71,13 @@ function createBanner(text: string, buttonLabel: string, messageId: number) {
           : browser.i18n.getMessage("decryptionError");
         showBannerError(banner, errorMsg);
         btn.disabled = false;
+        btn.removeAttribute("aria-busy");
         btn.textContent = buttonLabel;
       }
     } catch (e) {
       showBannerError(banner, browser.i18n.getMessage("decryptionError"));
       btn.disabled = false;
+      btn.removeAttribute("aria-busy");
       btn.textContent = buttonLabel;
     }
   });

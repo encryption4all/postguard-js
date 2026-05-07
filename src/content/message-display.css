@@ -52,6 +52,16 @@
   background: #0059c7;
 }
 
+.postguard-banner__btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.postguard-banner__btn:disabled {
+  background: #4a5568;
+  cursor: default;
+}
+
 .postguard-banner__badges {
   display: flex;
   gap: 8px;

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>PostGuard — Manage Access</title>
@@ -50,7 +50,12 @@
       font-size: 13px;
       transition: all 0.15s;
     }
-    .attr-item:hover { border-color: #006EF4; }
+    .attr-item:hover,
+    .attr-item:focus-within { border-color: #006EF4; }
+    .attr-item:focus-within {
+      outline: 2px solid #006EF4;
+      outline-offset: 2px;
+    }
     .attr-item.selected {
       border-color: #006EF4;
       background: #EBF5FF;
@@ -107,6 +112,10 @@
       border: 1px solid #d1d5db;
     }
     .btn-secondary:hover { background: #f3f4f6; }
+    .btn:focus-visible {
+      outline: 2px solid #006EF4;
+      outline-offset: 2px;
+    }
     .empty-state {
       padding: 40px;
       text-align: center;
@@ -117,10 +126,10 @@
 </head>
 <body>
   <div class="header">
-    <img src="../../icons/icon-64.svg" alt="PostGuard">
+    <img src="../../icons/icon-64.svg" alt="" aria-hidden="true">
     <h1 id="page-title">PostGuard — Manage Access</h1>
   </div>
-  <div id="recipients-container">
+  <div id="recipients-container" role="status" aria-live="polite">
     <div class="empty-state">Loading recipients...</div>
   </div>
   <div class="footer">
