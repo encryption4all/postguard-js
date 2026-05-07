@@ -558,8 +558,77 @@ describe('Cryptify API', () => {
       maxDelayMs: 5,
     });
 
-    it('retries on 502 and succeeds on the next attempt', async () => {
-      const stream = new ReadableStream();
+    /** Build a ReadableStream that yields the given byte chunks then closes. */
+    function streamOf(...chunks: Uint8Array[]): ReadableStream<Uint8Array> {
+      return new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(chunk);
+          controller.close();
+        },
+      });
+    }
+
+    /** Build a ReadableStream that yields the given chunks then errors.
+     *  Pull-based so chunks are delivered to the consumer before the
+     *  error fires — `controller.error()` empties any queued chunks, so
+     *  a start-based variant would silently drop the first batch. */
+    function streamThenError(
+      chunks: Uint8Array[],
+      err: unknown
+    ): ReadableStream<Uint8Array> {
+      let i = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (i < chunks.length) {
+            controller.enqueue(chunks[i++]);
+          } else {
+            controller.error(err);
+          }
+        },
+      });
+    }
+
+    /** Drain a ReadableStream into a single Uint8Array. */
+    async function drain(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+      const reader = stream.getReader();
+      const parts: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        parts.push(value);
+        total += value.byteLength;
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const p of parts) {
+        out.set(p, offset);
+        offset += p.byteLength;
+      }
+      return out;
+    }
+
+    it('produces the underlying bytes on a clean download', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: streamOf(new Uint8Array([1, 2, 3, 4])),
+      });
+
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const bytes = await drain(stream);
+
+      expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // First attempt should not include a Range header.
+      expect(mockFetch.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ method: 'GET' })
+      );
+      const firstAttemptHeaders = mockFetch.mock.calls[0][1]?.headers;
+      expect(firstAttemptHeaders).toBeUndefined();
+    });
+
+    it('retries on 502 and succeeds on the next attempt (no Range yet — zero bytes received)', async () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: false,
@@ -570,20 +639,101 @@ describe('Cryptify API', () => {
         .mockResolvedValueOnce({
           ok: true,
           status: 200,
-          body: stream,
+          body: streamOf(new Uint8Array([42])),
         });
 
-      const result = await downloadFileWithRetry(
-        'https://cryptify.example.com',
-        'uuid',
-        fastRetry
-      );
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const bytes = await drain(stream);
 
-      expect(result).toBe(stream);
+      expect(Array.from(bytes)).toEqual([42]);
       expect(mockFetch).toHaveBeenCalledTimes(2);
+      // No bytes received before the retry — the retry is a fresh GET, not a Range request.
+      expect(mockFetch.mock.calls[1][1]?.headers).toBeUndefined();
     });
 
-    it('does not retry on 404', async () => {
+    it('resumes from received offset via Range when stream errors mid-flight', async () => {
+      // Attempt 1: deliver 4 bytes, then the underlying stream errors.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: streamThenError(
+          [new Uint8Array([1, 2, 3, 4])],
+          new TypeError('network reset')
+        ),
+      });
+      // Attempt 2: 206 with Content-Range starting at 4, deliver 4 more bytes.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 206,
+        headers: new Headers({ 'content-range': 'bytes 4-7/8' }),
+        body: streamOf(new Uint8Array([5, 6, 7, 8])),
+        text: () => Promise.resolve(''),
+      });
+
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const bytes = await drain(stream);
+
+      expect(Array.from(bytes)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // Resume request must include Range: bytes=4-
+      expect(mockFetch.mock.calls[1][1]?.headers).toEqual(
+        expect.objectContaining({ Range: 'bytes=4-' })
+      );
+    });
+
+    it('fails fast if resume returns 200 instead of 206 (silent-rewind protection)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: streamThenError([new Uint8Array([1, 2])], new TypeError('drop')),
+      });
+      // Resume attempt: server (or proxy) ignored Range and returned 200.
+      // Without strict checking, we'd splice this on top of the 2 bytes
+      // already delivered and corrupt the stream.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        body: streamOf(new Uint8Array([1, 2, 3, 4])),
+        text: () => Promise.resolve(''),
+      });
+
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+
+      const reader = stream.getReader();
+      const first = await reader.read();
+      expect(Array.from(first.value!)).toEqual([1, 2]);
+      // Next read should error — 200 on resume is treated as terminal.
+      await expect(reader.read()).rejects.toMatchObject({
+        name: 'NetworkError',
+        message: expect.stringContaining('did not honour Range'),
+      });
+    });
+
+    it('fails fast if resume Content-Range start does not match requested offset', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: streamThenError([new Uint8Array([1, 2])], new TypeError('drop')),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 206,
+        headers: new Headers({ 'content-range': 'bytes 0-7/8' }), // wrong start!
+        body: streamOf(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7])),
+        text: () => Promise.resolve(''),
+      });
+
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const reader = stream.getReader();
+      await reader.read(); // [1,2]
+      await expect(reader.read()).rejects.toMatchObject({
+        name: 'NetworkError',
+        message: expect.stringContaining('Content-Range start 0 does not match requested offset 2'),
+      });
+    });
+
+    it('errors stream on first read with 404 (no retry)', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
@@ -591,9 +741,104 @@ describe('Cryptify API', () => {
         headers: new Headers(),
       });
 
-      await expect(
-        downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry)
-      ).rejects.toMatchObject({ name: 'NetworkError', status: 404 });
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const reader = stream.getReader();
+      await expect(reader.read()).rejects.toMatchObject({
+        name: 'NetworkError',
+        status: 404,
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('shares the attempt counter across resumes — flapping connection exhausts the budget', async () => {
+      // Each attempt delivers one byte then errors. Without the shared
+      // counter, this would loop forever; with it, the source errors
+      // after maxAttempts (3) — three bytes delivered before the
+      // failure surfaces.
+      mockFetch.mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          status: 206,
+          headers: new Headers({
+            'content-range': `bytes ${
+              mockFetch.mock.calls.length - 1
+            }-${mockFetch.mock.calls.length - 1}/100`,
+          }),
+          body: streamThenError(
+            [new Uint8Array([0xab])],
+            new TypeError('flap')
+          ),
+          text: () => Promise.resolve(''),
+        })
+      );
+      // The first attempt is a regular GET (no Range), so override its
+      // Content-Range expectation: the source uses Range only for
+      // attempts ≥ 2. The mock returns 206 for everything, but the
+      // first response's status doesn't matter for the source's logic
+      // — it only checks 206 + Content-Range on resume requests, not
+      // the first GET. We rebuild the mock per call so the
+      // Content-Range matches `received`.
+      mockFetch.mockReset();
+      let callIndex = 0;
+      mockFetch.mockImplementation((_url, init) => {
+        callIndex += 1;
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        if (callIndex === 1) {
+          // First attempt: plain GET, deliver 1 byte then drop.
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            body: streamThenError(
+              [new Uint8Array([0xa1])],
+              new TypeError('flap')
+            ),
+          });
+        }
+        // Resume attempts: parse Range, return 206 with matching Content-Range.
+        const m = /^bytes=(\d+)-/.exec(headers.Range ?? '');
+        const offset = m ? Number.parseInt(m[1], 10) : 0;
+        return Promise.resolve({
+          ok: true,
+          status: 206,
+          headers: new Headers({
+            'content-range': `bytes ${offset}-${offset}/100`,
+          }),
+          body: streamThenError(
+            [new Uint8Array([0xa0 + offset])],
+            new TypeError('flap')
+          ),
+          text: () => Promise.resolve(''),
+        });
+      });
+
+      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const reader = stream.getReader();
+      // Each attempt delivers one byte before erroring. With maxAttempts=3,
+      // we should see 3 bytes total, then the next read errors.
+      const seen: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const r = await reader.read();
+        if (r.done) break;
+        seen.push(...Array.from(r.value));
+      }
+      expect(seen).toHaveLength(3);
+      await expect(reader.read()).rejects.toMatchObject({ name: 'TypeError' });
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('caller-driven abort propagates as AbortError without retry', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      mockFetch.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
+
+      const stream = downloadFileWithRetry(
+        'https://cryptify.example.com',
+        'uuid',
+        fastRetry,
+        controller.signal
+      );
+      const reader = stream.getReader();
+      await expect(reader.read()).rejects.toMatchObject({ name: 'AbortError' });
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });

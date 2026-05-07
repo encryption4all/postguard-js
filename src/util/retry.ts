@@ -78,12 +78,24 @@ export function classifyCryptifyError(err: unknown, callerSignal?: AbortSignal):
   return 'fail';
 }
 
-function delayWithFullJitter(opts: ResolvedRetryOptions, attempt: number): number {
+/**
+ * Compute the next retry delay (ms) with full jitter — uniform random
+ * between 0 and the exponentially-capped base. Exported so non-`withRetry`
+ * callers (e.g. the source-owned retry loop in `downloadFileWithRetry`)
+ * can reuse the same backoff curve without forking the implementation.
+ */
+export function delayWithFullJitter(opts: ResolvedRetryOptions, attempt: number): number {
   const base = Math.min(opts.initialDelayMs * Math.pow(opts.multiplier, attempt - 1), opts.maxDelayMs);
   return Math.floor(Math.random() * base);
 }
 
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+/**
+ * Promise that resolves after `ms` milliseconds, rejecting early with an
+ * AbortError if `signal` aborts. Exported alongside `delayWithFullJitter`
+ * for the same reason — consistent abort semantics across all retry
+ * call sites.
+ */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));

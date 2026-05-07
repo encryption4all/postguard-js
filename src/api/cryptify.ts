@@ -1,6 +1,9 @@
 import { NetworkError, UploadSessionExpiredError } from '../errors.js';
 import {
+  classifyCryptifyError,
+  delayWithFullJitter,
   resolveRetryOptions,
+  sleep,
   withRetry,
   withTimeout,
   type ResolvedRetryOptions,
@@ -222,35 +225,158 @@ export async function downloadFile(
 }
 
 /**
- * Download with retry on transient failures. Cryptify's `FileServer`
- * already supports HTTP Range requests, so this could be extended to
- * resume mid-stream — that's tracked separately. Today the retry simply
- * re-issues the GET on transient failure.
+ * Issue a Range request to resume a download from `offset`. Strict on
+ * the response: only `206 Partial Content` whose `Content-Range` first
+ * byte equals `offset` is accepted. A `200 OK` is a silent-rewind trap
+ * — some intermediaries (caching proxies, misconfigured CDNs) ignore
+ * `Range` and return the whole body from byte 0; splicing that onto
+ * a consumer that already saw `offset` bytes corrupts the file. We
+ * surface the mismatch as a `NetworkError` so the retry loop classifies
+ * it as `fail` (the upstream isn't going to start honouring Range on
+ * the next try).
  */
-export async function downloadFileWithRetry(
+async function downloadRange(
+  cryptifyUrl: string,
+  uuid: string,
+  offset: number,
+  signal?: AbortSignal
+): Promise<ReadableStream<Uint8Array>> {
+  const response = await fetch(`${cryptifyUrl}/filedownload/${uuid}`, {
+    signal,
+    method: 'GET',
+    headers: { Range: `bytes=${offset}-` },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new NetworkError(`Error resuming download`, response.status, body);
+  }
+
+  if (response.status !== 206) {
+    // Server didn't honour Range. Treat as terminal — same upstream is
+    // unlikely to start honouring it on the next attempt.
+    throw new NetworkError(
+      `Resume request returned ${response.status}, expected 206 — upstream did not honour Range`,
+      response.status,
+      ''
+    );
+  }
+
+  const contentRange = response.headers.get('content-range');
+  const start = parseContentRangeStart(contentRange);
+  if (start !== offset) {
+    throw new NetworkError(
+      `Resume Content-Range start ${start ?? '<missing>'} does not match requested offset ${offset}`,
+      response.status,
+      contentRange ?? ''
+    );
+  }
+
+  if (!response.body) throw new Error('Response body is null');
+  return response.body as ReadableStream<Uint8Array>;
+}
+
+/** Parse the `bytes <start>-<end>/<size>` form. Returns the start byte
+ *  on success, `null` on any malformed value. Conservative — a future
+ *  RFC 7233 extension (`*` for unknown size, etc.) that doesn't match
+ *  this shape is treated the same as missing for safety. */
+function parseContentRangeStart(header: string | null): number | null {
+  if (!header) return null;
+  const match = /^\s*bytes\s+(\d+)-/.exec(header);
+  if (!match) return null;
+  const start = Number.parseInt(match[1], 10);
+  return Number.isFinite(start) ? start : null;
+}
+
+/**
+ * Download with retry on transient failures. Cryptify's `FileServer`
+ * already supports HTTP Range requests, so a stream-level failure
+ * mid-download (network drop, idle timeout) resumes from the byte
+ * offset reached rather than starting over from zero. The consumer
+ * sees a single contiguous stream regardless of how many internal
+ * retries happened.
+ *
+ * Implementation note: the retry loop lives inside the returned
+ * stream's `start()` source — wrapping `withRetry` around this would
+ * be the wrong abstraction (its `Promise<T>` shape resolves before the
+ * stream is read, leaving mid-stream errors with no way to re-enter
+ * the loop). Same backoff helpers, different driver.
+ */
+export function downloadFileWithRetry(
   cryptifyUrl: string,
   uuid: string,
   retry: ResolvedRetryOptions,
   signal?: AbortSignal
-): Promise<ReadableStream<Uint8Array>> {
-  return withRetry(
-    async () => {
-      const { signal: timed, cleanup } = withTimeout(signal, retry.downloadTimeoutMs);
-      try {
-        return await downloadFile(cryptifyUrl, uuid, timed);
-      } finally {
-        // Note: downloadFile returns a stream that is read *after* this
-        // function returns, so a per-attempt timeout that aborts the
-        // stream mid-read would surface as a stream error. We only
-        // bound the GET handshake here; if downloadTimeoutMs is 0 (the
-        // default) cleanup is a no-op.
-        cleanup();
+): ReadableStream<Uint8Array> {
+  let received = 0;
+  let attempt = 0;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      // Single source of truth: each underlying GET is one `attempt`,
+      // counter is shared across resumes so a flapping connection that
+      // delivers some bytes per attempt still exhausts the budget.
+      while (true) {
+        attempt += 1;
+        const { signal: timed, cleanup } = withTimeout(signal, retry.downloadTimeoutMs);
+        try {
+          const stream =
+            received === 0
+              ? await downloadFile(cryptifyUrl, uuid, timed)
+              : await downloadRange(cryptifyUrl, uuid, received, timed);
+          cleanup();
+
+          const reader = stream.getReader();
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) {
+              controller.close();
+              return;
+            }
+            received += value.byteLength;
+            controller.enqueue(value);
+          }
+        } catch (err) {
+          cleanup();
+          if (signal?.aborted) {
+            controller.error(err);
+            return;
+          }
+          if (attempt >= retry.maxAttempts) {
+            controller.error(err);
+            return;
+          }
+          if (classifyCryptifyError(err, signal) === 'fail') {
+            controller.error(err);
+            return;
+          }
+          const nextDelayMs = delayWithFullJitter(retry, attempt);
+          retry.onRetry?.({
+            attempt,
+            maxAttempts: retry.maxAttempts,
+            error: err,
+            nextDelayMs,
+          });
+          try {
+            await sleep(nextDelayMs, signal);
+          } catch (sleepErr) {
+            controller.error(sleepErr);
+            return;
+          }
+          // Loop back: next iteration uses Range from `received`.
+        }
       }
     },
-    retry,
-    undefined,
-    signal
-  );
+    cancel(reason) {
+      // Caller-driven cancel (consumer abandoned the stream). The
+      // currently in-flight fetch is bound to `signal` already — we
+      // can't directly cancel it from here, but consumer abandoning the
+      // ReadableStream means they won't pull more. The fetch will
+      // eventually error or complete; either way nothing reaches the
+      // controller after cancel.
+      void reason;
+    },
+  });
 }
 
 export interface UploadStream {
