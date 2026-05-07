@@ -60,7 +60,7 @@ async function init() {
     subtitleEl.textContent = browser.i18n.getMessage("displayMessageQrPrefix");
   }
 
-  loadingEl.style.display = "none";
+  loadingEl.hidden = true;
 
   // Create PostGuard instance for this popup
   const pg = new PostGuard(data.config);
@@ -262,9 +262,9 @@ async function extractFromZip(blob: Blob, filename: string): Promise<Uint8Array>
 }
 
 function showError(msg: string) {
-  loadingEl.style.display = "none";
+  loadingEl.hidden = true;
   errorEl.textContent = msg;
-  errorEl.style.display = "block";
+  errorEl.hidden = false;
 }
 
 init();

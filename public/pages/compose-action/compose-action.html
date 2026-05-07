@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <title>PostGuard — Compose</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -83,25 +84,41 @@
       text-align: center;
     }
     .btn:hover { background: #f3f4f6; }
-    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn:disabled { color: #6b7280; opacity: 1; cursor: default; }
     .btn:disabled:hover { background: #fff; }
+    .btn:focus-visible,
+    .toggle-switch:focus-within .slider {
+      outline: 2px solid #006EF4;
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <img src="../../icons/icon-64.svg" alt="PostGuard">
+    <img src="../../icons/icon-64.svg" alt="" aria-hidden="true">
     <h2>PostGuard</h2>
   </div>
 
   <div class="toggle-row">
-    <span class="toggle-label">Encrypt this email</span>
+    <span class="toggle-label" id="toggle-label">Encrypt this email</span>
     <label class="toggle-switch">
-      <input type="checkbox" id="toggle-encrypt">
-      <span class="slider"></span>
+      <input type="checkbox" id="toggle-encrypt" aria-labelledby="toggle-label">
+      <span class="slider" aria-hidden="true"></span>
     </label>
   </div>
 
-  <div class="status" id="status-text"></div>
+  <div class="status" id="status-text" role="status" aria-live="polite"></div>
 
   <div class="actions">
     <button class="btn" id="btn-manage" disabled>Manage Access</button>
