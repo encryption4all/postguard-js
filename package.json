@@ -34,10 +34,10 @@
   },
   "dependencies": {
     "@e4a/pg-wasm": "^0.5.10",
-    "@privacybydesign/yivi-client": "^1.0.0-beta.4",
-    "@privacybydesign/yivi-core": "^1.0.0-beta.4",
-    "@privacybydesign/yivi-css": "^1.0.0-beta.4",
-    "@privacybydesign/yivi-web": "^1.0.0-beta.4",
+    "@privacybydesign/yivi-client": "^1.0.0-beta.5",
+    "@privacybydesign/yivi-core": "^1.0.0-beta.5",
+    "@privacybydesign/yivi-css": "^1.0.0-beta.5",
+    "@privacybydesign/yivi-web": "^1.0.0-beta.5",
     "@transcend-io/conflux": "^6.1.3"
   },
   "devDependencies": {
