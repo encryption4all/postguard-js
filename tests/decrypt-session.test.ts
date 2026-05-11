@@ -1,5 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { sortPolicies, secondsTill4AM, buildKeyRequest } from '../src/yivi/decrypt-session.js';
+import {
+  sortPolicies,
+  secondsTill4AM,
+  buildKeyRequest,
+  JWT_CACHE_MAX_SIZE,
+  __testing as jwtCacheInternals,
+} from '../src/yivi/decrypt-session.js';
+
+// Build a minimal JWT (header.payload.sig) with a given `exp` claim (seconds).
+function makeJwt(exp: number, jti = ''): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ exp, jti })).toString('base64url');
+  return `${header}.${payload}.sig`;
+}
+
+const POLICY = [{ t: 'pbdf.sidn-pbdf.email.email', v: 'a@b.com' }];
 
 describe('sortPolicies', () => {
   it('sorts by type alphabetically', () => {
@@ -72,5 +87,66 @@ describe('buildKeyRequest', () => {
     const req = buildKeyRequest('user@example.com', policy);
 
     expect(req.con[0].v).toBeUndefined();
+  });
+});
+
+describe('jwt cache bounds', () => {
+  beforeEach(() => {
+    jwtCacheInternals.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  });
+  afterEach(() => {
+    jwtCacheInternals.clear();
+    vi.useRealTimers();
+  });
+
+  it('caps size at JWT_CACHE_MAX_SIZE under a stress insert', () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    for (let i = 0; i < JWT_CACHE_MAX_SIZE + 50; i++) {
+      jwtCacheInternals.cacheJwt(`user${i}@example.com`, POLICY, makeJwt(exp, `j${i}`));
+    }
+    expect(jwtCacheInternals.size()).toBe(JWT_CACHE_MAX_SIZE);
+  });
+
+  it('evicts the least-recently-used entry once the cap is hit', () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    for (let i = 0; i < JWT_CACHE_MAX_SIZE; i++) {
+      jwtCacheInternals.cacheJwt(`user${i}@example.com`, POLICY, makeJwt(exp, `j${i}`));
+    }
+    // Touch user0 so it's now the most-recently-used.
+    expect(jwtCacheInternals.getCachedJwt('user0@example.com', POLICY)).not.toBeNull();
+    // Insert one more; user1 (now LRU) should be evicted, user0 should survive.
+    jwtCacheInternals.cacheJwt('new@example.com', POLICY, makeJwt(exp, 'new'));
+    expect(jwtCacheInternals.size()).toBe(JWT_CACHE_MAX_SIZE);
+    expect(jwtCacheInternals.getCachedJwt('user0@example.com', POLICY)).not.toBeNull();
+    expect(jwtCacheInternals.getCachedJwt('user1@example.com', POLICY)).toBeNull();
+    expect(jwtCacheInternals.getCachedJwt('new@example.com', POLICY)).not.toBeNull();
+  });
+
+  it('sweeps expired entries on write without requiring them to be queried', () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    // Insert entries that will be expired by the time we write again.
+    jwtCacheInternals.cacheJwt('soon@example.com', POLICY, makeJwt(nowSec + 60, 'soon'));
+    jwtCacheInternals.cacheJwt('alive@example.com', POLICY, makeJwt(nowSec + 7200, 'alive'));
+    expect(jwtCacheInternals.size()).toBe(2);
+
+    // Advance past the 60s expiry (plus the 30s margin).
+    vi.setSystemTime(new Date(Date.now() + 120 * 1000));
+
+    // A write for an unrelated key should sweep the expired one even though it was never read.
+    jwtCacheInternals.cacheJwt('writer@example.com', POLICY, makeJwt(nowSec + 7200, 'writer'));
+
+    expect(jwtCacheInternals.size()).toBe(2);
+    expect(jwtCacheInternals.getCachedJwt('soon@example.com', POLICY)).toBeNull();
+    expect(jwtCacheInternals.getCachedJwt('alive@example.com', POLICY)).not.toBeNull();
+    expect(jwtCacheInternals.getCachedJwt('writer@example.com', POLICY)).not.toBeNull();
+  });
+
+  it('returns the cached JWT within its TTL (happy path unchanged)', () => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const jwt = makeJwt(exp, 'hit');
+    jwtCacheInternals.cacheJwt('hit@example.com', POLICY, jwt);
+    expect(jwtCacheInternals.getCachedJwt('hit@example.com', POLICY)).toBe(jwt);
   });
 });
