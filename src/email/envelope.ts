@@ -39,16 +39,16 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
   const logoUrl = `${websiteUrl}/pg_logo.png`;
 
   const encrypted = await sealed.toBytes();
-  const base64Encrypted = uint8ArrayToBase64(encrypted);
 
-  // Pick tier from the encrypted size.
-  const tier = pickTier(encrypted.length, base64Encrypted.length);
+  // Pick tier from the encrypted size. base64 length is derived from byte
+  // length so we can avoid encoding the full ciphertext for tier 2/3.
+  const tier = pickTier(encrypted.length, base64LengthFor(encrypted.length));
 
   let uploadUuid: string | null = null;
   let fallbackLink: string;
 
   if (tier === 'tier1') {
-    fallbackLink = buildSmallFallbackLink(base64Encrypted, websiteUrl);
+    fallbackLink = buildSmallFallbackLink(uint8ArrayToBase64(encrypted), websiteUrl);
   } else {
     // Tier 2 or 3 — both want a Cryptify-backed link in the body, but
     // tier 2 will also keep the local attachment and may opt out of the
@@ -211,10 +211,15 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function base64LengthFor(bytes: number): number {
+  return Math.ceil(bytes / 3) * 4;
+}
+
 function uint8ArrayToBase64(data: Uint8Array): string {
+  const CHUNK = 8192;
   let binary = '';
-  for (let i = 0; i < data.length; i++) {
-    binary += String.fromCharCode(data[i]);
+  for (let i = 0; i < data.length; i += CHUNK) {
+    binary += String.fromCharCode(...data.subarray(i, i + CHUNK));
   }
   return btoa(binary);
 }
