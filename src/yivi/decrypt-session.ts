@@ -14,6 +14,8 @@ interface CacheEntry {
   expiresAt: number; // Unix timestamp in seconds
 }
 
+export const JWT_CACHE_MAX_SIZE = 100;
+
 const jwtCache = new Map<string, CacheEntry>();
 
 function getCacheKey(
@@ -21,6 +23,16 @@ function getCacheKey(
   con: { t: string; v?: string }[]
 ): string {
   return `${recipientEmail}:${JSON.stringify(con)}`;
+}
+
+/** Remove every entry whose expiry has passed (with the same 30s margin used on read). */
+function sweepExpired(): void {
+  const nowSec = Date.now() / 1000;
+  for (const [key, entry] of jwtCache) {
+    if (nowSec >= entry.expiresAt - 30) {
+      jwtCache.delete(key);
+    }
+  }
 }
 
 /** Look up a cached JWT for this recipient+policy. Returns null if absent or expired. */
@@ -37,6 +49,9 @@ function getCachedJwt(
     jwtCache.delete(key);
     return null;
   }
+  // Refresh recency so the LRU eviction picks the truly oldest entry.
+  jwtCache.delete(key);
+  jwtCache.set(key, entry);
   return entry.jwt;
 }
 
@@ -51,13 +66,32 @@ function cacheJwt(
     const payload = jwt.split('.')[1];
     const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
     const expiresAt = decoded.exp as number;
-    if (expiresAt) {
-      jwtCache.set(getCacheKey(recipientEmail, con), { jwt, expiresAt });
+    if (!expiresAt) return;
+
+    sweepExpired();
+
+    const key = getCacheKey(recipientEmail, con);
+    // If the key is already present, delete first so the re-insert lands at the end (most-recent).
+    jwtCache.delete(key);
+    // Evict least-recently-used entries until we're under the cap.
+    while (jwtCache.size >= JWT_CACHE_MAX_SIZE) {
+      const oldest = jwtCache.keys().next().value;
+      if (oldest === undefined) break;
+      jwtCache.delete(oldest);
     }
+    jwtCache.set(key, { jwt, expiresAt });
   } catch {
     // If we can't parse the JWT, don't cache it
   }
 }
+
+// Test-only helpers. Not part of the public surface.
+export const __testing = {
+  cacheJwt,
+  getCachedJwt,
+  size: () => jwtCache.size,
+  clear: () => jwtCache.clear(),
+};
 
 // --- USK retrieval ---
 
