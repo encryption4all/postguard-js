@@ -18,13 +18,15 @@ export async function createZipReadable(files: File[]): Promise<ReadableStream> 
   return readable;
 }
 
-/** Read filenames from a ZIP file's central directory (no decompression needed) */
-export async function readZipFilenames(blob: Blob): Promise<string[]> {
-  const buf = await blob.arrayBuffer();
-  const view = new DataView(buf);
-  const bytes = new Uint8Array(buf);
+interface CentralDirEntry {
+  name: string;
+  method: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  lfhOffset: number;
+}
 
-  // Find End of Central Directory signature (PK\x05\x06)
+function readCentralDirectory(view: DataView, bytes: Uint8Array): CentralDirEntry[] {
   let eocdOffset = -1;
   for (let i = bytes.length - 22; i >= 0; i--) {
     if (view.getUint32(i, true) === 0x06054b50) {
@@ -37,17 +39,65 @@ export async function readZipFilenames(blob: Blob): Promise<string[]> {
   const cdOffset = view.getUint32(eocdOffset + 16, true);
   const numEntries = view.getUint16(eocdOffset + 10, true);
   const decoder = new TextDecoder('utf-8');
-  const filenames: string[] = [];
+  const entries: CentralDirEntry[] = [];
   let pos = cdOffset;
 
   for (let i = 0; i < numEntries; i++) {
     if (view.getUint32(pos, true) !== 0x02014b50) break;
+    const method = view.getUint16(pos + 10, true);
+    const compressedSize = view.getUint32(pos + 20, true);
+    const uncompressedSize = view.getUint32(pos + 24, true);
     const filenameLen = view.getUint16(pos + 28, true);
     const extraLen = view.getUint16(pos + 30, true);
     const commentLen = view.getUint16(pos + 32, true);
-    const filename = decoder.decode(bytes.slice(pos + 46, pos + 46 + filenameLen));
-    if (!filename.endsWith('/')) filenames.push(filename);
+    const lfhOffset = view.getUint32(pos + 42, true);
+    const name = decoder.decode(bytes.slice(pos + 46, pos + 46 + filenameLen));
+    entries.push({ name, method, compressedSize, uncompressedSize, lfhOffset });
     pos += 46 + filenameLen + extraLen + commentLen;
   }
-  return filenames;
+  return entries;
+}
+
+/** Read filenames from a ZIP file's central directory (no decompression needed) */
+export async function readZipFilenames(blob: Blob): Promise<string[]> {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  return readCentralDirectory(view, bytes)
+    .filter((e) => !e.name.endsWith('/'))
+    .map((e) => e.name);
+}
+
+/** Extract a single named entry from a ZIP blob, returning the uncompressed bytes.
+ *  Uses the central directory for sizes (conflux's streaming writer leaves
+ *  `compressedSize: 0` in the LFH, so LFH-only walking won't work). Supports
+ *  method 0 (stored) and method 8 (deflate). */
+export async function extractZipEntry(blob: Blob, name: string): Promise<Uint8Array> {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  const entry = readCentralDirectory(view, bytes).find((e) => e.name === name);
+  if (!entry) throw new Error(`ZIP entry not found: ${name}`);
+
+  // Local file header: 30 bytes + filenameLen + extraLen, then file data.
+  // LFH filename/extra lengths can differ from the CDR's, so re-read them here.
+  const lfh = entry.lfhOffset;
+  if (view.getUint32(lfh, true) !== 0x04034b50) {
+    throw new Error(`Invalid local file header at offset ${lfh}`);
+  }
+  const lfhFilenameLen = view.getUint16(lfh + 26, true);
+  const lfhExtraLen = view.getUint16(lfh + 28, true);
+  const dataStart = lfh + 30 + lfhFilenameLen + lfhExtraLen;
+  const compressed = bytes.slice(dataStart, dataStart + entry.compressedSize);
+
+  if (entry.method === 0) {
+    return compressed;
+  }
+  if (entry.method === 8) {
+    const ds = new DecompressionStream('deflate-raw');
+    const stream = new Blob([compressed]).stream().pipeThrough(ds);
+    const out = new Uint8Array(await new Response(stream).arrayBuffer());
+    return out;
+  }
+  throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
 }

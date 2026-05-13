@@ -14,7 +14,7 @@ import {
   resolveUSK,
   unsealAndCollect,
 } from './crypto/decrypt.js';
-import { readZipFilenames } from './util/zip.js';
+import { readZipFilenames, extractZipEntry } from './util/zip.js';
 import { triggerBrowserDownload } from './util/download.js';
 import { parseSender } from './util/identity.js';
 
@@ -100,6 +100,18 @@ export class Opened {
       // UUID-based: return files from ZIP
       const blob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
       const files = await readZipFilenames(blob);
+
+      // Symmetry with Sealed.upload's data: mode: it wraps raw bytes as a
+      // single-entry zip with `data.bin`. Unwrap here so the round-trip
+      // matches pg.encrypt({ data }) → pg.open({ uuid }).decrypt().
+      if (files.length === 1 && files[0] === 'data.bin') {
+        const plaintext = await extractZipEntry(blob, 'data.bin');
+        return {
+          plaintext,
+          sender: parseSender(sender),
+        } as DecryptDataResult;
+      }
+
       return {
         files,
         sender: parseSender(sender),
