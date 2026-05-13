@@ -66,3 +66,9 @@ export {
 
 // Retry types for callers configuring transient-failure behaviour
 export type { RetryOptions, RetryEvent } from './util/retry.js';
+
+// Cross-restart upload resume — consumers persist {uuid, recoveryToken}
+// from the initial upload and call resumeUpload to rehydrate state after
+// a page refresh, tab crash, or process restart.
+export { resumeUpload } from './api/cryptify.js';
+export type { FileState } from './api/cryptify.js';

@@ -3,6 +3,7 @@ import { NetworkError, UploadSessionExpiredError } from '../src/errors.js';
 import { fetchMPK, fetchVerificationKey, fetchSigningKeysWithApiKey } from '../src/api/pkg.js';
 import {
   initUpload,
+  resumeUpload,
   storeChunk,
   storeChunkWithRetry,
   finalizeUpload,
@@ -101,7 +102,7 @@ describe('Cryptify API', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ uuid: 'file-uuid' }),
+        json: () => Promise.resolve({ uuid: 'file-uuid', recovery_token: 'rec-hex' }),
         text: () => Promise.resolve(''),
         headers: new Headers({ cryptifytoken: 'tok-123' }),
       });
@@ -109,7 +110,7 @@ describe('Cryptify API', () => {
       const result = await initUpload('https://cryptify.example.com', {
         recipient: 'alice@example.com',
       });
-      expect(result).toEqual({ token: 'tok-123', uuid: 'file-uuid' });
+      expect(result).toEqual({ token: 'tok-123', uuid: 'file-uuid', recoveryToken: 'rec-hex' });
     });
 
     it('throws NetworkError on failure', async () => {
@@ -162,6 +163,134 @@ describe('Cryptify API', () => {
           headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
         })
       );
+    });
+  });
+
+  describe('resumeUpload', () => {
+    it('rehydrates FileState from /status before any chunk has been committed', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            uploaded: 0,
+            cryptify_token: 'tok-current',
+          }),
+        text: () => Promise.resolve(''),
+        headers: new Headers(),
+      });
+
+      const result = await resumeUpload(
+        'https://cryptify.example.com',
+        'file-uuid',
+        'rec-hex'
+      );
+
+      expect(result.uploaded).toBe(0);
+      expect(result.state).toEqual({
+        token: 'tok-current',
+        uuid: 'file-uuid',
+        recoveryToken: 'rec-hex',
+      });
+      // No prevToken before any chunk has been committed.
+      expect(result.state.prevToken).toBeUndefined();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://cryptify.example.com/fileupload/file-uuid/status',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({ 'X-Recovery-Token': 'rec-hex' }),
+        })
+      );
+    });
+
+    it('mirrors prev_token to state.prevToken when at least one chunk is committed', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            uploaded: 1024,
+            cryptify_token: 'tok-current',
+            prev_token: 'tok-prev',
+            prev_offset: 0,
+          }),
+        text: () => Promise.resolve(''),
+        headers: new Headers(),
+      });
+
+      const result = await resumeUpload(
+        'https://cryptify.example.com',
+        'file-uuid',
+        'rec-hex'
+      );
+
+      expect(result.uploaded).toBe(1024);
+      expect(result.state).toEqual({
+        token: 'tok-current',
+        prevToken: 'tok-prev',
+        uuid: 'file-uuid',
+        recoveryToken: 'rec-hex',
+      });
+    });
+
+    it('surfaces 404 upload_session_not_found as UploadSessionExpiredError', async () => {
+      // Cryptify collapses "unknown UUID" and "wrong recovery_token"
+      // into the same 404 body — both must surface as the dedicated
+      // expired-session error so callers don't retry into a wall.
+      const body = JSON.stringify({
+        error: 'upload_session_not_found',
+        uuid: 'file-uuid',
+        reason: 'expired_or_unknown',
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve(body),
+        headers: new Headers(),
+      });
+
+      await expect(
+        resumeUpload('https://cryptify.example.com', 'file-uuid', 'rec-hex')
+      ).rejects.toMatchObject({
+        name: 'UploadSessionExpiredError',
+        status: 404,
+        uuid: 'file-uuid',
+        reason: 'expired_or_unknown',
+      });
+    });
+
+    it('surfaces 401 (missing/empty recovery header) as plain NetworkError', async () => {
+      mockFetch.mockResolvedValueOnce(errorResponse(401, ''));
+
+      const err = await resumeUpload(
+        'https://cryptify.example.com',
+        'file-uuid',
+        ''
+      ).catch((e) => e);
+
+      expect(err).toBeInstanceOf(NetworkError);
+      expect(err).not.toBeInstanceOf(UploadSessionExpiredError);
+      expect(err.status).toBe(401);
+    });
+
+    it('plain (non-structured) 404 body still falls through as NetworkError', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve('plain 404'),
+        headers: new Headers(),
+      });
+
+      const err = await resumeUpload(
+        'https://cryptify.example.com',
+        'file-uuid',
+        'rec-hex'
+      ).catch((e) => e);
+
+      expect(err).toBeInstanceOf(NetworkError);
+      expect(err).not.toBeInstanceOf(UploadSessionExpiredError);
+      expect(err.status).toBe(404);
     });
   });
 
