@@ -10,7 +10,7 @@ import {
   type RetryOptions,
 } from '../util/retry.js';
 
-interface FileState {
+export interface FileState {
   /** Current rolling token — what the next chunk PUT should send. */
   token: string;
   /**
@@ -22,6 +22,14 @@ interface FileState {
    */
   prevToken?: string;
   uuid: string;
+  /**
+   * Bearer credential issued by `POST /fileupload/init` (wire field
+   * `recovery_token`). Persist alongside `uuid` in consumer-owned
+   * storage so a refreshed page / restarted process can rehydrate the
+   * `FileState` via `resumeUpload`. Empty string before init completes
+   * (see `createUploadStream`'s placeholder state).
+   */
+  recoveryToken: string;
 }
 
 export interface InitUploadOptions {
@@ -106,7 +114,67 @@ export async function initUpload(
 
   const resJson = await response.json();
   const token = response.headers.get('cryptifytoken') as string;
-  return { token, uuid: resJson['uuid'] };
+  return {
+    token,
+    uuid: resJson['uuid'],
+    recoveryToken: resJson['recovery_token'],
+  };
+}
+
+/**
+ * Rehydrate a `FileState` from cryptify after the in-memory state was
+ * lost (page refresh, tab crash, navigate-away-and-back, process
+ * restart). Calls `GET /fileupload/{uuid}/status` authenticated with the
+ * `recovery_token` issued at init time, and returns the current rolling
+ * token along with the byte offset to resume from.
+ *
+ * The returned `FileState` is suitable for feeding straight into
+ * `storeChunkWithRetry` — if cryptify reported a `prev_token`, it is
+ * mirrored to `state.prevToken` so the first chunk after resume can
+ * exercise the idempotent-retry path if the original commit response
+ * was lost in flight.
+ *
+ * 404 with the structured `upload_session_not_found` body is surfaced
+ * as `UploadSessionExpiredError`. Cryptify deliberately collapses
+ * "unknown UUID" and "wrong recovery_token" into the same response, so
+ * callers should treat this as "session is gone, start a new upload"
+ * regardless of which it was.
+ */
+export async function resumeUpload(
+  cryptifyUrl: string,
+  uuid: string,
+  recoveryToken: string,
+  signal?: AbortSignal
+): Promise<{ state: FileState; uploaded: number }> {
+  const response = await fetch(`${cryptifyUrl}/fileupload/${uuid}/status`, {
+    signal,
+    method: 'GET',
+    headers: {
+      'X-Recovery-Token': recoveryToken,
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throwSessionExpiredOrNetworkError(`Error resuming upload`, response.status, body, uuid);
+  }
+
+  const resJson = (await response.json()) as {
+    uploaded: number;
+    cryptify_token: string;
+    prev_token?: string;
+    prev_offset?: number;
+  };
+
+  const state: FileState = {
+    token: resJson.cryptify_token,
+    uuid,
+    recoveryToken,
+  };
+  if (resJson.prev_token !== undefined) {
+    state.prevToken = resJson.prev_token;
+  }
+  return { state, uploaded: resJson.uploaded };
 }
 
 /**
@@ -144,7 +212,7 @@ export async function storeChunk(
   }
 
   const token = response.headers.get('cryptifytoken') as string;
-  return { token, uuid: state.uuid, prevToken: state.token };
+  return { token, uuid: state.uuid, prevToken: state.token, recoveryToken: state.recoveryToken };
 }
 
 /**
@@ -393,7 +461,7 @@ export function createUploadStream(
     retry?: RetryOptions;
   }
 ): UploadStream {
-  let state: FileState = { token: '', uuid: '' };
+  let state: FileState = { token: '', uuid: '', recoveryToken: '' };
   let processed = 0;
   const signal = options.abortSignal;
   const onProgress = options.onProgress;
