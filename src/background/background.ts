@@ -30,6 +30,13 @@ import {
   evaluateBeforeSendGuards,
   MAX_ATTACHMENT_SIZE,
 } from "./encryption-flow";
+import {
+  buildDecryptedThreadingHeaders,
+  classifyDecryptionError,
+  badgesFromSender,
+  pickRecipientEmail,
+  chooseDecryptionInput,
+} from "./decryption-flow";
 import type {
   Policy,
   SerializedRecipient,
@@ -678,11 +685,14 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
     // Tier 1/2: ciphertext lives in the postguard.encrypted attachment.
     // Tier 3: no attachment — we extract the Cryptify uuid from the body
     // and let the popup fetch+decrypt via pg.open({ uuid }).
-    const ciphertext = extractCiphertext({
+    const rawCiphertext = extractCiphertext({
       htmlBody: htmlBody ?? undefined,
       attachments: attData,
     });
-    const uploadUuid = ciphertext ? null : extractUploadUuid(htmlBody ?? "");
+    const { ciphertext, uploadUuid } = chooseDecryptionInput(
+      rawCiphertext,
+      rawCiphertext ? null : extractUploadUuid(htmlBody ?? ""),
+    );
 
     if (!ciphertext && !uploadUuid) {
       console.error("[PostGuard] No ciphertext or upload uuid found in message");
@@ -690,7 +700,7 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
     }
 
     // Find our email among recipients
-    const myAddresses = [...msg.recipients, ...msg.ccList].map(toEmail);
+    const recipientEmail = pickRecipientEmail(msg.recipients, msg.ccList, toEmail);
 
     // Delegate decryption to popup — popup creates its own pg instance,
     // renders Yivi QR, decrypts, and returns the plaintext + sender
@@ -703,31 +713,18 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
       },
       ciphertextBase64: ciphertext ? toBase64(ciphertext) : undefined,
       uuid: uploadUuid ?? undefined,
-      recipientEmail: myAddresses[0],
+      recipientEmail: recipientEmail ?? "",
     }) as DecryptPopupResult;
 
     const plaintext = new TextDecoder().decode(fromBase64(result.plaintextBase64));
 
     // Build badges from sender identity (FriendlySender format)
-    const sender = result.sender;
-    const badges = (sender?.attributes ?? []).map(
-      ({ value: v }) => ({
-        value: v ?? "",
-      })
-    );
+    const badges = badgesFromSender(result.sender);
 
     // Inject threading headers from the encrypted envelope
     const envelopeFull = await browser.messages.getFull(messageId);
-    const threadingHeaders: Record<string, string> = {};
-    const threadingRemove: string[] = [];
-    for (const name of ["in-reply-to", "references"] as const) {
-      const val = envelopeFull.headers[name]?.[0];
-      if (val) {
-        const headerName = name === "in-reply-to" ? "In-Reply-To" : "References";
-        threadingHeaders[headerName] = val;
-        threadingRemove.push(headerName);
-      }
-    }
+    const { headers: threadingHeaders, remove: threadingRemove } =
+      buildDecryptedThreadingHeaders(envelopeFull);
 
     let markedPlaintext = plaintext;
     if (Object.keys(threadingHeaders).length > 0) {
@@ -764,9 +761,7 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
     return { ok: true };
   } catch (e) {
     console.error("[PostGuard] Decryption failed:", e);
-    const errorKey = e instanceof Error && e.message.includes("KEM error")
-      ? "decryptionFailed"
-      : "decryptionError";
+    const errorKey = classifyDecryptionError(e);
     notifyError(errorKey);
     return { ok: false, error: errorKey };
   }
