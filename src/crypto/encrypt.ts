@@ -34,6 +34,9 @@ export interface EncryptPipelineOptions {
   signingKeys?: SigningKeys;
   /** Retry behaviour for chunk uploads. See PostGuardConfig.retry. */
   retry?: RetryOptions;
+  /** Fires once, after `upload_init` succeeds and before any chunk PUT,
+   *  with `{uuid, recoveryToken}`. See `UploadOptions.onUploadInit`. */
+  onUploadInit?: (info: { uuid: string; recoveryToken: string }) => void;
 }
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
@@ -97,6 +100,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     apiKey: cryptifyApiKey,
     abortSignal: effectiveSignal,
     retry: options.retry,
+    onUploadInit: options.onUploadInit,
     onProgress: (uploaded, last) => {
       if (onProgress) {
         const pct = totalSize > 0 ? Math.min(100, Math.round((uploaded / totalSize) * 100)) : 0;

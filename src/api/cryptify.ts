@@ -459,12 +459,14 @@ export function createUploadStream(
     onProgress?: (uploaded: number, last: boolean) => void;
     abortSignal?: AbortSignal;
     retry?: RetryOptions;
+    onUploadInit?: (info: { uuid: string; recoveryToken: string }) => void;
   }
 ): UploadStream {
   let state: FileState = { token: '', uuid: '', recoveryToken: '' };
   let processed = 0;
   const signal = options.abortSignal;
   const onProgress = options.onProgress;
+  const onUploadInit = options.onUploadInit;
   const retry = resolveRetryOptions(options.retry);
   const queuingStrategy = new CountQueuingStrategy({ highWaterMark: 1 });
 
@@ -473,6 +475,7 @@ export function createUploadStream(
       async start(c) {
         try {
           state = await initUpload(cryptifyUrl, { ...options, signal });
+          onUploadInit?.({ uuid: state.uuid, recoveryToken: state.recoveryToken });
           onProgress?.(processed, false);
           if (signal?.aborted) throw new Error('Abort signaled during initFile.');
         } catch (e) {

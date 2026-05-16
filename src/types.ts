@@ -104,6 +104,12 @@ export interface UploadOptions {
     /** Notification email template language. Default 'EN'. */
     language?: 'EN' | 'NL';
   };
+  /** Called once, after `upload_init` succeeds, before any chunk PUT.
+   *  Persist `{uuid, recoveryToken}` here to enable cross-restart resume
+   *  via `resumeUpload`. The callback fires from inside the upload
+   *  stream's `start` handler — keep it short and synchronous; a throw
+   *  will error the upload stream. */
+  onUploadInit?: (info: { uuid: string; recoveryToken: string }) => void;
 }
 
 // --- New API: Open/decrypt input ---
@@ -236,6 +242,12 @@ export interface CreateEnvelopeOptions {
    *  Has no effect on Tier 1 (no upload happens) or when
    *  `uploadToCryptify: false` already skipped the upload. */
   notify?: UploadOptions['notify'];
+  /** Forwarded to the underlying `Sealed.upload` call. Called once after
+   *  `upload_init` succeeds and before any chunk PUT, with the Cryptify
+   *  `uuid` and `recoveryToken`. Persist this pair to enable cross-restart
+   *  resume via `resumeUpload`. No-op when no upload happens (tier 1, or
+   *  `uploadToCryptify: false`). */
+  onUploadInit?: UploadOptions['onUploadInit'];
 }
 
 /** Which tier the envelope falls into based on encrypted payload size.

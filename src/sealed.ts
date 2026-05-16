@@ -98,6 +98,7 @@ export class Sealed {
       headers: this.config.headers,
       signingKeys,
       retry: this.config.retry,
+      onUploadInit: opts?.onUploadInit,
     });
   }
 

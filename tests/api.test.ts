@@ -9,6 +9,7 @@ import {
   finalizeUpload,
   downloadFile,
   downloadFileWithRetry,
+  createUploadStream,
 } from '../src/api/cryptify.js';
 import { resolveRetryOptions } from '../src/util/retry.js';
 
@@ -969,6 +970,64 @@ describe('Cryptify API', () => {
       const reader = stream.getReader();
       await expect(reader.read()).rejects.toMatchObject({ name: 'AbortError' });
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('createUploadStream onUploadInit', () => {
+    it('fires once with {uuid, recoveryToken} after upload_init, before any chunk PUT', async () => {
+      mockFetch.mockImplementation((_url: string, init: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(''),
+            headers: new Headers({ cryptifytoken: 'tok-next' }),
+          });
+        }
+        // POST: init or finalize
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ uuid: 'u-1', recovery_token: 'rec-abc' }),
+          text: () => Promise.resolve(''),
+          headers: new Headers({ cryptifytoken: 'tok-0' }),
+        });
+      });
+
+      const calls: Array<{ uuid: string; recoveryToken: string }> = [];
+      let initSeenBeforeFirstPut = false;
+
+      const stream = createUploadStream('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        onUploadInit: (info) => {
+          calls.push(info);
+          // No PUT should have happened yet — init is the only fetch.
+          initSeenBeforeFirstPut =
+            mockFetch.mock.calls.length === 1 &&
+            mockFetch.mock.calls[0][0].endsWith('/fileupload/init');
+        },
+      });
+
+      const writer = stream.writable.getWriter();
+      await writer.write(new Uint8Array([1, 2, 3]));
+      await writer.close();
+
+      expect(calls).toEqual([{ uuid: 'u-1', recoveryToken: 'rec-abc' }]);
+      expect(initSeenBeforeFirstPut).toBe(true);
+    });
+
+    it('is not called when upload_init fails', async () => {
+      mockFetch.mockResolvedValueOnce(errorResponse(400, 'bad'));
+
+      const onUploadInit = vi.fn();
+      const stream = createUploadStream('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        onUploadInit,
+      });
+
+      const writer = stream.writable.getWriter();
+      await expect(writer.write(new Uint8Array([1]))).rejects.toBeDefined();
+      expect(onUploadInit).not.toHaveBeenCalled();
     });
   });
 });
