@@ -41,14 +41,13 @@ The SDK works in non-browser runtimes for the encrypt + upload path
 when signing via `sign.apiKey` or a custom `sign.session` callback. No
 polyfills required.
 
-**Minimum runtime versions** (the SDK relies on `AbortSignal.any`,
-global `File`, and other modern web APIs):
+**Minimum runtime versions**:
 
-| Runtime | Minimum | Notes                                                |
-| ------- | ------- | ---------------------------------------------------- |
-| Node    | 20.3+   | Enforced via `engines.node`; npm warns on older Node |
-| Bun     | 1.0.16+ | First release with `AbortSignal.any`                 |
-| Deno    | 1.39+   | First release with `AbortSignal.any`                 |
+| Runtime | Minimum | Notes                                                                                       |
+| ------- | ------- | ------------------------------------------------------------------------------------------- |
+| Node    | 22+     | Enforced via `engines.node`. The build tool requires Node 22.18+; runtime is tested on 22 and 24. |
+| Bun     | 1.0.16+ | First release with `AbortSignal.any` (the SDK's tightest web-API requirement)               |
+| Deno    | 1.39+   | First release with `AbortSignal.any`                                                        |
 
 Other notes:
 
