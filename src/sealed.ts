@@ -83,6 +83,23 @@ export class Sealed {
 
     validateUploadOptions(opts);
 
+    // Surface the silent-by-default behaviour once per PostGuard instance.
+    // The most common "the SDK didn't send my email" support case is a
+    // caller who didn't realise notify defaults to silent — TypeScript
+    // can't catch it because `notify` is optional. Logged once (per
+    // config) to avoid spamming long-running processes; suppress by
+    // passing notify explicitly (true OR false counts as an explicit
+    // choice).
+    if (opts?.notify === undefined && !silentDefaultNoticed.has(this.config)) {
+      silentDefaultNoticed.add(this.config);
+      console.info(
+        '[@e4a/pg-js] sealed.upload(): notify is unset — uploading silently ' +
+        '(no recipient email sent). Pass { notify: { recipients: true } } to email ' +
+        'recipients, or { notify: { recipients: false } } to make the silent intent ' +
+        'explicit and suppress this notice.'
+      );
+    }
+
     // ReadableStream payloads can't be wrapped as a File for the upload
     // pipeline — refuse upfront rather than silently uploading zero bytes
     // and returning a UUID that points at empty ciphertext. toBytes()
@@ -154,6 +171,12 @@ export function resolveFiles(options: EncryptInput): File[] {
 const VALID_NOTIFY_KEYS = new Set(['recipients', 'sender', 'message', 'language']);
 const VALID_UPLOAD_KEYS = new Set(['notify']);
 const VALID_LANGUAGES: ReadonlySet<string> = new Set(['EN', 'NL']);
+
+/** Tracks which PostGuard configs have already seen the silent-default
+ *  notice, so a long-running process logs it once rather than on every
+ *  upload. Keyed by config object so each `new PostGuard(...)` gets one
+ *  chance to be told. */
+const silentDefaultNoticed = new WeakSet<PostGuardConfig>();
 
 /** Catches the most common upload misconfigurations early with a clear
  *  error, before they silently degrade to "no notification email sent". */
