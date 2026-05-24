@@ -6,9 +6,13 @@ on:
     workflow_call:
 
 jobs:
-    integration:
-        name: Integration
+    node:
+        name: Node ${{ matrix.node }}
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ['20', '22', '24']
         steps:
             - name: Checkout
               uses: actions/checkout@v6
@@ -16,7 +20,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v6
               with:
-                  node-version: '24'
+                  node-version: ${{ matrix.node }}
 
             - name: Install dependencies
               run: npm ci
@@ -29,3 +33,56 @@ jobs:
 
             - name: Test
               run: npm test
+
+            - name: Smoke (dry run on Node)
+              run: node scripts/smoke.mjs
+
+    bun:
+        name: Bun
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js (for npm + generators)
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '22'
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build
+              run: npm run build
+
+            - name: Smoke (dry run on Bun)
+              run: bun scripts/smoke.mjs
+
+    deno:
+        name: Deno
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js (for npm + generators)
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '22'
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@v2
+              with:
+                  deno-version: v2.x
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build
+              run: npm run build
+
+            - name: Smoke (dry run on Deno)
+              run: deno run -A scripts/smoke.mjs
