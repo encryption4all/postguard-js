@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { readZipFilenames, extractZipEntry } from '../src/util/zip.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readZipFilenames, extractZipEntry, createZipReadable } from '../src/util/zip.js';
 
 async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
@@ -171,5 +171,27 @@ describe('extractZipEntry', () => {
   it('throws when the named entry is absent', async () => {
     const zip = createMinimalZip([{ name: 'data.bin', content: new Uint8Array([1]) }]);
     await expect(extractZipEntry(zip, 'missing.bin')).rejects.toThrow(/not found/);
+  });
+});
+
+describe('createZipReadable', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('does not throw "self is not defined" when self is undefined', async () => {
+    // Simulates Node's environment (no `self` global). Bun and Deno alias
+    // self to globalThis natively; Node does not. Conflux's bigint.js
+    // reads `self.BigInt` at module load — regression for that crash.
+    vi.stubGlobal('self', undefined);
+
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'a.bin');
+    const stream = await createZipReadable([file]);
+    expect(stream).toBeInstanceOf(ReadableStream);
+
+    // Drain the stream to make sure it actually produces ZIP bytes.
+    let total = 0;
+    for await (const chunk of stream) total += chunk.byteLength;
+    expect(total).toBeGreaterThan(0);
   });
 });

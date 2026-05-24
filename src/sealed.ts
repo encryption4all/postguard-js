@@ -105,20 +105,30 @@ export class Sealed {
   }
 
   private resolveFiles(): File[] {
-    if (this.options.files) {
-      return this.options.files instanceof FileList
-        ? Array.from(this.options.files)
-        : this.options.files;
-    }
-    if (this.options.data) {
-      // Wrap raw data as a synthetic file for the upload pipeline
-      const data = this.options.data instanceof ReadableStream
-        ? new Blob([]) // ReadableStream can't be wrapped in File — toBytes should be used instead
-        : new Blob([this.options.data as BlobPart]);
-      return [new File([data], 'data.bin', { type: 'application/octet-stream' })];
-    }
-    throw new Error('Either files or data must be provided');
+    return resolveFiles(this.options);
   }
+}
+
+/** Normalise an EncryptInput's `files` or `data` into a File[] for the
+ *  upload pipeline. Exported for unit tests; not part of the public SDK. */
+export function resolveFiles(options: EncryptInput): File[] {
+  if (options.files) {
+    // FileList is browser-only — guard so Node/Bun/Deno don't throw
+    // ReferenceError on the instanceof check.
+    const isFileList =
+      typeof FileList !== 'undefined' && options.files instanceof FileList;
+    return isFileList
+      ? Array.from(options.files as FileList)
+      : (options.files as File[]);
+  }
+  if (options.data) {
+    // Wrap raw data as a synthetic file for the upload pipeline
+    const data = options.data instanceof ReadableStream
+      ? new Blob([]) // ReadableStream can't be wrapped in File — toBytes should be used instead
+      : new Blob([options.data as BlobPart]);
+    return [new File([data], 'data.bin', { type: 'application/octet-stream' })];
+  }
+  throw new Error('Either files or data must be provided');
 }
 
 const VALID_NOTIFY_KEYS = new Set(['recipients', 'sender', 'message', 'language']);
