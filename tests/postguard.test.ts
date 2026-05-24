@@ -60,4 +60,56 @@ describe('PostGuard', () => {
       ]);
     });
   });
+
+  describe('sealed.upload validation', () => {
+    const newSealed = () =>
+      pg.encrypt({
+        files: [new File([new Uint8Array([0])], 'a.bin')],
+        recipients: [pg.recipient.email('alice@example.com')],
+        sign: pg.sign.apiKey('PG-test'),
+      });
+
+    it('accepts undefined opts', async () => {
+      const sealed = newSealed();
+      // Validator passes; failure (if any) is from the downstream pipeline, not validation.
+      await expect(sealed.upload()).rejects.not.toThrow(/sealed\.upload/);
+    });
+
+    it('rejects boolean notify', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ notify: true })).rejects.toThrow(
+        /A plain boolean is a common mistake/
+      );
+    });
+
+    it('rejects top-level recipients (forgot to nest under notify)', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ recipients: true })).rejects.toThrow(
+        /unknown option "recipients"/
+      );
+    });
+
+    it('rejects unknown notify key', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ notify: { recipient: true } })).rejects.toThrow(
+        /unknown key "recipient"/
+      );
+    });
+
+    it('rejects non-object opts', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload(true)).rejects.toThrow(/expects an object/);
+    });
+
+    it('accepts valid notify shape', async () => {
+      const sealed = newSealed();
+      await expect(
+        sealed.upload({ notify: { recipients: true, sender: false, language: 'NL' } })
+      ).rejects.not.toThrow(/sealed\.upload/);
+    });
+  });
 });

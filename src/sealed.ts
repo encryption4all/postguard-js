@@ -81,6 +81,8 @@ export class Sealed {
       throw new Error('cryptifyUrl is required for upload');
     }
 
+    validateUploadOptions(opts);
+
     const { recipients, sign, onProgress, signal } = this.options;
     const signingKeys = await this.getSigningKeys();
     const files = this.resolveFiles();
@@ -117,4 +119,54 @@ export class Sealed {
     }
     throw new Error('Either files or data must be provided');
   }
+}
+
+const VALID_NOTIFY_KEYS = new Set(['recipients', 'sender', 'message', 'language']);
+const VALID_UPLOAD_KEYS = new Set(['notify']);
+
+/** Catches the most common upload misconfigurations early with a clear
+ *  error, before they silently degrade to "no notification email sent". */
+function validateUploadOptions(opts: UploadOptions | undefined): void {
+  if (opts === undefined) return;
+  if (opts === null || typeof opts !== 'object' || Array.isArray(opts)) {
+    throw new TypeError(
+      `sealed.upload(opts) expects an object like { notify: { recipients: true } }, ` +
+      `got ${describe(opts)}`
+    );
+  }
+
+  for (const key of Object.keys(opts)) {
+    if (!VALID_UPLOAD_KEYS.has(key)) {
+      throw new TypeError(
+        `sealed.upload(opts): unknown option "${key}". ` +
+        `Did you mean to nest it under "notify"? Expected shape: ` +
+        `{ notify: { recipients?: boolean, sender?: boolean, message?: string, language?: 'EN' | 'NL' } }`
+      );
+    }
+  }
+
+  const { notify } = opts;
+  if (notify === undefined) return;
+  if (notify === null || typeof notify !== 'object' || Array.isArray(notify)) {
+    throw new TypeError(
+      `sealed.upload({ notify }) expects an object like { recipients: true }, ` +
+      `got ${describe(notify)}. ` +
+      `(A plain boolean is a common mistake — use { recipients: true } to email recipients.)`
+    );
+  }
+
+  for (const key of Object.keys(notify)) {
+    if (!VALID_NOTIFY_KEYS.has(key)) {
+      throw new TypeError(
+        `sealed.upload({ notify }): unknown key "${key}". ` +
+        `Valid keys: recipients, sender, message, language.`
+      );
+    }
+  }
+}
+
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
