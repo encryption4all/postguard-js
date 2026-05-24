@@ -65,8 +65,20 @@ The package is `"type": "module"` and `"sideEffects": false`. Always use `.js` e
 
 Vitest with Node default environment. Browser-only paths (Yivi QR widgets, `triggerBrowserDownload`) are not covered by the unit tests — those need a real browser and live PKG/Cryptify endpoints. `tests/api.test.ts` is the broad integration of the encrypt/upload/open/decrypt flow against mocked PKG/Cryptify; the smaller files (`chunker`, `zip`, `errors`, `decrypt-session`, `recipients`, `exports`, `postguard`) target single units.
 
+## Supported runtimes
+
+- **Browser** — full surface, including Yivi.
+- **Node 20.3+ / Bun / Deno** — encrypt + upload + decrypt paths work for `sign.apiKey` and `sign.session`. `sign.yivi(...)` throws a clear `YiviSessionError` upfront (it needs a DOM). `result.download()` is browser-only; `result.blob` / `result.plaintext` are universal.
+
+Two non-obvious gotchas for non-browser callers, both already handled in the SDK:
+
+- `FileList` is browser-only. `src/sealed.ts` typeof-guards the `instanceof FileList` check so Node doesn't throw `ReferenceError`.
+- `@transcend-io/conflux/dist/esm/bigint.js` references the browser-only `self` global at module load. Bun and Deno alias `self === globalThis`; Node does not. `src/util/zip.ts:ensureSelfShim()` sets `globalThis.self ??= globalThis` immediately before the dynamic import.
+
+There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the four runtimes. Without `PG_API_KEY` it runs static checks; with one it does a real upload to staging Cryptify.
+
 ## Releases and CI
 
 - `main` is the release branch. `npx semantic-release` runs on push to `main` (`.github/workflows/delivery.yml`), so **commit messages and PR titles must follow Conventional Commits** — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
-- `.github/workflows/integration.yml` runs `npm run typecheck && npm run build && npm test` on every PR. Get those three green locally before pushing.
+- `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 20/22/24, Bun, and Deno on every PR. Get the Node lanes green locally before pushing.
 - Version in `package.json` is a placeholder (`0.0.0-managed-by-semantic-release`) — do not edit it manually; semantic-release rewrites it during publish.
