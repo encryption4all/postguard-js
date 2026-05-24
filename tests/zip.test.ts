@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { readZipFilenames, extractZipEntry } from '../src/util/zip.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readZipFilenames, extractZipEntry, createZipReadable } from '../src/util/zip.js';
 
 async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
@@ -171,5 +171,55 @@ describe('extractZipEntry', () => {
   it('throws when the named entry is absent', async () => {
     const zip = createMinimalZip([{ name: 'data.bin', content: new Uint8Array([1]) }]);
     await expect(extractZipEntry(zip, 'missing.bin')).rejects.toThrow(/not found/);
+  });
+});
+
+describe('createZipReadable', () => {
+  // Faithfully reproduce Node's native state: `self` not declared on
+  // globalThis at all (so the bare reference inside conflux's bigint.js
+  // would throw ReferenceError, not TypeError). Save and restore so the
+  // surrounding test suite isn't affected.
+  let priorSelf: unknown;
+  let priorSelfWasOwn: boolean;
+
+  beforeEach(() => {
+    const g = globalThis as Record<string, unknown>;
+    priorSelfWasOwn = Object.prototype.hasOwnProperty.call(g, 'self');
+    priorSelf = g.self;
+    Reflect.deleteProperty(g, 'self');
+  });
+
+  afterEach(() => {
+    const g = globalThis as Record<string, unknown>;
+    if (priorSelfWasOwn) g.self = priorSelf;
+    else Reflect.deleteProperty(g, 'self');
+    vi.unstubAllGlobals();
+  });
+
+  it('does not throw "self is not defined" when self is undeclared (Node-native state)', async () => {
+    // Regression: conflux's bigint.js reads `self.BigInt` at module load,
+    // which on Node throws ReferenceError because `self` is undeclared on
+    // globalThis (Bun and Deno alias it). createZipReadable must shim it
+    // around the import.
+    expect('self' in globalThis).toBe(false);
+
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'a.bin');
+    const stream = await createZipReadable([file]);
+    expect(stream).toBeInstanceOf(ReadableStream);
+
+    // Drain to make sure it actually produces ZIP bytes.
+    let total = 0;
+    for await (const chunk of stream) total += chunk.byteLength;
+    expect(total).toBeGreaterThan(0);
+  });
+
+  it('restores prior `self` state after the import (no permanent global mutation)', async () => {
+    expect('self' in globalThis).toBe(false);
+    await createZipReadable([new File([new Uint8Array([0])], 'a.bin')]);
+    // After the call, conflux is cached; our shim should have restored
+    // the prior state — `self` is once again undeclared on globalThis.
+    // Without the save/restore wrapping, `self` would persist as
+    // globalThis for the rest of the process.
+    expect('self' in globalThis).toBe(false);
   });
 });

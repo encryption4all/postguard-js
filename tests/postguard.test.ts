@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { PostGuard } from '../src/postguard.js';
 import { RecipientBuilder } from '../src/recipients/builder.js';
+import { resolveFiles } from '../src/sealed.js';
+import { resolveSigningKeysFromYivi } from '../src/signing/yivi.js';
+import { YiviSessionError } from '../src/errors.js';
 
 describe('PostGuard', () => {
   const pg = new PostGuard({
@@ -58,6 +61,154 @@ describe('PostGuard', () => {
         { t: 'pbdf.gemeente.personalData.surname', v: 'Smith' },
         { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', v: '0612345678' },
       ]);
+    });
+  });
+
+  describe('sealed.upload validation', () => {
+    const newSealed = () =>
+      pg.encrypt({
+        files: [new File([new Uint8Array([0])], 'a.bin')],
+        recipients: [pg.recipient.email('alice@example.com')],
+        sign: pg.sign.apiKey('PG-test'),
+      });
+
+    it('accepts undefined opts', async () => {
+      const sealed = newSealed();
+      // Validator passes; failure (if any) is from the downstream pipeline, not validation.
+      await expect(sealed.upload()).rejects.not.toThrow(/sealed\.upload/);
+    });
+
+    it('rejects boolean notify', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ notify: true })).rejects.toThrow(
+        /A plain boolean is a common mistake/
+      );
+    });
+
+    it('rejects top-level recipients (forgot to nest under notify)', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ recipients: true })).rejects.toThrow(
+        /unknown option "recipients"/
+      );
+    });
+
+    it('rejects unknown notify key', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload({ notify: { recipient: true } })).rejects.toThrow(
+        /unknown key "recipient"/
+      );
+    });
+
+    it('rejects non-object opts', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong shape
+      await expect(sealed.upload(true)).rejects.toThrow(/expects an object/);
+    });
+
+    it('accepts valid notify shape', async () => {
+      const sealed = newSealed();
+      await expect(
+        sealed.upload({ notify: { recipients: true, sender: false, language: 'NL' } })
+      ).rejects.not.toThrow(/sealed\.upload/);
+    });
+
+    it('rejects non-boolean notify.recipients', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { recipients: 'yes' } })).rejects.toThrow(
+        /recipients[^]*must be a boolean/
+      );
+    });
+
+    it('rejects non-boolean notify.sender', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { sender: 1 } })).rejects.toThrow(
+        /sender[^]*must be a boolean/
+      );
+    });
+
+    it('rejects non-string notify.message', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { message: 123 } })).rejects.toThrow(
+        /message[^]*must be a string/
+      );
+    });
+
+    it('rejects unsupported notify.language', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong value
+      await expect(sealed.upload({ notify: { language: 'DE' } })).rejects.toThrow(
+        /must be 'EN' or 'NL'/
+      );
+    });
+
+    it('refuses to upload a ReadableStream payload', async () => {
+      const sealed = pg.encrypt({
+        data: new ReadableStream<Uint8Array>(),
+        recipients: [pg.recipient.email('a@b.com')],
+        sign: pg.sign.apiKey('PG-test'),
+      });
+      await expect(sealed.upload()).rejects.toThrow(
+        /does not support data: ReadableStream/
+      );
+    });
+  });
+
+  describe('resolveFiles', () => {
+    const sign = pg.sign.apiKey('PG-test');
+    const recipients = [pg.recipient.email('a@b.com')];
+
+    it('returns File[] as-is without touching FileList global', () => {
+      const files = [new File([new Uint8Array([1])], 'a.bin')];
+      // FileList is undefined in Node/Bun/Deno; this must not throw
+      // ReferenceError. Regression test for the original bug where
+      // `files instanceof FileList` blew up on non-browser runtimes.
+      expect(typeof FileList).toBe('undefined');
+      const out = resolveFiles({ files, recipients, sign });
+      expect(out).toEqual(files);
+    });
+
+    it('wraps a Uint8Array data payload as a single File', () => {
+      const data = new TextEncoder().encode('hello');
+      const out = resolveFiles({ data, recipients, sign });
+      expect(out).toHaveLength(1);
+      expect(out[0].name).toBe('data.bin');
+      expect(out[0].type).toBe('application/octet-stream');
+    });
+
+    it('throws on a ReadableStream payload (use toBytes() instead)', () => {
+      const data = new ReadableStream<Uint8Array>();
+      expect(() => resolveFiles({ data, recipients, sign })).toThrow(
+        /cannot wrap a ReadableStream/
+      );
+    });
+
+    it('throws when neither files nor data given', () => {
+      expect(() => resolveFiles({ recipients, sign })).toThrow(/Either files or data/);
+    });
+  });
+
+  describe('sign.yivi without a DOM', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('throws YiviSessionError upfront when document is undefined', async () => {
+      // In Node/Bun/Deno without a DOM polyfill, document is undeclared.
+      // We expect a clear error from our upfront guard, not a confusing
+      // crash deep inside yivi-web.
+      vi.stubGlobal('document', undefined);
+      await expect(
+        resolveSigningKeysFromYivi('https://pkg.example.com', { element: '#yivi' })
+      ).rejects.toBeInstanceOf(YiviSessionError);
+      await expect(
+        resolveSigningKeysFromYivi('https://pkg.example.com', { element: '#yivi' })
+      ).rejects.toThrow(/sign\.yivi requires a DOM/);
     });
   });
 });

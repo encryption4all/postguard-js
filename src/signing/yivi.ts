@@ -46,6 +46,13 @@ export async function resolveSigningKeysFromYivi(
   opts: YiviSignOptions,
   headers?: HeadersInit
 ): Promise<SigningKeys> {
+  if (typeof document === 'undefined') {
+    throw new YiviSessionError(
+      'sign.yivi requires a DOM (browser environment). ' +
+      'Use sign.apiKey for server-side encryption or sign.session with a custom callback.'
+    );
+  }
+
   const extraHeaders = headers ? Object.fromEntries(new Headers(headers)) : {};
   let senderEmail: string | undefined;
 
