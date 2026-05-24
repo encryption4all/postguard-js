@@ -159,6 +159,43 @@ describe('PostGuard', () => {
     });
   });
 
+  describe('silent-default notice', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const newPg = () =>
+      new PostGuard({
+        pkgUrl: 'https://pkg.example.com',
+        cryptifyUrl: 'https://cryptify.example.com',
+      });
+
+    const newSealed = (instance: PostGuard) =>
+      instance.encrypt({
+        files: [new File([new Uint8Array([0])], 'a.bin')],
+        recipients: [instance.recipient.email('a@b.com')],
+        sign: instance.sign.apiKey('PG-test'),
+      });
+
+    it('logs once when notify is unset on a fresh PostGuard', async () => {
+      const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+      const instance = newPg();
+      // Two uploads on the same instance — info should fire exactly once.
+      await newSealed(instance).upload().catch(() => {});
+      await newSealed(instance).upload().catch(() => {});
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info.mock.calls[0][0]).toMatch(/notify is unset — uploading silently/);
+    });
+
+    it('does not log when notify is set explicitly (true or false)', async () => {
+      const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+      const instance = newPg();
+      await newSealed(instance).upload({ notify: { recipients: true } }).catch(() => {});
+      await newSealed(newPg()).upload({ notify: { recipients: false } }).catch(() => {});
+      expect(info).not.toHaveBeenCalled();
+    });
+  });
+
   describe('resolveFiles', () => {
     const sign = pg.sign.apiKey('PG-test');
     const recipients = [pg.recipient.email('a@b.com')];
