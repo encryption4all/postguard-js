@@ -38,15 +38,27 @@ See the [full API reference](https://docs.postguard.eu/repos/postguard-js) for e
 ## Server-side usage (Node, Bun, Deno)
 
 The SDK works in non-browser runtimes for the encrypt + upload path
-when signing via `sign.apiKey` or a custom `sign.session` callback:
+when signing via `sign.apiKey` or a custom `sign.session` callback. No
+polyfills required.
 
-- **Node 20.3+**, **Bun**, and **Deno** are all supported out of the box.
-  No polyfills required.
+**Minimum runtime versions** (the SDK relies on `AbortSignal.any`,
+global `File`, and other modern web APIs):
+
+| Runtime | Minimum | Notes                                                |
+| ------- | ------- | ---------------------------------------------------- |
+| Node    | 20.3+   | Enforced via `engines.node`; npm warns on older Node |
+| Bun     | 1.0.16+ | First release with `AbortSignal.any`                 |
+| Deno    | 1.39+   | First release with `AbortSignal.any`                 |
+
+Other notes:
+
 - `sign.yivi(...)` requires a DOM and is browser-only. The SDK throws a
   clear `YiviSessionError` upfront on non-browser runtimes — use
   `sign.apiKey` or `sign.session` instead.
 - For decryption, `result.blob` and `result.plaintext` are universal;
   `result.download(...)` triggers a browser download and is browser-only.
+- `sealed.upload()` refuses `data: ReadableStream` — use
+  `sealed.toBytes()` for streaming, or pass `data` as `Uint8Array`.
 
 A manual smoke test for any runtime lives at `scripts/smoke.mjs`. Set
 `PG_API_KEY` to a staging key to exercise the full upload pipeline:

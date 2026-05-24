@@ -3,17 +3,27 @@ import { createFileReadable } from './file.js';
 /** Conflux's bigint.js does `if (!self.BigInt && !self.JSBI)` at module
  *  load. `self` is browser-only; Bun and Deno alias it to globalThis, but
  *  Node doesn't, so importing conflux on Node throws "self is not
- *  defined". Polyfill it before the dynamic import. No-op everywhere
- *  except Node (and any other runtime without a `self` alias). */
-function ensureSelfShim(): void {
-  const g = globalThis as { self?: unknown };
-  if (g.self === undefined) g.self = globalThis;
+ *  defined". Set `self` only for the duration of the import and restore
+ *  the prior state afterwards so we don't permanently rewrite a global
+ *  that other libraries use as a browser-detection heuristic. The check
+ *  runs once per module-evaluation; after the module is cached the
+ *  runtime no longer references the bare `self`. */
+async function importConfluxWithSelfShim(): Promise<typeof import('@transcend-io/conflux')> {
+  const g = globalThis as Record<string, unknown>;
+  const had = Object.prototype.hasOwnProperty.call(g, 'self');
+  const prior = g.self;
+  if (!had || prior === undefined) g.self = globalThis;
+  try {
+    return await import('@transcend-io/conflux');
+  } finally {
+    if (!had) delete g.self;
+    else g.self = prior;
+  }
 }
 
 /** Create a ReadableStream of a ZIP archive from files using Conflux */
 export async function createZipReadable(files: File[]): Promise<ReadableStream> {
-  ensureSelfShim();
-  const { Writer: ConfluxWriter } = await import('@transcend-io/conflux');
+  const { Writer: ConfluxWriter } = await importConfluxWithSelfShim();
 
   const zipTransform = new ConfluxWriter();
   const readable = zipTransform.readable as ReadableStream;

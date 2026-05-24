@@ -9,10 +9,10 @@
 //                    (silent by default — no recipient mails sent).
 //
 // Run with:
-//   node scripts/smoke-node.mjs           # dry
-//   PG_API_KEY=PG-... node scripts/smoke-node.mjs   # full
-//   bun scripts/smoke-node.mjs
-//   deno run -A scripts/smoke-node.mjs
+//   node scripts/smoke.mjs           # dry
+//   PG_API_KEY=PG-... node scripts/smoke.mjs   # full
+//   bun scripts/smoke.mjs
+//   deno run -A scripts/smoke.mjs
 //
 // Always run `npm run build` first so dist/ is fresh.
 
@@ -77,16 +77,13 @@ record('construct PostGuard + build Sealed (no network)', async () => {
   if (sealed.mode !== 'files') throw new Error(`expected mode=files, got ${sealed.mode}`);
 });
 
-record('ZIP a File via internal createZipReadable', async () => {
-  // We use a deep import to exercise the same ZIP path encrypt() takes,
-  // without needing PKG. Conflux is the only Node-questionable bit.
-  const { createZipReadable } = await import('../dist/util/zip.mjs').catch(async () => {
-    // Bundle splitting may have inlined it — fall back to going through encrypt
-    return { createZipReadable: null };
-  });
-  if (!createZipReadable) {
-    console.log('  skipped: zip not directly importable from dist (likely inlined by tree-shake)');
-    return;
+record('ZIP a File via createZipReadable (exercises conflux+self shim)', async () => {
+  // This is the regression test for the "self is not defined" Node bug.
+  // Driving through the public surface so we don't depend on the bundler
+  // emitting a separate dist/util/zip chunk.
+  const { createZipReadable } = await import('../dist/index.mjs');
+  if (typeof createZipReadable !== 'function') {
+    throw new Error('createZipReadable not exported from dist/index.mjs');
   }
   const file = new File([new Uint8Array(1024).fill(7)], 'big.bin');
   const stream = await createZipReadable([file]);

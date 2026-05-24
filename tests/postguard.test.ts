@@ -1,7 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { PostGuard } from '../src/postguard.js';
 import { RecipientBuilder } from '../src/recipients/builder.js';
 import { resolveFiles } from '../src/sealed.js';
+import { resolveSigningKeysFromYivi } from '../src/signing/yivi.js';
+import { YiviSessionError } from '../src/errors.js';
 
 describe('PostGuard', () => {
   const pg = new PostGuard({
@@ -112,6 +114,49 @@ describe('PostGuard', () => {
         sealed.upload({ notify: { recipients: true, sender: false, language: 'NL' } })
       ).rejects.not.toThrow(/sealed\.upload/);
     });
+
+    it('rejects non-boolean notify.recipients', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { recipients: 'yes' } })).rejects.toThrow(
+        /recipients[^]*must be a boolean/
+      );
+    });
+
+    it('rejects non-boolean notify.sender', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { sender: 1 } })).rejects.toThrow(
+        /sender[^]*must be a boolean/
+      );
+    });
+
+    it('rejects non-string notify.message', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong type
+      await expect(sealed.upload({ notify: { message: 123 } })).rejects.toThrow(
+        /message[^]*must be a string/
+      );
+    });
+
+    it('rejects unsupported notify.language', async () => {
+      const sealed = newSealed();
+      // @ts-expect-error — intentionally wrong value
+      await expect(sealed.upload({ notify: { language: 'DE' } })).rejects.toThrow(
+        /must be 'EN' or 'NL'/
+      );
+    });
+
+    it('refuses to upload a ReadableStream payload', async () => {
+      const sealed = pg.encrypt({
+        data: new ReadableStream<Uint8Array>(),
+        recipients: [pg.recipient.email('a@b.com')],
+        sign: pg.sign.apiKey('PG-test'),
+      });
+      await expect(sealed.upload()).rejects.toThrow(
+        /does not support data: ReadableStream/
+      );
+    });
   });
 
   describe('resolveFiles', () => {
@@ -136,15 +181,34 @@ describe('PostGuard', () => {
       expect(out[0].type).toBe('application/octet-stream');
     });
 
-    it('returns an empty-blob File for a ReadableStream payload', () => {
+    it('throws on a ReadableStream payload (use toBytes() instead)', () => {
       const data = new ReadableStream<Uint8Array>();
-      const out = resolveFiles({ data, recipients, sign });
-      expect(out).toHaveLength(1);
-      expect(out[0].size).toBe(0);
+      expect(() => resolveFiles({ data, recipients, sign })).toThrow(
+        /cannot wrap a ReadableStream/
+      );
     });
 
     it('throws when neither files nor data given', () => {
       expect(() => resolveFiles({ recipients, sign })).toThrow(/Either files or data/);
+    });
+  });
+
+  describe('sign.yivi without a DOM', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('throws YiviSessionError upfront when document is undefined', async () => {
+      // In Node/Bun/Deno without a DOM polyfill, document is undeclared.
+      // We expect a clear error from our upfront guard, not a confusing
+      // crash deep inside yivi-web.
+      vi.stubGlobal('document', undefined);
+      await expect(
+        resolveSigningKeysFromYivi('https://pkg.example.com', { element: '#yivi' })
+      ).rejects.toBeInstanceOf(YiviSessionError);
+      await expect(
+        resolveSigningKeysFromYivi('https://pkg.example.com', { element: '#yivi' })
+      ).rejects.toThrow(/sign\.yivi requires a DOM/);
     });
   });
 });

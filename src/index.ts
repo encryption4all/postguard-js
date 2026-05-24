@@ -72,3 +72,8 @@ export type { RetryOptions, RetryEvent } from './util/retry.js';
 // a page refresh, tab crash, or process restart.
 export { resumeUpload } from './api/cryptify.js';
 export type { FileState } from './api/cryptify.js';
+
+// ZIP utility — exposed for advanced callers and the cross-runtime smoke
+// script that needs to exercise the conflux+self path without going
+// through the full encrypt pipeline.
+export { createZipReadable } from './util/zip.js';
