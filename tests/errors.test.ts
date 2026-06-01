@@ -57,4 +57,10 @@ describe('IdentityMismatchError', () => {
     expect(err.name).toBe('IdentityMismatchError');
     expect(err.message).toContain('Identity mismatch');
   });
+
+  it('forwards cause through to the Error superclass', () => {
+    const cause = new TypeError('network drop mid-unseal');
+    const err = new IdentityMismatchError({ cause });
+    expect(err.cause).toBe(cause);
+  });
 });

@@ -49,15 +49,15 @@ export class YiviNotInstalledError extends PostGuardError {
 }
 
 export class DecryptionError extends PostGuardError {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'DecryptionError';
   }
 }
 
 export class IdentityMismatchError extends DecryptionError {
-  constructor() {
-    super('Identity mismatch: the Yivi attributes did not match the encryption policy.');
+  constructor(options?: ErrorOptions) {
+    super('Identity mismatch: the Yivi attributes did not match the encryption policy.', options);
     this.name = 'IdentityMismatchError';
   }
 }
