@@ -4,6 +4,7 @@ import type {
   YiviSign,
   SessionSign,
   SessionCallback,
+  AttrConItem,
 } from './types.js';
 import { RecipientBuilder } from './recipients/builder.js';
 import { EmailHelpers } from './email/index.js';
@@ -27,7 +28,12 @@ export class PostGuardBase {
       type: 'apiKey',
       apiKey,
     }),
-    yivi: (opts: { element: string; senderEmail?: string; attributes?: { t: string; v?: string; optional?: boolean }[]; includeSender?: boolean }): YiviSign => ({
+    yivi: (opts: {
+      element: string;
+      senderEmail?: string;
+      attributes?: AttrConItem[];
+      includeSender?: boolean;
+    }): YiviSign => ({
       type: 'yivi',
       ...opts,
     }),

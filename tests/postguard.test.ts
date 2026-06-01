@@ -2,7 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { PostGuard } from '../src/postguard.js';
 import { RecipientBuilder } from '../src/recipients/builder.js';
 import { resolveFiles } from '../src/sealed.js';
-import { resolveSigningKeysFromYivi } from '../src/signing/yivi.js';
+import {
+  resolveSigningKeysFromYivi,
+  buildStartRequestBody,
+} from '../src/signing/yivi.js';
 import { YiviSessionError } from '../src/errors.js';
 
 describe('PostGuard', () => {
@@ -34,6 +37,67 @@ describe('PostGuard', () => {
     it('builds yivi sign method without optional includeSender', () => {
       const sign = pg.sign.yivi({ element: '#yivi', senderEmail: 'a@b.com' });
       expect(sign.includeSender).toBeUndefined();
+    });
+  });
+
+  describe('buildStartRequestBody', () => {
+    it('prepends the email attribute (unbound) when no senderEmail given', () => {
+      const body = buildStartRequestBody({ element: '#yivi' });
+      expect(body).toEqual({ con: [{ t: 'pbdf.sidn-pbdf.email.email' }] });
+    });
+
+    it('binds the email attribute when senderEmail is given', () => {
+      const body = buildStartRequestBody({
+        element: '#yivi',
+        senderEmail: 'sender@example.com',
+      });
+      expect(body).toEqual({
+        con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'sender@example.com' }],
+      });
+    });
+
+    it('preserves legacy flat attribute entries with optional flag', () => {
+      const body = buildStartRequestBody({
+        element: '#yivi',
+        attributes: [
+          { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', optional: true },
+        ],
+      });
+      expect(body).toEqual({
+        con: [
+          { t: 'pbdf.sidn-pbdf.email.email' },
+          { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', optional: true },
+        ],
+      });
+    });
+
+    it('passes through a disjunction-of-conjunctions entry as a nested array', () => {
+      const body = buildStartRequestBody({
+        element: '#yivi',
+        attributes: [
+          [
+            [{ t: 'pbdf.gemeente.personalData.fullname' }],
+            [
+              { t: 'pbdf.pbdf.passport.firstName' },
+              { t: 'pbdf.pbdf.passport.lastName' },
+            ],
+          ],
+          { t: 'pbdf.gemeente.personalData.dateofbirth', optional: true },
+        ],
+      });
+      expect(body).toEqual({
+        con: [
+          { t: 'pbdf.sidn-pbdf.email.email' },
+          [
+            [{ t: 'pbdf.gemeente.personalData.fullname' }],
+            [
+              { t: 'pbdf.pbdf.passport.firstName' },
+              { t: 'pbdf.pbdf.passport.lastName' },
+            ],
+          ],
+          { t: 'pbdf.gemeente.personalData.dateofbirth', optional: true },
+        ],
+      });
     });
   });
 

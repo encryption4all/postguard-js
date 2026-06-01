@@ -33,14 +33,32 @@ export interface ApiKeySign {
   apiKey: string;
 }
 
+/** A single attribute in a disclosure request. */
+export type AttrReq = { t: string; v?: string; optional?: boolean };
+
+/** A disjunction-of-conjunctions: each inner array is one alternative
+ *  conjunction the user can satisfy. An empty inner array marks the
+ *  whole discon as optional, per Yivi convention. */
+export type AttrDiscon = AttrReq[][];
+
+/** One entry in the top-level Yivi disclosure request:
+ *  either a single attribute or a disjunction-of-conjunctions. */
+export type AttrConItem = AttrReq | AttrDiscon;
+
 /** Signing via Yivi session (peer-to-peer) */
 export interface YiviSign {
   type: 'yivi';
   element: string;
   senderEmail?: string;
   /** Additional attributes to request in the Yivi session (e.g. name).
-   *  Email is always included automatically. Mark as optional to let the user skip. */
-  attributes?: { t: string; v?: string; optional?: boolean }[];
+   *  Email is always included automatically.
+   *
+   *  Each entry is either a single attribute (legacy flat shape — mark
+   *  `optional: true` to let the user skip it) or a Yivi
+   *  disjunction-of-conjunctions: a `AttrReq[][]` where each inner array
+   *  is one alternative conjunction. Inside a discon, use an empty inner
+   *  array to mark the whole discon optional. */
+  attributes?: AttrConItem[];
   includeSender?: boolean;
 }
 

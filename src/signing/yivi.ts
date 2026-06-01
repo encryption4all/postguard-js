@@ -3,13 +3,24 @@ import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
 import { injectYiviCss } from '../yivi/inject-css.js';
 import { YiviSessionError } from '../errors.js';
-import type { SigningKeys } from '../types.js';
+import type { SigningKeys, AttrConItem, AttrReq } from '../types.js';
 
 export interface YiviSignOptions {
   element: string;
   senderEmail?: string;
-  attributes?: { t: string; v?: string; optional?: boolean }[];
+  attributes?: AttrConItem[];
   includeSender?: boolean;
+}
+
+/** Build the JSON body POSTed to `${pkgUrl}/v2/request/start`.
+ *  Exposed for unit testing — the runtime call path uses it via `JSON.stringify`. */
+export function buildStartRequestBody(opts: YiviSignOptions): {
+  con: AttrConItem[];
+} {
+  const emailAttr: AttrReq = opts.senderEmail
+    ? { t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }
+    : { t: 'pbdf.sidn-pbdf.email.email' };
+  return { con: [emailAttr, ...(opts.attributes ?? [])] };
 }
 
 /**
@@ -65,14 +76,7 @@ export async function resolveSigningKeysFromYivi(
         'Content-Type': 'application/json',
         ...extraHeaders,
       },
-      body: JSON.stringify({
-        con: [
-          opts.senderEmail
-            ? { t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }
-            : { t: 'pbdf.sidn-pbdf.email.email' },
-          ...(opts.attributes ?? []),
-        ],
-      }),
+      body: JSON.stringify(buildStartRequestBody(opts)),
     },
     result: {
       url: (o: any, { sessionToken }: any) => `${o.url}/v2/request/jwt/${sessionToken}`,
