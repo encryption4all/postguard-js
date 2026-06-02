@@ -170,9 +170,13 @@ export interface InspectResult {
 
 /** Result of decrypting files (from UUID). Files are auto-extracted
  *  from the inner ZIP; `download()` triggers one browser download per
- *  entry. */
+ *  entry. `blob` is the raw ZIP archive — kept as an escape hatch for
+ *  callers that want to re-upload, hand-process, or offer a single
+ *  "Download as ZIP" button instead of the per-file fan-out (some
+ *  browsers prompt for multi-file downloads). */
 export interface DecryptFileResult {
   files: Array<{ name: string; blob: Blob }>;
+  blob: Blob;
   sender: FriendlySender | null;
   download: () => void;
 }

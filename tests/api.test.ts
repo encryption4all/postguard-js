@@ -663,6 +663,58 @@ describe('Cryptify API', () => {
       expect(result.totalBytes).toBeUndefined();
     });
 
+    it('returns totalBytes from a numeric Content-Length', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: new Headers({ 'content-length': '12345' }),
+      });
+
+      const result = await downloadFile('https://cryptify.example.com', 'uuid');
+      expect(result.totalBytes).toBe(12345);
+    });
+
+    it('treats Content-Length: 0 as unknown (no progress denominator)', async () => {
+      // A zero-byte body could be a legitimate response, but the
+      // resulting progress percentage (n / 0) is meaningless. The
+      // > 0 filter pushes consumers onto the indeterminate path
+      // instead of dividing by zero.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: new Headers({ 'content-length': '0' }),
+      });
+
+      const result = await downloadFile('https://cryptify.example.com', 'uuid');
+      expect(result.totalBytes).toBeUndefined();
+    });
+
+    it('treats a non-numeric Content-Length as unknown', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: new Headers({ 'content-length': 'banana' }),
+      });
+
+      const result = await downloadFile('https://cryptify.example.com', 'uuid');
+      expect(result.totalBytes).toBeUndefined();
+    });
+
+    it('treats a missing Content-Length as unknown', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+        headers: new Headers(),
+      });
+
+      const result = await downloadFile('https://cryptify.example.com', 'uuid');
+      expect(result.totalBytes).toBeUndefined();
+    });
+
     it('throws NetworkError on failure', async () => {
       mockFetch.mockResolvedValueOnce(errorResponse(404, 'Not Found'));
       await expect(

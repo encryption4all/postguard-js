@@ -203,6 +203,7 @@ export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<
 
   return {
     files: extractedFiles,
+    blob: zipBlob,
     sender: parseSender(sender),
     download: () => triggerBrowserDownloads(extractedFiles),
   };

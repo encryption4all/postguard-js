@@ -123,39 +123,68 @@ export async function extractZipEntry(blob: Blob, name: string): Promise<Uint8Ar
   throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
 }
 
+/** Max concurrent deflate decompressions. Each in-flight entry holds
+ *  both its compressed slice and its inflated output in memory; an
+ *  unbounded `Promise.all` over a multi-file archive can spike peak
+ *  memory well past the archive size. Four is a small cap that still
+ *  parallelises across cores for the common case. */
+const EXTRACT_CONCURRENCY = 4;
+
 /** Extract all entries from a ZIP blob, returning each as a named Blob.
  *  Directory entries (names ending with '/') are skipped. Supports method
  *  0 (stored) and method 8 (deflate). Reads the underlying buffer once
- *  and unpacks each entry from it. */
+ *  and unpacks each entry from it. Concurrency is capped (see
+ *  EXTRACT_CONCURRENCY) so peak memory scales with the cap, not the
+ *  number of entries. */
 export async function extractAllZipEntries(blob: Blob): Promise<Array<{ name: string; blob: Blob }>> {
   const buf = await blob.arrayBuffer();
   const view = new DataView(buf);
   const bytes = new Uint8Array(buf);
   const entries = readCentralDirectory(view, bytes).filter((e) => !e.name.endsWith('/'));
 
-  return Promise.all(
-    entries.map(async (entry) => {
-      const lfh = entry.lfhOffset;
-      if (view.getUint32(lfh, true) !== 0x04034b50) {
-        throw new Error(`Invalid local file header at offset ${lfh}`);
-      }
-      const lfhFilenameLen = view.getUint16(lfh + 26, true);
-      const lfhExtraLen = view.getUint16(lfh + 28, true);
-      const dataStart = lfh + 30 + lfhFilenameLen + lfhExtraLen;
-      const compressed = bytes.slice(dataStart, dataStart + entry.compressedSize);
+  async function extractOne(entry: typeof entries[number]): Promise<{ name: string; blob: Blob }> {
+    const lfh = entry.lfhOffset;
+    if (view.getUint32(lfh, true) !== 0x04034b50) {
+      throw new Error(`Invalid local file header at offset ${lfh}`);
+    }
+    const lfhFilenameLen = view.getUint16(lfh + 26, true);
+    const lfhExtraLen = view.getUint16(lfh + 28, true);
+    const dataStart = lfh + 30 + lfhFilenameLen + lfhExtraLen;
+    const compressed = bytes.slice(dataStart, dataStart + entry.compressedSize);
 
-      let data: Uint8Array;
-      if (entry.method === 0) {
-        data = compressed;
-      } else if (entry.method === 8) {
-        const ds = new DecompressionStream('deflate-raw');
-        const stream = new Blob([compressed as BlobPart]).stream().pipeThrough(ds);
-        data = new Uint8Array(await new Response(stream).arrayBuffer());
-      } else {
-        throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
-      }
+    let data: Uint8Array;
+    if (entry.method === 0) {
+      data = compressed;
+    } else if (entry.method === 8) {
+      const ds = new DecompressionStream('deflate-raw');
+      const stream = new Blob([compressed]).stream().pipeThrough(ds);
+      data = new Uint8Array(await new Response(stream).arrayBuffer());
+    } else {
+      throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
+    }
 
-      return { name: entry.name, blob: new Blob([data as BlobPart]) };
+    // `data` from `arrayBuffer()` carries `Uint8Array<ArrayBufferLike>`,
+    // which TS won't unify with `BlobPart` (ArrayBufferLike could be a
+    // SharedArrayBuffer). The cast is sound — it can't be shared because
+    // we just allocated it from a Response body.
+    return { name: entry.name, blob: new Blob([data as BlobPart]) };
+  }
+
+  // Bounded worker pool: each worker pulls the next index off a shared
+  // counter, so any worker that finishes early picks up the next entry
+  // rather than waiting for its sibling slots. Preserves input order in
+  // the result array.
+  const results: Array<{ name: string; blob: Blob }> = new Array(entries.length);
+  let cursor = 0;
+  const workerCount = Math.min(EXTRACT_CONCURRENCY, entries.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const i = cursor++;
+        if (i >= entries.length) return;
+        results[i] = await extractOne(entries[i]);
+      }
     }),
   );
+  return results;
 }

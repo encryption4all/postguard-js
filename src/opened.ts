@@ -124,9 +124,10 @@ export class Opened {
 
       return {
         files: extractedFiles,
+        blob: zipBlob,
         sender: parseSender(sender),
         download: () => triggerBrowserDownloads(extractedFiles),
-      } as DecryptFileResult;
+      };
     }
 
     // Data-based: return plaintext bytes
