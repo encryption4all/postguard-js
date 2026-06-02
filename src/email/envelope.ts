@@ -62,9 +62,18 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
         const uploadOpts = notify || onUploadInit ? { notify, onUploadInit } : undefined;
         const result = await sealed.upload(uploadOpts);
         uploadUuid = result.uuid;
-      } catch {
-        // Network / CORS / Cryptify-unavailable. Fall through to
-        // manual-upload instructions; tier 2 still has the attachment.
+      } catch (e) {
+        if (tier === 'tier3') {
+          // Tier 3 has no local attachment fallback — surfacing the manual-upload
+          // body would point the recipient at a file that does not exist.
+          throw e;
+        }
+        // Tier 2: attachment is still on the message; the body falls through to
+        // manual-upload instructions. Warn so the failure isn't fully silent.
+        console.warn(
+          '[@e4a/pg-js] createEnvelope: Cryptify upload failed, falling back to manual-upload instructions:',
+          e
+        );
       }
     }
 
