@@ -9,6 +9,7 @@ import {
   type ResolvedRetryOptions,
   type RetryOptions,
 } from '../util/retry.js';
+import { ProgressPipe } from '../util/progress.js';
 
 export interface FileState {
   /** Current rolling token — what the next chunk PUT should send. */
@@ -272,12 +273,15 @@ export async function finalizeUpload(
   }
 }
 
-/** Download an encrypted file as a ReadableStream */
+/** Download an encrypted file as a ReadableStream. Returns the total
+ *  byte count from `Content-Length` when the server advertises it
+ *  (cryptify does for `GET /filedownload/{uuid}` without Range); callers
+ *  use this to drive progress reporting. */
 export async function downloadFile(
   cryptifyUrl: string,
   uuid: string,
   signal?: AbortSignal
-): Promise<ReadableStream<Uint8Array>> {
+): Promise<{ stream: ReadableStream<Uint8Array>; totalBytes: number | undefined }> {
   const response = await fetch(`${cryptifyUrl}/filedownload/${uuid}`, {
     signal,
     method: 'GET',
@@ -289,7 +293,12 @@ export async function downloadFile(
   }
 
   if (!response.body) throw new Error('Response body is null');
-  return response.body as ReadableStream<Uint8Array>;
+
+  const cl = response.headers?.get('content-length') ?? null;
+  const n = cl ? Number.parseInt(cl, 10) : NaN;
+  const totalBytes = Number.isFinite(n) && n > 0 ? n : undefined;
+
+  return { stream: response.body as ReadableStream<Uint8Array>, totalBytes };
 }
 
 /**
@@ -375,11 +384,12 @@ export function downloadFileWithRetry(
   uuid: string,
   retry: ResolvedRetryOptions,
   signal?: AbortSignal
-): ReadableStream<Uint8Array> {
+): { stream: ReadableStream<Uint8Array>; pipe: ProgressPipe } {
   let received = 0;
   let attempt = 0;
+  const pipe = new ProgressPipe();
 
-  return new ReadableStream<Uint8Array>({
+  const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       // Single source of truth: each underlying GET is one `attempt`,
       // counter is shared across resumes so a flapping connection that
@@ -388,13 +398,17 @@ export function downloadFileWithRetry(
         attempt += 1;
         const { signal: timed, cleanup } = withTimeout(signal, retry.downloadTimeoutMs);
         try {
-          const stream =
-            received === 0
-              ? await downloadFile(cryptifyUrl, uuid, timed)
-              : await downloadRange(cryptifyUrl, uuid, received, timed);
+          let innerStream: ReadableStream<Uint8Array>;
+          if (received === 0) {
+            const { stream: s, totalBytes } = await downloadFile(cryptifyUrl, uuid, timed);
+            pipe.setTotal(totalBytes);
+            innerStream = s;
+          } else {
+            innerStream = await downloadRange(cryptifyUrl, uuid, received, timed);
+          }
           cleanup();
 
-          const reader = stream.getReader();
+          const reader = innerStream.getReader();
           for (;;) {
             const { value, done } = await reader.read();
             if (done) {
@@ -402,6 +416,7 @@ export function downloadFileWithRetry(
               return;
             }
             received += value.byteLength;
+            pipe.report(received);
             controller.enqueue(value);
           }
         } catch (err) {
@@ -445,6 +460,8 @@ export function downloadFileWithRetry(
       void reason;
     },
   });
+
+  return { stream, pipe };
 }
 
 export interface UploadStream {

@@ -122,3 +122,40 @@ export async function extractZipEntry(blob: Blob, name: string): Promise<Uint8Ar
   }
   throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
 }
+
+/** Extract all entries from a ZIP blob, returning each as a named Blob.
+ *  Directory entries (names ending with '/') are skipped. Supports method
+ *  0 (stored) and method 8 (deflate). Reads the underlying buffer once
+ *  and unpacks each entry from it. */
+export async function extractAllZipEntries(blob: Blob): Promise<Array<{ name: string; blob: Blob }>> {
+  const buf = await blob.arrayBuffer();
+  const view = new DataView(buf);
+  const bytes = new Uint8Array(buf);
+  const entries = readCentralDirectory(view, bytes).filter((e) => !e.name.endsWith('/'));
+
+  return Promise.all(
+    entries.map(async (entry) => {
+      const lfh = entry.lfhOffset;
+      if (view.getUint32(lfh, true) !== 0x04034b50) {
+        throw new Error(`Invalid local file header at offset ${lfh}`);
+      }
+      const lfhFilenameLen = view.getUint16(lfh + 26, true);
+      const lfhExtraLen = view.getUint16(lfh + 28, true);
+      const dataStart = lfh + 30 + lfhFilenameLen + lfhExtraLen;
+      const compressed = bytes.slice(dataStart, dataStart + entry.compressedSize);
+
+      let data: Uint8Array;
+      if (entry.method === 0) {
+        data = compressed;
+      } else if (entry.method === 8) {
+        const ds = new DecompressionStream('deflate-raw');
+        const stream = new Blob([compressed as BlobPart]).stream().pipeThrough(ds);
+        data = new Uint8Array(await new Response(stream).arrayBuffer());
+      } else {
+        throw new Error(`Unsupported ZIP compression method: ${entry.method}`);
+      }
+
+      return { name: entry.name, blob: new Blob([data as BlobPart]) };
+    }),
+  );
+}

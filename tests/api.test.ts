@@ -659,7 +659,8 @@ describe('Cryptify API', () => {
       });
 
       const result = await downloadFile('https://cryptify.example.com', 'file-uuid');
-      expect(result).toBe(stream);
+      expect(result.stream).toBe(stream);
+      expect(result.totalBytes).toBeUndefined();
     });
 
     it('throws NetworkError on failure', async () => {
@@ -745,7 +746,7 @@ describe('Cryptify API', () => {
         body: streamOf(new Uint8Array([1, 2, 3, 4])),
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const bytes = await drain(stream);
 
       expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
@@ -772,7 +773,7 @@ describe('Cryptify API', () => {
           body: streamOf(new Uint8Array([42])),
         });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const bytes = await drain(stream);
 
       expect(Array.from(bytes)).toEqual([42]);
@@ -800,7 +801,7 @@ describe('Cryptify API', () => {
         text: () => Promise.resolve(''),
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const bytes = await drain(stream);
 
       expect(Array.from(bytes)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
@@ -828,7 +829,7 @@ describe('Cryptify API', () => {
         text: () => Promise.resolve(''),
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
 
       const reader = stream.getReader();
       const first = await reader.read();
@@ -854,7 +855,7 @@ describe('Cryptify API', () => {
         text: () => Promise.resolve(''),
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const reader = stream.getReader();
       await reader.read(); // [1,2]
       await expect(reader.read()).rejects.toMatchObject({
@@ -871,7 +872,7 @@ describe('Cryptify API', () => {
         headers: new Headers(),
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const reader = stream.getReader();
       await expect(reader.read()).rejects.toMatchObject({
         name: 'NetworkError',
@@ -941,7 +942,7 @@ describe('Cryptify API', () => {
         });
       });
 
-      const stream = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
       const reader = stream.getReader();
       // Each attempt delivers one byte before erroring. With maxAttempts=3,
       // we should see 3 bytes total, then the next read errors.
@@ -961,7 +962,7 @@ describe('Cryptify API', () => {
       controller.abort();
       mockFetch.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
 
-      const stream = downloadFileWithRetry(
+      const { stream } = downloadFileWithRetry(
         'https://cryptify.example.com',
         'uuid',
         fastRetry,

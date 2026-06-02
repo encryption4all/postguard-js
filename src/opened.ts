@@ -14,15 +14,17 @@ import {
   resolveUSK,
   unsealAndCollect,
 } from './crypto/decrypt.js';
-import { readZipFilenames, extractZipEntry } from './util/zip.js';
-import { triggerBrowserDownload } from './util/download.js';
+import { extractAllZipEntries } from './util/zip.js';
+import { triggerBrowserDownloads } from './util/download.js';
 import { parseSender } from './util/identity.js';
+import { ProgressPipe } from './util/progress.js';
 
 /** Lazy decryption builder. Supports inspect-before-decrypt pattern. */
 export class Opened {
   private unsealer: any = null;
   private cachedPolicies: Map<string, any> | null = null;
   private cachedSender: SenderIdentity | null = null;
+  private progressPipe: ProgressPipe | null = null;
 
   /** @internal */
   constructor(
@@ -44,7 +46,7 @@ export class Opened {
 
     const isUuid = 'uuid' in this.options;
 
-    const { unsealer, policies, sender } = await inspectSealed({
+    const { unsealer, policies, sender, pipe } = await inspectSealed({
       pkgUrl: this.config.pkgUrl,
       cryptifyUrl: isUuid ? this.config.cryptifyUrl : undefined,
       uuid: isUuid ? this.options.uuid : undefined,
@@ -57,6 +59,7 @@ export class Opened {
     this.unsealer = unsealer;
     this.cachedPolicies = policies;
     this.cachedSender = sender;
+    this.progressPipe = pipe;
 
     return {
       recipients: [...policies.keys()],
@@ -87,6 +90,14 @@ export class Opened {
       opts.enableCache,
     );
 
+    // Attach progress callback just before we drain the stream: bytes
+    // flow during unsealAndCollect, which is the next call. Set here
+    // (not at construction time) so callers can supply onDownloadProgress
+    // via DecryptInput rather than the PostGuard config.
+    if (opts.onDownloadProgress) {
+      this.progressPipe?.setCallback(opts.onDownloadProgress);
+    }
+
     const { chunks, sender } = await unsealAndCollect(
       this.unsealer,
       key,
@@ -97,15 +108,14 @@ export class Opened {
     const isUuid = 'uuid' in this.options;
 
     if (isUuid) {
-      // UUID-based: return files from ZIP
-      const blob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
-      const files = await readZipFilenames(blob);
+      const zipBlob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
+      const extractedFiles = await extractAllZipEntries(zipBlob);
 
       // Symmetry with Sealed.upload's data: mode: it wraps raw bytes as a
       // single-entry zip with `data.bin`. Unwrap here so the round-trip
       // matches pg.encrypt({ data }) → pg.open({ uuid }).decrypt().
-      if (files.length === 1 && files[0] === 'data.bin') {
-        const plaintext = await extractZipEntry(blob, 'data.bin');
+      if (extractedFiles.length === 1 && extractedFiles[0].name === 'data.bin') {
+        const plaintext = new Uint8Array(await extractedFiles[0].blob.arrayBuffer());
         return {
           plaintext,
           sender: parseSender(sender),
@@ -113,10 +123,9 @@ export class Opened {
       }
 
       return {
-        files,
+        files: extractedFiles,
         sender: parseSender(sender),
-        blob,
-        download: (filename = 'files.zip') => triggerBrowserDownload(blob, filename),
+        download: () => triggerBrowserDownloads(extractedFiles),
       } as DecryptFileResult;
     }
 

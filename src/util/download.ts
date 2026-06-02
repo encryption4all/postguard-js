@@ -9,3 +9,10 @@ export function triggerBrowserDownload(blob: Blob, filename: string): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/** Trigger a browser download for each file in the list */
+export function triggerBrowserDownloads(files: Array<{ name: string; blob: Blob }>): void {
+  for (const { name, blob } of files) {
+    triggerBrowserDownload(blob, name);
+  }
+}
