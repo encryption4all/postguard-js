@@ -211,17 +211,21 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
       });
 
   // Collect encrypted output
-  let encrypted = new Uint8Array(0);
+  const chunks: Uint8Array[] = [];
   const writable = new WritableStream<Uint8Array>({
     write(chunk: Uint8Array) {
-      const combined = new Uint8Array(encrypted.length + chunk.length);
-      combined.set(encrypted);
-      combined.set(chunk, encrypted.length);
-      encrypted = combined;
+      chunks.push(chunk);
     },
   });
 
   await sealStream(mpk, sealOptions, readable, writable);
 
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const encrypted = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    encrypted.set(chunk, offset);
+    offset += chunk.length;
+  }
   return encrypted;
 }
