@@ -138,7 +138,13 @@ export async function unsealAndCollect(
   try {
     await unsealer.unseal(key, usk, writable);
   } catch (e) {
-    throw new IdentityMismatchError();
+    // AbortError signals user/caller-driven cancellation — surface it as-is
+    // so callers can distinguish it from a real identity mismatch.
+    if (e instanceof Error && e.name === 'AbortError') throw e;
+    // Other failures (real identity mismatch, network drop during streaming,
+    // WASM panic) all surface here without a stable shape we can discriminate
+    // on. Preserve the original via `cause` so callers can inspect it.
+    throw new IdentityMismatchError({ cause: e });
   }
 
   let sender = preUnsealSender;
