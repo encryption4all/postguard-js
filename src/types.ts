@@ -42,7 +42,8 @@ export type AttrReq = { t: string; v?: string; optional?: boolean };
 export type AttrDiscon = AttrReq[][];
 
 /** One entry in the top-level Yivi disclosure request:
- *  either a single attribute or a disjunction-of-conjunctions. */
+ *  either a single attribute or a disjunction-of-conjunctions.
+ *  Narrow with `Array.isArray(item)`: true → `AttrDiscon`, false → `AttrReq`. */
 export type AttrConItem = AttrReq | AttrDiscon;
 
 /** Signing via Yivi session (peer-to-peer) */

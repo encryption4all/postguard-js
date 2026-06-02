@@ -20,6 +20,8 @@ export function buildStartRequestBody(opts: YiviSignOptions): {
   const emailAttr: AttrReq = opts.senderEmail
     ? { t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }
     : { t: 'pbdf.sidn-pbdf.email.email' };
+  // Callers must not include pbdf.sidn-pbdf.email.email in `attributes`; it
+  // is always prepended automatically and would appear twice otherwise.
   return { con: [emailAttr, ...(opts.attributes ?? [])] };
 }
 

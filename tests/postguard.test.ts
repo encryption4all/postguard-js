@@ -99,6 +99,22 @@ describe('PostGuard', () => {
         ],
       });
     });
+
+    it('preserves empty inner array marking an optional discon', () => {
+      // Per Yivi convention, [[],  [{t: '...'}]] means the discon is optional
+      // (the empty alternative is always satisfiable). The empty array must
+      // survive the spread unchanged.
+      const body = buildStartRequestBody({
+        element: '#yivi',
+        attributes: [[[], [{ t: 'pbdf.gemeente.personalData.fullname' }]]],
+      });
+      expect(body).toEqual({
+        con: [
+          { t: 'pbdf.sidn-pbdf.email.email' },
+          [[], [{ t: 'pbdf.gemeente.personalData.fullname' }]],
+        ],
+      });
+    });
   });
 
   describe('recipient builders', () => {
