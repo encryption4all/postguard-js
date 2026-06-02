@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readZipFilenames, extractZipEntry, createZipReadable } from '../src/util/zip.js';
+import {
+  readZipFilenames,
+  extractZipEntry,
+  createZipReadable,
+  extractAllZipEntries,
+} from '../src/util/zip.js';
 
 async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream('deflate-raw');
@@ -171,6 +176,91 @@ describe('extractZipEntry', () => {
   it('throws when the named entry is absent', async () => {
     const zip = createMinimalZip([{ name: 'data.bin', content: new Uint8Array([1]) }]);
     await expect(extractZipEntry(zip, 'missing.bin')).rejects.toThrow(/not found/);
+  });
+});
+
+describe('extractAllZipEntries', () => {
+  it('extracts a single stored entry', async () => {
+    const payload = new Uint8Array([10, 20, 30, 40]);
+    const zip = createMinimalZip([{ name: 'data.bin', content: payload }]);
+
+    const entries = await extractAllZipEntries(zip);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].name).toBe('data.bin');
+    expect(new Uint8Array(await entries[0].blob.arrayBuffer())).toEqual(payload);
+  });
+
+  it('extracts multiple stored entries in central-directory order', async () => {
+    const a = new Uint8Array([1, 1, 1]);
+    const b = new Uint8Array([2, 2, 2, 2]);
+    const c = new Uint8Array([3]);
+    const zip = createMinimalZip([
+      { name: 'a.bin', content: a },
+      { name: 'b.bin', content: b },
+      { name: 'c.bin', content: c },
+    ]);
+
+    const entries = await extractAllZipEntries(zip);
+
+    expect(entries.map((e) => e.name)).toEqual(['a.bin', 'b.bin', 'c.bin']);
+    expect(new Uint8Array(await entries[0].blob.arrayBuffer())).toEqual(a);
+    expect(new Uint8Array(await entries[1].blob.arrayBuffer())).toEqual(b);
+    expect(new Uint8Array(await entries[2].blob.arrayBuffer())).toEqual(c);
+  });
+
+  it('skips directory entries', async () => {
+    const payload = new Uint8Array([42]);
+    const zip = createMinimalZip([
+      { name: 'dir/' },
+      { name: 'dir/file.txt', content: payload },
+    ]);
+
+    const entries = await extractAllZipEntries(zip);
+
+    expect(entries.map((e) => e.name)).toEqual(['dir/file.txt']);
+    expect(new Uint8Array(await entries[0].blob.arrayBuffer())).toEqual(payload);
+  });
+
+  it('handles a streaming-mode deflate entry (conflux shape)', async () => {
+    // Verifies the deflate branch end-to-end: the zip writer leaves
+    // LFH sizes at 0; readCentralDirectory + extractAllZipEntries must
+    // pick the true sizes off the central directory.
+    const payload = new Uint8Array(2048);
+    for (let i = 0; i < payload.length; i++) payload[i] = (i * 31 + 7) & 0xff;
+
+    const zip = await createStreamingDeflateZip('data.bin', payload);
+
+    const entries = await extractAllZipEntries(zip);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].name).toBe('data.bin');
+    expect(new Uint8Array(await entries[0].blob.arrayBuffer())).toEqual(payload);
+  });
+
+  it('returns an empty array for an empty ZIP (no entries)', async () => {
+    const zip = createMinimalZip([]);
+    const entries = await extractAllZipEntries(zip);
+    expect(entries).toEqual([]);
+  });
+
+  it('preserves input order even under concurrent workers', async () => {
+    // The bounded worker pool resolves entries in completion order
+    // internally; the result array must still mirror the central-
+    // directory order regardless of decompression timing.
+    const entries = Array.from({ length: 12 }, (_, i) => ({
+      name: `f${String(i).padStart(2, '0')}.bin`,
+      content: new Uint8Array([i]),
+    }));
+    const zip = createMinimalZip(entries);
+
+    const extracted = await extractAllZipEntries(zip);
+
+    expect(extracted.map((e) => e.name)).toEqual(entries.map((e) => e.name));
+    for (let i = 0; i < entries.length; i++) {
+      const bytes = new Uint8Array(await extracted[i].blob.arrayBuffer());
+      expect(bytes).toEqual(entries[i].content);
+    }
   });
 });
 

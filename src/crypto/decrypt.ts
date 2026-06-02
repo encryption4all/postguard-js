@@ -6,10 +6,11 @@ import { downloadFile, downloadFileWithRetry } from '../api/cryptify.js';
 import { resolveRetryOptions, type RetryOptions } from '../util/retry.js';
 import { buildKeyRequest } from '../util/policy.js';
 import { retrieveUSKViaYivi } from '../yivi/decrypt-session.js';
-import { readZipFilenames } from '../util/zip.js';
-import { triggerBrowserDownload } from '../util/download.js';
+import { extractAllZipEntries } from '../util/zip.js';
+import { triggerBrowserDownloads } from '../util/download.js';
 import { loadWasm } from '../util/wasm.js';
 import { parseSender } from '../util/identity.js';
+import { ProgressPipe } from '../util/progress.js';
 
 // --- Inspect (shared by Opened and legacy functions) ---
 
@@ -27,6 +28,11 @@ export interface InspectSealedResult {
   unsealer: any;
   policies: Map<string, any>;
   sender: SenderIdentity | null;
+  /** Progress tracker for the underlying download stream. Null when
+   *  decrypting from raw data (no network involved). Callers attach
+   *  their progress callback via `pipe.setCallback()` before consuming
+   *  the stream. */
+  pipe: ProgressPipe | null;
 }
 
 /** Inspect a sealed file/data without decrypting. Returns unsealer + metadata. */
@@ -36,16 +42,22 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
   // Get the readable stream (either from Cryptify or raw data)
   let readable: ReadableStream<Uint8Array>;
   let vkPromise: Promise<unknown>;
+  let pipe: ProgressPipe | null = null;
 
   if (uuid && cryptifyUrl) {
-    // Download from Cryptify and fetch VK in parallel
+    // Kick off VK fetch and download stream setup in parallel. The
+    // ReadableStream returned by downloadFileWithRetry is lazy — the
+    // first HTTP GET happens when the stream is read, not here.
     const retry = resolveRetryOptions(options.retry);
-    const [vk, fileStream] = await Promise.all([
-      fetchVerificationKey(pkgUrl, headers),
-      downloadFileWithRetry(cryptifyUrl, uuid, retry, signal),
-    ]);
+    vkPromise = fetchVerificationKey(pkgUrl, headers);
+    const { stream: fileStream, pipe: streamPipe } = downloadFileWithRetry(
+      cryptifyUrl,
+      uuid,
+      retry,
+      signal,
+    );
     readable = fileStream;
-    vkPromise = Promise.resolve(vk);
+    pipe = streamPipe;
   } else if (data) {
     readable = data instanceof ReadableStream
       ? data
@@ -73,7 +85,7 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
     // May not be available before unsealing
   }
 
-  return { unsealer, policies, sender };
+  return { unsealer, policies, sender, pipe };
 }
 
 // --- Unseal helpers (shared by Opened and legacy functions) ---
@@ -186,14 +198,14 @@ export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<
 
   const { chunks, sender } = await unsealAndCollect(unsealer, key, usk, preUnsealSender);
 
-  const blob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
-  const files = await readZipFilenames(blob);
+  const zipBlob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
+  const extractedFiles = await extractAllZipEntries(zipBlob);
 
   return {
-    files,
+    files: extractedFiles,
+    blob: zipBlob,
     sender: parseSender(sender),
-    blob,
-    download: (filename = 'files.zip') => triggerBrowserDownload(blob, filename),
+    download: () => triggerBrowserDownloads(extractedFiles),
   };
 }
 

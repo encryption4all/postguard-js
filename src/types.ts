@@ -148,6 +148,12 @@ export interface DecryptInput {
   recipient?: string;
   /** Enable JWT caching to avoid re-scanning QR for repeated decryptions */
   enableCache?: boolean;
+  /** Progress callback for the download+decrypt streaming pipeline.
+   *  Receives `0–100` when the server advertised `Content-Length`, or
+   *  `undefined` when it didn't (consumer should render an
+   *  indeterminate progress indicator). Fires on every chunk so callers
+   *  can detect that bytes have started flowing regardless of mode. */
+  onDownloadProgress?: (percentage: number | undefined) => void;
 }
 
 // --- Results ---
@@ -162,12 +168,17 @@ export interface InspectResult {
   policies: Map<string, any>;
 }
 
-/** Result of decrypting files (from UUID) */
+/** Result of decrypting files (from UUID). Files are auto-extracted
+ *  from the inner ZIP; `download()` triggers one browser download per
+ *  entry. `blob` is the raw ZIP archive — kept as an escape hatch for
+ *  callers that want to re-upload, hand-process, or offer a single
+ *  "Download as ZIP" button instead of the per-file fan-out (some
+ *  browsers prompt for multi-file downloads). */
 export interface DecryptFileResult {
-  files: string[];
-  sender: FriendlySender | null;
+  files: Array<{ name: string; blob: Blob }>;
   blob: Blob;
-  download: (filename?: string) => void;
+  sender: FriendlySender | null;
+  download: () => void;
 }
 
 /** Result of decrypting raw data */
