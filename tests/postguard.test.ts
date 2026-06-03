@@ -155,6 +155,22 @@ describe('PostGuard', () => {
         /does not support data: ReadableStream/
       );
     });
+
+    // Regression: a previous runtime validator hand-maintained an
+    // allowlist of upload keys and rejected `onUploadInit` because the
+    // type was updated but the allowlist wasn't. The validator has
+    // since been removed; this test pins the contract so a future
+    // attempt to reintroduce one can't silently re-break the option.
+    it('does not reject onUploadInit as an unknown option', async () => {
+      const sealed = pg.encrypt({
+        files: [new File([new Uint8Array([0])], 'a.bin')],
+        recipients: [pg.recipient.email('alice@example.com')],
+        sign: pg.sign.apiKey('PG-test'),
+      });
+      await expect(
+        sealed.upload({ onUploadInit: () => {} })
+      ).rejects.not.toThrow(/unknown option "onUploadInit"/);
+    });
   });
 
   describe('silent-default notice', () => {
