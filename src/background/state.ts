@@ -92,8 +92,8 @@ export async function restoreEncryptState(): Promise<void> {
       }
     }
 
-    // Clean up stale entries
-    await browser.storage.local.remove(STORAGE_KEY);
+    // Rewrite (don't wipe) so state survives the next suspension too.
+    await persistEncryptState();
   } catch (e) {
     console.warn("[PostGuard] Failed to restore encrypt state:", e);
   }

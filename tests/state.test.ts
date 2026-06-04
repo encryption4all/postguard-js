@@ -244,12 +244,30 @@ describe("encryption state persistence (PR #68)", () => {
     expect(composeTabs.get(5)?.encrypt).toBe(true);
   });
 
-  it("should remove the persisted blob after restore", async () => {
-    mock.storage.local["composeTabEncryptState"] = { "5": { encrypt: true } };
+  it("should rewrite the persisted blob with current state after restore", async () => {
+    mock.storage.local["composeTabEncryptState"] = {
+      "5": { encrypt: true },
+      "999": { encrypt: true },
+    };
     mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
 
     await restoreEncryptState();
 
-    expect(mock.storage.local["composeTabEncryptState"]).toBeUndefined();
+    const saved = mock.storage.local["composeTabEncryptState"] as Record<string, unknown>;
+    expect(saved).toBeDefined();
+    expect(Object.keys(saved)).toEqual(["5"]);
+  });
+
+  it("should survive two consecutive restores without any intervening toggle (issue #128)", async () => {
+    mock.storage.local["composeTabEncryptState"] = { "5": { encrypt: true } };
+    mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
+
+    await restoreEncryptState();
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
+
+    composeTabs.clear();
+
+    await restoreEncryptState();
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
   });
 });
