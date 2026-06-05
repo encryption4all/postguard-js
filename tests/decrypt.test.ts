@@ -1,12 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { unsealAndCollect } from '../src/crypto/decrypt.js';
 import { IdentityMismatchError } from '../src/errors.js';
+import type { SenderIdentity } from '../src/types.js';
 
-/** Minimal fake unsealer matching the shape `unsealAndCollect` uses. */
-function fakeUnsealer(unsealImpl: () => Promise<void>) {
+/** Minimal fake unsealer matching the shape `unsealAndCollect` uses.
+ *  `unsealImpl` may resolve to a SenderIdentity (the verified `{public,
+ *  private}` policy that `StreamUnsealer.unseal` returns from
+ *  pg-wasm). Callers that only care about the failure path return
+ *  `void`/`undefined` — both are fine. */
+function fakeUnsealer(
+  unsealImpl: () => Promise<SenderIdentity | void>,
+  publicIdentity: SenderIdentity | null = null,
+) {
   return {
     unseal: unsealImpl,
-    public_identity: () => null,
+    public_identity: () => publicIdentity,
   };
 }
 
@@ -43,5 +51,32 @@ describe('unsealAndCollect', () => {
     );
 
     expect(err).toBeInstanceOf(IdentityMismatchError);
+  });
+
+  it('captures the verified private signing identity returned by unseal', async () => {
+    // pg-wasm StreamUnsealer.unseal resolves with VerificationResult
+    // = { public, private? } once decryption + IBS verification of the
+    // inner private signature finishes. Before unseal only the public
+    // side is known; after unseal the private side becomes available.
+    const preUnseal: SenderIdentity = {
+      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'sender@example.com' }] },
+    };
+    const verified: SenderIdentity = {
+      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'sender@example.com' }] },
+      private: {
+        con: [
+          { t: 'pbdf.gemeente.personalData.fullname', v: 'R.A. Hensen' },
+          { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', v: '+31630222348' },
+          { t: 'pbdf.gemeente.personalData.dateofbirth', v: '27-05-1996' },
+        ],
+      },
+    };
+
+    const unsealer = fakeUnsealer(() => Promise.resolve(verified));
+
+    const { sender } = await unsealAndCollect(unsealer, 'recipient@example.com', {}, preUnseal);
+
+    expect(sender?.private?.con).toBeDefined();
+    expect(sender?.private?.con).toEqual(verified.private!.con);
   });
 });
