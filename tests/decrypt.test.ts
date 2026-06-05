@@ -54,15 +54,11 @@ describe('unsealAndCollect', () => {
   });
 
   it('captures the verified private signing identity returned by unseal', async () => {
-    // pg-wasm StreamUnsealer.unseal resolves with VerificationResult
-    // = { public, private? } once decryption + IBS verification of the
-    // inner private signature finishes. Before unseal only the public
-    // side is known; after unseal the private side becomes available.
     const preUnseal: SenderIdentity = {
-      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'sender@example.com' }] },
+      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'pre-unseal@example.com' }] },
     };
     const verified: SenderIdentity = {
-      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'sender@example.com' }] },
+      public: { con: [{ t: 'pbdf.sidn-pbdf.email.email', v: 'verified@example.com' }] },
       private: {
         con: [
           { t: 'pbdf.gemeente.personalData.fullname', v: 'R.A. Hensen' },
@@ -76,7 +72,7 @@ describe('unsealAndCollect', () => {
 
     const { sender } = await unsealAndCollect(unsealer, 'recipient@example.com', {}, preUnseal);
 
-    expect(sender?.private?.con).toBeDefined();
+    expect(sender?.public.con).toEqual(verified.public.con);
     expect(sender?.private?.con).toEqual(verified.private!.con);
   });
 });

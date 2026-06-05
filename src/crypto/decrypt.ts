@@ -147,12 +147,6 @@ export async function unsealAndCollect(
     },
   });
 
-  // pg-wasm's StreamUnsealer.unseal resolves with the VerificationResult
-  // — { public, private? } — derived from the inner IBS signature once
-  // decryption finishes. Capture it so the recipient sees the *private*
-  // signing identity (name, mobile, dateofbirth, …) the sender disclosed
-  // at sign time. The pre-unseal `public_identity()` carries only the
-  // public side, so the post-unseal value supersedes it when present.
   let verified: SenderIdentity | undefined;
   try {
     verified = (await unsealer.unseal(key, usk, writable)) as SenderIdentity | undefined;
