@@ -147,8 +147,9 @@ export async function unsealAndCollect(
     },
   });
 
+  let verified: SenderIdentity | undefined;
   try {
-    await unsealer.unseal(key, usk, writable);
+    verified = (await unsealer.unseal(key, usk, writable)) as SenderIdentity | undefined;
   } catch (e) {
     // AbortError signals user/caller-driven cancellation — surface it as-is
     // so callers can distinguish it from a real identity mismatch.
@@ -159,7 +160,7 @@ export async function unsealAndCollect(
     throw new IdentityMismatchError({ cause: e });
   }
 
-  let sender = preUnsealSender;
+  let sender: SenderIdentity | null = verified ?? preUnsealSender;
   if (!sender) {
     try {
       sender = unsealer.public_identity();
