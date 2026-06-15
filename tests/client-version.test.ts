@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   PG_CLIENT_VERSION_HEADER,
   defaultClientVersionHeaderValue,
+  sanitizeField,
 } from '../src/util/client-version.js';
 
 describe('defaultClientVersionHeaderValue', () => {
@@ -10,8 +11,7 @@ describe('defaultClientVersionHeaderValue', () => {
   });
 
   it('produces exactly four comma-separated fields', () => {
-    const fields = defaultClientVersionHeaderValue().split(',');
-    expect(fields).toHaveLength(4);
+    expect(defaultClientVersionHeaderValue().split(',')).toHaveLength(4);
   });
 
   it('reports app=pg-js with a version', () => {
@@ -22,27 +22,35 @@ describe('defaultClientVersionHeaderValue', () => {
     expect(appVersion).toBe('0.0.0-dev');
   });
 
-  it('detects the Node runtime as host when running under vitest/node', () => {
+  it('detects the current JS runtime as host (whatever runs the test)', () => {
     const [host, hostVersion] = defaultClientVersionHeaderValue().split(',');
-    expect(host).toBe('node');
-    expect(hostVersion).toBe(process.versions.node);
+    const g = globalThis as any;
+    // Mirror detectHost()'s ordering so the assertion holds on Node, Bun and
+    // Deno alike (the integration matrix runs all three).
+    if (typeof g.Deno !== 'undefined') {
+      expect(host).toBe('deno');
+    } else if (typeof g.Bun !== 'undefined') {
+      expect(host).toBe('bun');
+    } else {
+      expect(host).toBe('node');
+      expect(hostVersion).toBe(process.versions.node);
+    }
+    expect(['deno', 'bun', 'node', 'browser', 'unknown']).toContain(host);
+  });
+});
+
+describe('sanitizeField', () => {
+  it('replaces commas so a value can never add a 5th field', () => {
+    expect(sanitizeField('1.2,3')).toBe('1.2.3');
   });
 
-  it('never emits more than four fields even if a field contained a comma', () => {
-    // The value is comma-delimited; a comma inside a detected field would
-    // otherwise produce a 5th field and break the wire contract. Stub a Bun
-    // global whose version contains a comma to exercise the sanitiser.
-    const g = globalThis as any;
-    const prior = g.Bun;
-    g.Bun = { version: '1.2,3' };
-    try {
-      const fields = defaultClientVersionHeaderValue().split(',');
-      expect(fields).toHaveLength(4);
-      expect(fields[0]).toBe('bun');
-      expect(fields[1]).toBe('1.2.3'); // comma replaced with '.'
-    } finally {
-      if (prior === undefined) delete g.Bun;
-      else g.Bun = prior;
-    }
+  it('falls back to "unknown" for empty/blank/undefined', () => {
+    expect(sanitizeField('')).toBe('unknown');
+    expect(sanitizeField('   ')).toBe('unknown');
+    expect(sanitizeField(undefined)).toBe('unknown');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(sanitizeField('  node  ')).toBe('node');
   });
 });

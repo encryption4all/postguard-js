@@ -9,8 +9,9 @@ const APP = 'pg-js';
 
 /** Coerce a field to a safe, non-empty token. The wire format is
  *  comma-delimited and the servers split on `,` expecting exactly four
- *  fields, so any comma inside a detected value is replaced with `.`. */
-function field(value: string | undefined): string {
+ *  fields, so any comma inside a detected value is replaced with `.`.
+ *  Exported for unit testing. */
+export function sanitizeField(value: string | undefined): string {
   const v = (value ?? '').trim();
   if (!v) return 'unknown';
   return v.replace(/,/g, '.');
@@ -41,5 +42,7 @@ function detectHost(): { host: string; hostVersion: string } {
  *  comma-separated fields. */
 export function defaultClientVersionHeaderValue(): string {
   const { host, hostVersion } = detectHost();
-  return [field(host), field(hostVersion), APP, field(PG_JS_VERSION)].join(',');
+  return [sanitizeField(host), sanitizeField(hostVersion), APP, sanitizeField(PG_JS_VERSION)].join(
+    ','
+  );
 }
