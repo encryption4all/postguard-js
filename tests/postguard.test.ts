@@ -14,6 +14,33 @@ describe('PostGuard', () => {
     cryptifyUrl: 'https://cryptify.example.com',
   });
 
+  describe('client-version header injection', () => {
+    it('adds X-POSTGUARD-CLIENT-VERSION to config by default', () => {
+      const instance = new PostGuard({ pkgUrl: 'https://pkg.example.com' });
+      const headers = (instance as any).config.headers as Headers;
+      expect(headers.get('X-POSTGUARD-CLIENT-VERSION')).toMatch(/^[^,]+,[^,]*,pg-js,/);
+    });
+
+    it('lets a caller-supplied header win (case-insensitive key)', () => {
+      const instance = new PostGuard({
+        pkgUrl: 'https://pkg.example.com',
+        headers: { 'x-postguard-client-version': 'Outlook,1.0,pg4ol,9.9.9' },
+      });
+      const headers = (instance as any).config.headers as Headers;
+      expect(headers.get('X-POSTGUARD-CLIENT-VERSION')).toBe('Outlook,1.0,pg4ol,9.9.9');
+    });
+
+    it('preserves other caller headers alongside the default', () => {
+      const instance = new PostGuard({
+        pkgUrl: 'https://pkg.example.com',
+        headers: { 'X-Cryptify-Source': 'mytool' },
+      });
+      const headers = (instance as any).config.headers as Headers;
+      expect(headers.get('X-Cryptify-Source')).toBe('mytool');
+      expect(headers.get('X-POSTGUARD-CLIENT-VERSION')).toContain(',pg-js,');
+    });
+  });
+
   describe('sign builders', () => {
     it('builds apiKey sign method', () => {
       const sign = pg.sign.apiKey('my-key');

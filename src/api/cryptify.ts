@@ -10,6 +10,7 @@ import {
   type RetryOptions,
 } from '../util/retry.js';
 import { ProgressPipe } from '../util/progress.js';
+import { mergeHeaders } from '../util/headers.js';
 
 export interface FileState {
   /** Current rolling token — what the next chunk PUT should send. */
@@ -54,6 +55,10 @@ export interface InitUploadOptions {
    *  vs. the default 5 GB caps). */
   apiKey?: string;
   signal?: AbortSignal;
+  /** Extra headers merged into every request this upload makes (e.g. the
+   *  SDK's `X-POSTGUARD-CLIENT-VERSION`). The request's own fixed headers
+   *  (Content-Type, cryptifytoken, …) take precedence on conflicts. */
+  headers?: HeadersInit;
 }
 
 function bearerHeader(apiKey?: string): Record<string, string> {
@@ -92,10 +97,10 @@ export async function initUpload(
   const response = await fetch(`${cryptifyUrl}/fileupload/init`, {
     signal: options.signal,
     method: 'POST',
-    headers: {
+    headers: mergeHeaders(options.headers, {
       'Content-Type': 'application/json',
       ...bearerHeader(options.apiKey),
-    },
+    }),
     body: JSON.stringify({
       confirm: options.confirm ?? false,
       recipient: options.recipient,
@@ -145,14 +150,15 @@ export async function resumeUpload(
   cryptifyUrl: string,
   uuid: string,
   recoveryToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  headers?: HeadersInit
 ): Promise<{ state: FileState; uploaded: number }> {
   const response = await fetch(`${cryptifyUrl}/fileupload/${uuid}/status`, {
     signal,
     method: 'GET',
-    headers: {
+    headers: mergeHeaders(headers, {
       'X-Recovery-Token': recoveryToken,
-    },
+    }),
   });
 
   if (!response.ok) {
@@ -193,17 +199,18 @@ export async function storeChunk(
   chunk: Uint8Array,
   offset: number,
   signal?: AbortSignal,
-  apiKey?: string
+  apiKey?: string,
+  headers?: HeadersInit
 ): Promise<FileState> {
   const response = await fetch(`${cryptifyUrl}/fileupload/${state.uuid}`, {
     signal,
     method: 'PUT',
-    headers: {
+    headers: mergeHeaders(headers, {
       cryptifytoken: state.token,
       'Content-Type': 'application/octet-stream',
       'content-range': `bytes ${offset}-${offset + chunk.length}/*`,
       ...bearerHeader(apiKey),
-    },
+    }),
     body: new Blob([chunk as BlobPart]),
   });
 
@@ -230,7 +237,8 @@ export async function storeChunkWithRetry(
   offset: number,
   retry: ResolvedRetryOptions,
   signal?: AbortSignal,
-  apiKey?: string
+  apiKey?: string,
+  headers?: HeadersInit
 ): Promise<FileState> {
   return withRetry(
     async (attempt) => {
@@ -238,7 +246,7 @@ export async function storeChunkWithRetry(
       const stateForAttempt: FileState = { ...state, token: tokenForThisAttempt };
       const { signal: timed, cleanup } = withTimeout(signal, retry.chunkTimeoutMs);
       try {
-        return await storeChunk(cryptifyUrl, stateForAttempt, chunk, offset, timed, apiKey);
+        return await storeChunk(cryptifyUrl, stateForAttempt, chunk, offset, timed, apiKey, headers);
       } finally {
         cleanup();
       }
@@ -255,16 +263,17 @@ export async function finalizeUpload(
   state: FileState,
   size: number,
   signal?: AbortSignal,
-  apiKey?: string
+  apiKey?: string,
+  headers?: HeadersInit
 ): Promise<void> {
   const response = await fetch(`${cryptifyUrl}/fileupload/finalize/${state.uuid}`, {
     signal,
     method: 'POST',
-    headers: {
+    headers: mergeHeaders(headers, {
       cryptifytoken: state.token,
       'content-range': `bytes */${size}`,
       ...bearerHeader(apiKey),
-    },
+    }),
   });
 
   if (!response.ok) {
@@ -280,11 +289,13 @@ export async function finalizeUpload(
 export async function downloadFile(
   cryptifyUrl: string,
   uuid: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  headers?: HeadersInit
 ): Promise<{ stream: ReadableStream<Uint8Array>; totalBytes: number | undefined }> {
   const response = await fetch(`${cryptifyUrl}/filedownload/${uuid}`, {
     signal,
     method: 'GET',
+    headers,
   });
 
   if (!response.ok) {
@@ -316,12 +327,13 @@ async function downloadRange(
   cryptifyUrl: string,
   uuid: string,
   offset: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  headers?: HeadersInit
 ): Promise<ReadableStream<Uint8Array>> {
   const response = await fetch(`${cryptifyUrl}/filedownload/${uuid}`, {
     signal,
     method: 'GET',
-    headers: { Range: `bytes=${offset}-` },
+    headers: mergeHeaders(headers, { Range: `bytes=${offset}-` }),
   });
 
   if (!response.ok) {
@@ -383,7 +395,8 @@ export function downloadFileWithRetry(
   cryptifyUrl: string,
   uuid: string,
   retry: ResolvedRetryOptions,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  headers?: HeadersInit
 ): { stream: ReadableStream<Uint8Array>; pipe: ProgressPipe } {
   let received = 0;
   let attempt = 0;
@@ -400,11 +413,11 @@ export function downloadFileWithRetry(
         try {
           let innerStream: ReadableStream<Uint8Array>;
           if (received === 0) {
-            const { stream: s, totalBytes } = await downloadFile(cryptifyUrl, uuid, timed);
+            const { stream: s, totalBytes } = await downloadFile(cryptifyUrl, uuid, timed, headers);
             pipe.setTotal(totalBytes);
             innerStream = s;
           } else {
-            innerStream = await downloadRange(cryptifyUrl, uuid, received, timed);
+            innerStream = await downloadRange(cryptifyUrl, uuid, received, timed, headers);
           }
           cleanup();
 
@@ -508,7 +521,8 @@ export function createUploadStream(
             processed,
             retry,
             signal,
-            options.apiKey
+            options.apiKey,
+            options.headers
           );
           processed += chunk.length;
           onProgress?.(processed, false);
@@ -520,7 +534,7 @@ export function createUploadStream(
       async close() {
         const { signal: timed, cleanup } = withTimeout(signal, retry.finalizeTimeoutMs);
         try {
-          await finalizeUpload(cryptifyUrl, state, processed, timed, options.apiKey);
+          await finalizeUpload(cryptifyUrl, state, processed, timed, options.apiKey, options.headers);
         } finally {
           cleanup();
         }

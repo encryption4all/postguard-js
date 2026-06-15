@@ -100,6 +100,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     apiKey: cryptifyApiKey,
     abortSignal: effectiveSignal,
     retry: options.retry,
+    headers,
     onUploadInit: options.onUploadInit,
     onProgress: (uploaded, last) => {
       if (onProgress) {

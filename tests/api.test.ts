@@ -139,7 +139,7 @@ describe('Cryptify API', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://cryptify.example.com/fileupload/init',
         expect.objectContaining({
-          headers: expect.not.objectContaining({ Authorization: expect.anything() }),
+          headers: expect.not.objectContaining({ authorization: expect.anything() }),
         })
       );
     });
@@ -161,7 +161,7 @@ describe('Cryptify API', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://cryptify.example.com/fileupload/init',
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
+          headers: expect.objectContaining({ authorization: 'Bearer PG-test-key' }),
         })
       );
     });
@@ -200,7 +200,7 @@ describe('Cryptify API', () => {
         'https://cryptify.example.com/fileupload/file-uuid/status',
         expect.objectContaining({
           method: 'GET',
-          headers: expect.objectContaining({ 'X-Recovery-Token': 'rec-hex' }),
+          headers: expect.objectContaining({ 'x-recovery-token': 'rec-hex' }),
         })
       );
     });
@@ -343,7 +343,7 @@ describe('Cryptify API', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://cryptify.example.com/fileupload/u',
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
+          headers: expect.objectContaining({ authorization: 'Bearer PG-test-key' }),
         })
       );
     });
@@ -622,7 +622,7 @@ describe('Cryptify API', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://cryptify.example.com/fileupload/finalize/u',
         expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer PG-test-key' }),
+          headers: expect.objectContaining({ authorization: 'Bearer PG-test-key' }),
         })
       );
     });
@@ -860,7 +860,7 @@ describe('Cryptify API', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
       // Resume request must include Range: bytes=4-
       expect(mockFetch.mock.calls[1][1]?.headers).toEqual(
-        expect.objectContaining({ Range: 'bytes=4-' })
+        expect.objectContaining({ range: 'bytes=4-' })
       );
     });
 
@@ -978,7 +978,9 @@ describe('Cryptify API', () => {
           });
         }
         // Resume attempts: parse Range, return 206 with matching Content-Range.
-        const m = /^bytes=(\d+)-/.exec(headers.Range ?? '');
+        // mergeHeaders lower-cases header keys, so read `range` (fall back to
+        // `Range` for robustness).
+        const m = /^bytes=(\d+)-/.exec(headers.range ?? headers.Range ?? '');
         const offset = m ? Number.parseInt(m[1], 10) : 0;
         return Promise.resolve({
           ok: true,
@@ -1081,6 +1083,125 @@ describe('Cryptify API', () => {
       const writer = stream.writable.getWriter();
       await expect(writer.write(new Uint8Array([1]))).rejects.toBeDefined();
       expect(onUploadInit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('client-version header forwarding', () => {
+    const CV = 'node,22.1.0,pg-js,1.2.3';
+    const cvHeaders = { 'X-POSTGUARD-CLIENT-VERSION': CV };
+
+    // Headers reach fetch as a plain (lower-cased) object via mergeHeaders or
+    // as-is; normalise through `new Headers` so the lookup is casing-agnostic.
+    function sentHeader(callIndex = 0): string | null {
+      const init = mockFetch.mock.calls[callIndex][1] as RequestInit;
+      return new Headers(init.headers as HeadersInit).get('X-POSTGUARD-CLIENT-VERSION');
+    }
+
+    it('initUpload forwards the client-version header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ uuid: 'u' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 't' }),
+      });
+      await initUpload('https://cryptify.example.com', { recipient: 'a@b.com', headers: cvHeaders });
+      expect(sentHeader()).toBe(CV);
+    });
+
+    it('resumeUpload forwards the client-version header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ uploaded: 0, cryptify_token: 'tok' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers(),
+      });
+      await resumeUpload('https://cryptify.example.com', 'uuid', 'rec', undefined, cvHeaders);
+      expect(sentHeader()).toBe(CV);
+    });
+
+    it('storeChunk forwards the client-version header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 'tok2' }),
+      });
+      await storeChunk(
+        'https://cryptify.example.com',
+        { token: 'tok', uuid: 'u', recoveryToken: 'r' },
+        new Uint8Array([1, 2, 3]),
+        0,
+        undefined,
+        undefined,
+        cvHeaders
+      );
+      expect(sentHeader()).toBe(CV);
+    });
+
+    it('finalizeUpload forwards the client-version header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(''),
+        headers: new Headers(),
+      });
+      await finalizeUpload(
+        'https://cryptify.example.com',
+        { token: 'tok', uuid: 'u', recoveryToken: 'r' },
+        3,
+        undefined,
+        undefined,
+        cvHeaders
+      );
+      expect(sentHeader()).toBe(CV);
+    });
+
+    it('downloadFile forwards the client-version header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(''),
+        headers: new Headers(),
+        body: new ReadableStream(),
+      });
+      await downloadFile('https://cryptify.example.com', 'uuid', undefined, cvHeaders);
+      expect(sentHeader()).toBe(CV);
+    });
+
+    it('createUploadStream carries the header on init, chunk, and finalize', async () => {
+      mockFetch.mockImplementation((_url: string, init: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(''),
+            headers: new Headers({ cryptifytoken: 'tok-next' }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ uuid: 'u-1', recovery_token: 'rec' }),
+          text: () => Promise.resolve(''),
+          headers: new Headers({ cryptifytoken: 'tok-0' }),
+        });
+      });
+
+      const stream = createUploadStream('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        headers: cvHeaders,
+      });
+      const writer = stream.writable.getWriter();
+      await writer.write(new Uint8Array([1, 2, 3]));
+      await writer.close();
+
+      // init POST + chunk PUT + finalize POST — every one must carry the header.
+      expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(3);
+      for (let i = 0; i < mockFetch.mock.calls.length; i++) {
+        expect(sentHeader(i)).toBe(CV);
+      }
     });
   });
 });
