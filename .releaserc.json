@@ -6,7 +6,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "PG_JS_VERSION=${nextRelease.version} node scripts/generate-version.mjs && npm run build"
+        "prepareCmd": "PG_JS_VERSION=${nextRelease.version} node scripts/generate-version.mjs"
       }
     ],
     [

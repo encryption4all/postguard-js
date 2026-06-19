@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   PG_CLIENT_VERSION_HEADER,
   defaultClientVersionHeaderValue,
+  detectHost,
   sanitizeField,
 } from '../src/util/client-version.js';
 
@@ -36,6 +37,40 @@ describe('defaultClientVersionHeaderValue', () => {
       expect(hostVersion).toBe(process.versions.node);
     }
     expect(['deno', 'bun', 'node', 'browser', 'unknown']).toContain(host);
+  });
+});
+
+describe('detectHost', () => {
+  it('reports node with its version', () => {
+    expect(detectHost({ process: { versions: { node: '22.1.0' } } })).toEqual({
+      host: 'node',
+      hostVersion: '22.1.0',
+    });
+  });
+
+  it('reports deno/bun ahead of node', () => {
+    expect(detectHost({ Deno: { version: { deno: '1.40.0' } } }).host).toBe('deno');
+    expect(detectHost({ Bun: { version: '1.1.0' } }).host).toBe('bun');
+  });
+
+  it('reports browser for a window+document global', () => {
+    expect(detectHost({ window: {}, document: {} })).toEqual({
+      host: 'browser',
+      hostVersion: 'unknown',
+    });
+  });
+
+  it('reports browser inside a Web Worker (WorkerGlobalScope/importScripts)', () => {
+    // A worker has no window/document but does expose WorkerGlobalScope and
+    // importScripts; WASM crypto is commonly offloaded here, so it must still
+    // attribute as browser rather than unknown.
+    expect(
+      detectHost({ WorkerGlobalScope: function () {}, importScripts: () => {} })
+    ).toEqual({ host: 'browser', hostVersion: 'unknown' });
+  });
+
+  it('falls back to unknown when no runtime is recognised', () => {
+    expect(detectHost({})).toEqual({ host: 'unknown', hostVersion: 'unknown' });
   });
 });
 

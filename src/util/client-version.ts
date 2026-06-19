@@ -18,10 +18,10 @@ export function sanitizeField(value: string | undefined): string {
 }
 
 /** Detect the JS runtime for the `host`/`host_version` fields. Accesses every
- *  global through `globalThis` so it is safe (and type-clean) in browser,
- *  Node, Bun and Deno, and never throws. */
-function detectHost(): { host: string; hostVersion: string } {
-  const g = globalThis as any;
+ *  global through the passed object (`globalThis` by default) so it is safe
+ *  (and type-clean) in browser, Node, Bun and Deno, never throws, and is unit
+ *  testable with a synthetic global. Exported for unit testing. */
+export function detectHost(g: any = globalThis): { host: string; hostVersion: string } {
   if (typeof g.Deno !== 'undefined') {
     return { host: 'deno', hostVersion: g.Deno?.version?.deno ?? 'unknown' };
   }
@@ -31,7 +31,13 @@ function detectHost(): { host: string; hostVersion: string } {
   if (typeof g.process !== 'undefined' && g.process?.versions?.node) {
     return { host: 'node', hostVersion: g.process.versions.node };
   }
-  if (typeof g.window !== 'undefined' && typeof g.document !== 'undefined') {
+  // Browser main thread (`window`+`document`) or a Web Worker. This SDK's WASM
+  // crypto is commonly offloaded to a Worker, where `window`/`document` are
+  // undefined but `WorkerGlobalScope`/`importScripts` exist — such traffic must
+  // still report `host=browser` rather than `unknown`.
+  const inWorker =
+    typeof g.WorkerGlobalScope !== 'undefined' && typeof g.importScripts === 'function';
+  if ((typeof g.window !== 'undefined' && typeof g.document !== 'undefined') || inWorker) {
     return { host: 'browser', hostVersion: 'unknown' };
   }
   return { host: 'unknown', hostVersion: 'unknown' };
