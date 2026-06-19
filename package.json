@@ -25,12 +25,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "prebuild": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
-    "pretypecheck": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
-    "pretest": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
-    "pretest:watch": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs",
+    "prebuild": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretypecheck": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretest": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretest:watch": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
     "build": "tsdown",
-    "prepare": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && tsdown",
+    "prepare": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs && tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -45,6 +45,7 @@
     "@transcend-io/conflux": "^6.1.3"
   },
   "devDependencies": {
+    "@semantic-release/exec": "^7.0.3",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"

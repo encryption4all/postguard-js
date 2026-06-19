@@ -55,6 +55,7 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
       uuid,
       retry,
       signal,
+      headers,
     );
     readable = fileStream;
     pipe = streamPipe;

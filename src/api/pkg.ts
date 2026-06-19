@@ -1,10 +1,6 @@
 import { NetworkError } from '../errors.js';
+import { mergeHeaders } from '../util/headers.js';
 import type { SigningKeys, SessionStartResult, AttributeCon } from '../types.js';
-
-function mergeHeaders(base?: HeadersInit, extra?: HeadersInit): HeadersInit | undefined {
-  if (!base && !extra) return undefined;
-  return { ...Object.fromEntries(new Headers(base)), ...Object.fromEntries(new Headers(extra)) };
-}
 
 /** Fetch the master public key from the PKG server */
 export async function fetchMPK(pkgUrl: string, headers?: HeadersInit): Promise<unknown> {
