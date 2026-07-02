@@ -7,6 +7,41 @@ import {
 
 const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
 
+/** Validate a caller-supplied website base URL before it is interpolated into
+ *  the generated HTML email's `href`/`src` attributes.
+ *
+ *  `websiteUrl` flows verbatim into attribute values across every helper
+ *  (buildSmallFallbackLink, buildManualUploadLink, buildEnvelope, the logo /
+ *  checkmark `<img>` tags, …), so an unvalidated value is an HTML-injection
+ *  vector: `javascript:`/`data:` schemes yield clickable script links, and a
+ *  string containing `"` or `>` can break out of the attribute entirely.
+ *
+ *  We require a well-formed, absolute `https:` URL (parsed via `new URL()`) and
+ *  throw otherwise. We then re-serialize from `origin` + `pathname` so the
+ *  URL parser's percent-encoding neutralizes any attribute-breaking
+ *  characters, and strip a trailing slash so downstream `${websiteUrl}/path`
+ *  concatenation does not produce a double slash. */
+function validateWebsiteUrl(input: string | undefined): string {
+  const candidate = input ?? DEFAULT_WEBSITE_URL;
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error(
+      `[@e4a/pg-js] createEnvelope: websiteUrl must be a well-formed absolute URL, got ${JSON.stringify(candidate)}`
+    );
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(
+      `[@e4a/pg-js] createEnvelope: websiteUrl must use the https: scheme, got ${JSON.stringify(candidate)}`
+    );
+  }
+  // origin (scheme + host [+ port]) is injection-safe by construction; pathname
+  // is percent-encoded by the URL parser. Query/fragment are dropped — a base
+  // URL carries neither, and appending `/path` to them would be malformed.
+  return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+}
+
 /** Create an encrypted email envelope (placeholder HTML + optional attachment).
  *
  *  Three size tiers, picked from the encrypted byte length:
@@ -34,7 +69,7 @@ const DEFAULT_WEBSITE_URL = 'https://postguard.eu';
  *  attachment / fragment link. */
 export async function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult> {
   const { sealed, from, unencryptedMessage, senderAttributes, notify, onUploadInit } = options;
-  const websiteUrl = options.websiteUrl ?? DEFAULT_WEBSITE_URL;
+  const websiteUrl = validateWebsiteUrl(options.websiteUrl);
   const uploadToCryptify = options.uploadToCryptify ?? true;
   const logoUrl = `${websiteUrl}/pg_logo.png`;
 
