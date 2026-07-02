@@ -1,5 +1,19 @@
 import type { BuildMimeOptions } from '../types.js';
 
+/**
+ * Collapse CR/LF runs in a user-supplied header value to a single space.
+ * Prevents header injection (CRLF smuggling of extra headers) when the value
+ * is interpolated into a MIME template literal.
+ */
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ');
+}
+
+/** Escape regex metacharacters so a value can be used literally in `new RegExp()`. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Build an inner MIME message for encryption */
 export function buildMime(input: BuildMimeOptions): Uint8Array {
   const {
@@ -31,12 +45,12 @@ export function buildMime(input: BuildMimeOptions): Uint8Array {
   let mime = '';
   mime += `Date: ${date.toUTCString()}\r\n`;
   mime += 'MIME-Version: 1.0\r\n';
-  mime += `To: ${to.join(', ')}\r\n`;
-  mime += `From: ${from}\r\n`;
-  mime += `Subject: ${subject}\r\n`;
-  if (cc.length > 0) mime += `Cc: ${cc.join(', ')}\r\n`;
-  if (inReplyTo) mime += `In-Reply-To: ${inReplyTo}\r\n`;
-  if (references) mime += `References: ${references}\r\n`;
+  mime += `To: ${to.map(sanitizeHeaderValue).join(', ')}\r\n`;
+  mime += `From: ${sanitizeHeaderValue(from)}\r\n`;
+  mime += `Subject: ${sanitizeHeaderValue(subject)}\r\n`;
+  if (cc.length > 0) mime += `Cc: ${cc.map(sanitizeHeaderValue).join(', ')}\r\n`;
+  if (inReplyTo) mime += `In-Reply-To: ${sanitizeHeaderValue(inReplyTo)}\r\n`;
+  if (references) mime += `References: ${sanitizeHeaderValue(references)}\r\n`;
   mime += `Content-Type: ${contentType}\r\n`;
   mime += 'X-PostGuard: 0.1\r\n';
   mime += '\r\n';
@@ -54,8 +68,11 @@ export function buildMime(input: BuildMimeOptions): Uint8Array {
       const b64 = arrayBufferToBase64(att.data);
       const formatted = b64.replace(/(.{76})/g, '$1\r\n');
 
-      mime += `--${boundary}\r\nContent-Type: ${att.type}; name="${att.name}"\r\n`;
-      mime += `Content-Disposition: attachment; filename="${att.name}"\r\n`;
+      const attName = sanitizeHeaderValue(att.name);
+      const attType = sanitizeHeaderValue(att.type);
+
+      mime += `--${boundary}\r\nContent-Type: ${attType}; name="${attName}"\r\n`;
+      mime += `Content-Disposition: attachment; filename="${attName}"\r\n`;
       mime += 'Content-Transfer-Encoding: base64\r\n\r\n';
       mime += formatted;
       mime += isLast ? `\r\n--${boundary}--\r\n` : '\r\n';
@@ -85,7 +102,7 @@ export function injectMimeHeaders(
   if (headersToRemove) {
     for (const name of headersToRemove) {
       const pattern = new RegExp(
-        `^${name}:.*(?:\\r\\n[ \\t]+.*)*\\r\\n`,
+        `^${escapeRegExp(name)}:.*(?:\\r\\n[ \\t]+.*)*\\r\\n`,
         'im'
       );
       headerBlock = headerBlock.replace(pattern, '');
