@@ -87,8 +87,59 @@ describe('buildMime header sanitization', () => {
 
     expect(mime).not.toContain('\r\nX-Att-Injected: 1');
     expect(mime).not.toContain('\r\nX-Type-Injected: 1');
-    expect(mime).toContain('name="file.txt" X-Att-Injected: 1"');
+    // The embedded `"` is backslash-escaped so it cannot terminate the quoted
+    // parameter early; the CRLF was already folded to a space.
+    expect(mime).toContain('name="file.txt\\" X-Att-Injected: 1"');
     expect(mime).toContain('text/plain X-Type-Injected: 1;');
+  });
+
+  it('escapes double-quotes in attachment name/filename so the quoted param cannot be broken out of', () => {
+    const mime = decode(
+      buildMime({
+        from: 'alice@example.com',
+        to: ['bob@example.com'],
+        subject: 'Hi',
+        htmlBody: '<p>hi</p>',
+        attachments: [
+          {
+            // A `"` here would otherwise close the quoted string and let the
+            // trailing text be parsed as a separate parameter.
+            name: 'evil.txt"; x-malicious="1',
+            type: 'text/plain',
+            data: new TextEncoder().encode('data').buffer as ArrayBuffer,
+          },
+        ],
+      })
+    );
+
+    // The raw, unescaped injection must not appear...
+    expect(mime).not.toContain('name="evil.txt";');
+    expect(mime).not.toContain('filename="evil.txt";');
+    // ...instead the `"` is backslash-escaped inside the quoted string.
+    expect(mime).toContain('name="evil.txt\\"; x-malicious=\\"1"');
+    expect(mime).toContain('Content-Disposition: attachment; filename="evil.txt\\"; x-malicious=\\"1"');
+  });
+
+  it('escapes backslashes in attachment name so the escaping itself cannot be subverted', () => {
+    const mime = decode(
+      buildMime({
+        from: 'alice@example.com',
+        to: ['bob@example.com'],
+        subject: 'Hi',
+        htmlBody: '<p>hi</p>',
+        attachments: [
+          {
+            // A trailing backslash followed by a quote would, without escaping
+            // the backslash too, produce `\"` and re-open the injection.
+            name: 'a\\"; x="1',
+            type: 'text/plain',
+            data: new TextEncoder().encode('data').buffer as ArrayBuffer,
+          },
+        ],
+      })
+    );
+
+    expect(mime).toContain('name="a\\\\\\"; x=\\"1"');
   });
 });
 
@@ -121,6 +172,49 @@ describe('injectMimeHeaders regex escaping', () => {
 
     expect(out).not.toContain('X-PostGuard: 0.1');
     expect(out).toContain('X-New: v');
+    expect(out.endsWith(`${separator}body`)).toBe(true);
+  });
+});
+
+describe('injectMimeHeaders header-name/value sanitization', () => {
+  const separator = '\r\n\r\n';
+
+  it('strips CRLF from an injected header name so no extra header is smuggled in', () => {
+    const mime = `From: a@x\r\nSubject: hi${separator}body`;
+
+    // A CRLF inside the *name* would otherwise start a brand new header line.
+    const out = injectMimeHeaders(mime, {
+      'X-Legit\r\nBcc: eve@evil.com': 'v',
+    });
+
+    expect(out).not.toContain('\r\nBcc: eve@evil.com');
+    // The CRLF is folded to a space, keeping the name on one line.
+    expect(out).toContain('X-Legit Bcc: eve@evil.com: v');
+  });
+
+  it('strips CRLF from an injected header value so no extra header is smuggled in', () => {
+    const mime = `From: a@x\r\nSubject: hi${separator}body`;
+
+    const out = injectMimeHeaders(mime, {
+      'X-Legit': 'value\r\nBcc: eve@evil.com',
+    });
+
+    expect(out).not.toContain('\r\nBcc: eve@evil.com');
+    expect(out).toContain('X-Legit: value Bcc: eve@evil.com');
+  });
+
+  it('handles a bare LF (no CR) in the name and value too', () => {
+    const mime = `From: a@x\r\nSubject: hi${separator}body`;
+
+    const out = injectMimeHeaders(mime, {
+      'X-A\nX-Injected-Name: 1': 'v\nX-Injected-Value: 1',
+    });
+
+    expect(out).not.toContain('\nX-Injected-Name: 1');
+    expect(out).not.toContain('\nX-Injected-Value: 1');
+    // The injected content must stay inside the single X-A header line.
+    expect(out).toContain('X-A X-Injected-Name: 1: v X-Injected-Value: 1');
+    // Body is untouched and still separated correctly.
     expect(out.endsWith(`${separator}body`)).toBe(true);
   });
 });
