@@ -5,8 +5,17 @@ import { resolveFiles } from '../src/sealed.js';
 import {
   resolveSigningKeysFromYivi,
   buildStartRequestBody,
+  parseDisclosedJwt,
+  collectRequestedAttrTypes,
 } from '../src/signing/yivi.js';
 import { YiviSessionError } from '../src/errors.js';
+
+// Build a Yivi session-result JWT (header.payload.sig) with a `disclosed` claim.
+function makeDisclosedJwt(disclosed: unknown[][]): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ disclosed })).toString('base64url');
+  return `${header}.${payload}.sig`;
+}
 
 describe('PostGuard', () => {
   const pg = new PostGuard({
@@ -141,6 +150,82 @@ describe('PostGuard', () => {
           [[], [{ t: 'pbdf.gemeente.personalData.fullname' }]],
         ],
       });
+    });
+  });
+
+  describe('collectRequestedAttrTypes', () => {
+    it('returns an empty set when no attributes requested', () => {
+      expect(collectRequestedAttrTypes().size).toBe(0);
+      expect(collectRequestedAttrTypes([]).size).toBe(0);
+    });
+
+    it('collects flat attribute type ids', () => {
+      const types = collectRequestedAttrTypes([
+        { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber' },
+        { t: 'pbdf.gemeente.personalData.fullname', optional: true },
+      ]);
+      expect([...types]).toEqual([
+        'pbdf.sidn-pbdf.mobilenumber.mobilenumber',
+        'pbdf.gemeente.personalData.fullname',
+      ]);
+    });
+
+    it('unwraps disjunction-of-conjunctions entries', () => {
+      const types = collectRequestedAttrTypes([
+        [
+          [{ t: 'pbdf.gemeente.personalData.fullname' }],
+          [{ t: 'pbdf.pbdf.passport.firstName' }, { t: 'pbdf.pbdf.passport.lastName' }],
+        ],
+      ]);
+      expect(types.has('pbdf.gemeente.personalData.fullname')).toBe(true);
+      expect(types.has('pbdf.pbdf.passport.firstName')).toBe(true);
+      expect(types.has('pbdf.pbdf.passport.lastName')).toBe(true);
+    });
+  });
+
+  describe('parseDisclosedJwt', () => {
+    it('extracts the email value from the disclosed set', () => {
+      const jwt = makeDisclosedJwt([
+        [{ id: 'pbdf.sidn-pbdf.email.email', rawvalue: 'alice@example.com' }],
+      ]);
+      const { email, otherAttrTypes } = parseDisclosedJwt(jwt, new Set());
+      expect(email).toBe('alice@example.com');
+      expect(otherAttrTypes).toEqual([]);
+    });
+
+    it('keeps only attribute types the client actually requested', () => {
+      const jwt = makeDisclosedJwt([
+        [{ id: 'pbdf.sidn-pbdf.email.email', rawvalue: 'a@b.com' }],
+        // Requested — allowed through.
+        [{ id: 'pbdf.gemeente.personalData.fullname', rawvalue: 'Alice' }],
+        // NOT requested (attacker-injected) — must be dropped.
+        [{ id: 'pbdf.pbdf.idin.gender', rawvalue: 'F' }],
+      ]);
+      const allowed = new Set(['pbdf.gemeente.personalData.fullname']);
+      const { otherAttrTypes } = parseDisclosedJwt(jwt, allowed);
+      expect(otherAttrTypes).toEqual(['pbdf.gemeente.personalData.fullname']);
+    });
+
+    it('de-duplicates repeated allowed attribute ids', () => {
+      const jwt = makeDisclosedJwt([
+        [{ id: 'pbdf.gemeente.personalData.fullname', rawvalue: 'Alice' }],
+        [{ id: 'pbdf.gemeente.personalData.fullname', rawvalue: 'Alice' }],
+      ]);
+      const allowed = new Set(['pbdf.gemeente.personalData.fullname']);
+      const { otherAttrTypes } = parseDisclosedJwt(jwt, allowed);
+      expect(otherAttrTypes).toEqual(['pbdf.gemeente.personalData.fullname']);
+    });
+
+    it('ignores disclosed entries without a raw value', () => {
+      const jwt = makeDisclosedJwt([
+        [{ id: 'pbdf.gemeente.personalData.fullname', rawvalue: null }],
+      ]);
+      const allowed = new Set(['pbdf.gemeente.personalData.fullname']);
+      expect(parseDisclosedJwt(jwt, allowed).otherAttrTypes).toEqual([]);
+    });
+
+    it('returns an empty result for a malformed JWT', () => {
+      expect(parseDisclosedJwt('not-a-jwt', new Set())).toEqual({ otherAttrTypes: [] });
     });
   });
 
