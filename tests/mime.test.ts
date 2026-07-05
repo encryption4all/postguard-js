@@ -71,7 +71,7 @@ describe('buildMime header sanitization', () => {
   it('strips control characters from header values', () => {
     const mime = decode(
       buildMime({
-        // Embed a NUL, a bare CR, a vertical tab, an escape and a DEL.
+        // Embed a NUL, a SOH, a backspace, a vertical tab, an escape and a DEL.
         from: 'alice\x00@ex\x0bample.com',
         to: ['bob\x1b@example.com', 'carol@ex\x7fample.com'],
         subject: 'He\x01llo\x08 there',
