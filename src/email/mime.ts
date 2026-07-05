@@ -1,12 +1,18 @@
 import type { BuildMimeOptions } from '../types.js';
 
 /**
- * Collapse CR/LF runs in a user-supplied header value to a single space.
- * Prevents header injection (CRLF smuggling of extra headers) when the value
- * is interpolated into a MIME template literal.
+ * Sanitize a user-supplied header value before it is interpolated into a MIME
+ * template literal:
+ *  - collapse CR/LF runs to a single space so a crafted value cannot smuggle
+ *    in extra header lines (header injection);
+ *  - strip the remaining control characters, which have no valid place in a
+ *    header value and could otherwise corrupt the message.
+ * Tab is preserved, as it is valid header whitespace.
  */
 function sanitizeHeaderValue(value: string): string {
-  return value.replace(/[\r\n]+/g, ' ');
+  return value
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
 }
 
 /** Escape regex metacharacters so a value can be used literally in `new RegExp()`. */
