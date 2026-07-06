@@ -68,6 +68,40 @@ describe('buildMime header sanitization', () => {
     expect(mime).toContain('Cc: dave@example.com X-Cc-Injected: 1\r\n');
   });
 
+  it('strips control characters from header values', () => {
+    const mime = decode(
+      buildMime({
+        // Embed a NUL, a SOH, a backspace, a vertical tab, an escape and a DEL.
+        from: 'alice\x00@ex\x0bample.com',
+        to: ['bob\x1b@example.com', 'carol@ex\x7fample.com'],
+        subject: 'He\x01llo\x08 there',
+        htmlBody: '<p>hi</p>',
+      })
+    );
+
+    // No control character survives in the emitted header block.
+    const headerBlock = mime.slice(0, mime.indexOf('\r\n\r\n'));
+    expect(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(headerBlock)).toBe(false);
+
+    // The visible characters remain, with the control bytes simply removed.
+    expect(mime).toContain('From: alice@example.com\r\n');
+    expect(mime).toContain('To: bob@example.com, carol@example.com\r\n');
+    expect(mime).toContain('Subject: Hello there\r\n');
+  });
+
+  it('preserves tab as valid header whitespace', () => {
+    const mime = decode(
+      buildMime({
+        from: 'alice@example.com',
+        to: ['bob@example.com'],
+        subject: 'Hello\tthere',
+        htmlBody: '<p>hi</p>',
+      })
+    );
+
+    expect(mime).toContain('Subject: Hello\tthere\r\n');
+  });
+
   it('sanitizes attachment name and type', () => {
     const mime = decode(
       buildMime({
