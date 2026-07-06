@@ -4,6 +4,7 @@ import {
   secondsTill4AM,
   buildKeyRequest,
   JWT_CACHE_MAX_SIZE,
+  MAX_CACHE_TTL_SECONDS,
   __testing as jwtCacheInternals,
 } from '../src/yivi/decrypt-session.js';
 
@@ -148,5 +149,62 @@ describe('jwt cache bounds', () => {
     const jwt = makeJwt(exp, 'hit');
     jwtCacheInternals.cacheJwt('hit@example.com', POLICY, jwt);
     expect(jwtCacheInternals.getCachedJwt('hit@example.com', POLICY)).toBe(jwt);
+  });
+});
+
+describe('jwt cache exp hardening', () => {
+  beforeEach(() => {
+    jwtCacheInternals.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  });
+  afterEach(() => {
+    jwtCacheInternals.clear();
+    vi.useRealTimers();
+  });
+
+  it('clamps a forged far-future exp to MAX_CACHE_TTL_SECONDS', () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    // A network adversary crafts a JWT claiming it expires a decade from now.
+    const forgedExp = nowSec + 10 * 365 * 24 * 60 * 60;
+    const jwt = makeJwt(forgedExp, 'forged');
+    jwtCacheInternals.cacheJwt('victim@example.com', POLICY, jwt);
+
+    // Still cached just inside the clamp window...
+    vi.setSystemTime(new Date(Date.now() + (MAX_CACHE_TTL_SECONDS - 120) * 1000));
+    expect(jwtCacheInternals.getCachedJwt('victim@example.com', POLICY)).toBe(jwt);
+
+    // ...but expired once we pass the clamp, regardless of the forged exp.
+    vi.setSystemTime(new Date(Date.now() + 300 * 1000));
+    expect(jwtCacheInternals.getCachedJwt('victim@example.com', POLICY)).toBeNull();
+  });
+
+  it('honours a legitimate short exp below the clamp', () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const jwt = makeJwt(nowSec + 600, 'short');
+    jwtCacheInternals.cacheJwt('user@example.com', POLICY, jwt);
+
+    // Past the real 10-minute exp (plus 30s margin) it must be gone even
+    // though that's well within MAX_CACHE_TTL_SECONDS.
+    vi.setSystemTime(new Date(Date.now() + 700 * 1000));
+    expect(jwtCacheInternals.getCachedJwt('user@example.com', POLICY)).toBeNull();
+  });
+
+  it('does not cache a JWT with a non-numeric exp', () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ exp: 'soon' })).toString('base64url');
+    jwtCacheInternals.cacheJwt('bad@example.com', POLICY, `${header}.${payload}.sig`);
+    expect(jwtCacheInternals.size()).toBe(0);
+  });
+
+  it('does not cache an already-expired JWT', () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    jwtCacheInternals.cacheJwt('old@example.com', POLICY, makeJwt(nowSec - 10, 'old'));
+    expect(jwtCacheInternals.size()).toBe(0);
+  });
+
+  it('does not cache a structurally malformed JWT', () => {
+    jwtCacheInternals.cacheJwt('junk@example.com', POLICY, 'not-a-jwt');
+    expect(jwtCacheInternals.size()).toBe(0);
   });
 });

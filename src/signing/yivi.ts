@@ -3,6 +3,7 @@ import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
 import { injectYiviCss } from '../yivi/inject-css.js';
 import { YiviSessionError } from '../errors.js';
+import { decodeJwtPayloadUnsafe } from '../util/jwt.js';
 import type { SigningKeys, AttrConItem, AttrReq } from '../types.js';
 
 export interface YiviSignOptions {
@@ -26,31 +27,69 @@ export function buildStartRequestBody(opts: YiviSignOptions): {
 }
 
 /**
- * Extract all disclosed attributes from an IRMA/Yivi session result JWT.
+ * Flatten the attribute type ids the client itself requested for this session,
+ * unwrapping both the legacy flat shape and disjunction-of-conjunctions.
  *
- * Returns the sender email and a list of all other disclosed attribute type ids.
+ * This set is the *trusted* source of truth for which attributes may legitimately
+ * appear in the signing-key request (see `parseDisclosedJwt`).
  */
-function parseDisclosedJwt(jwt: string): { email?: string; otherAttrTypes: string[] } {
-  try {
-    const payload = JSON.parse(atob(jwt.split('.')[1]));
-    const disclosed: any[][] = payload.disclosed ?? [];
-    let email: string | undefined;
-    const otherAttrTypes: string[] = [];
-
-    for (const group of disclosed) {
-      for (const attr of group) {
-        if (!attr.id || attr.rawvalue == null) continue;
-        if (attr.id.endsWith('.email.email') || attr.id.includes('email')) {
-          email ??= attr.rawvalue ?? attr.value?.[''] ?? attr.value;
-        } else {
-          otherAttrTypes.push(attr.id);
+export function collectRequestedAttrTypes(attributes?: AttrConItem[]): Set<string> {
+  const types = new Set<string>();
+  for (const item of attributes ?? []) {
+    if (Array.isArray(item)) {
+      for (const conjunction of item) {
+        for (const attr of conjunction) {
+          if (attr?.t) types.add(attr.t);
         }
       }
+    } else if (item?.t) {
+      types.add(item.t);
     }
-    return { email, otherAttrTypes };
-  } catch {
-    return { otherAttrTypes: [] };
   }
+  return types;
+}
+
+/**
+ * Extract disclosed attributes from an IRMA/Yivi session result JWT.
+ *
+ * SECURITY: the JWT signature is NOT verified here, so its payload is not
+ * trustworthy on its own. The returned `otherAttrTypes` are therefore
+ * intersected with `allowedAttrTypes` — the set of attributes the client
+ * actually requested for this session — so only locally-requested attribute
+ * types flow into the signing-key request sent to PKG. Any disclosed attribute
+ * type the client never asked for is ignored. `email` is used only for the
+ * display/identity value and never drives the key request body (which always
+ * uses the fixed `pbdf.sidn-pbdf.email.email` type id).
+ *
+ * Returns the sender email and the de-duplicated list of allowed disclosed
+ * attribute type ids.
+ */
+export function parseDisclosedJwt(
+  jwt: string,
+  allowedAttrTypes: Set<string>
+): { email?: string; otherAttrTypes: string[] } {
+  const payload = decodeJwtPayloadUnsafe(jwt);
+  if (!payload) return { otherAttrTypes: [] };
+
+  const disclosed = Array.isArray(payload.disclosed) ? payload.disclosed : [];
+  let email: string | undefined;
+  const otherAttrTypes: string[] = [];
+  const seen = new Set<string>();
+
+  for (const group of disclosed) {
+    if (!Array.isArray(group)) continue;
+    for (const attr of group) {
+      if (!attr || typeof attr.id !== 'string' || attr.rawvalue == null) continue;
+      if (attr.id.endsWith('.email.email') || attr.id.includes('email')) {
+        email ??= attr.rawvalue ?? attr.value?.[''] ?? attr.value;
+      } else if (allowedAttrTypes.has(attr.id) && !seen.has(attr.id)) {
+        // Only attributes the client itself requested may reach the key request.
+        seen.add(attr.id);
+        otherAttrTypes.push(attr.id);
+      }
+    }
+  }
+  return { email, otherAttrTypes };
 }
 
 /** Resolve signing keys via a Yivi session (peer-to-peer sending) */
@@ -67,6 +106,9 @@ export async function resolveSigningKeysFromYivi(
   }
 
   const extraHeaders = headers ? Object.fromEntries(new Headers(headers)) : {};
+  // Trusted source of truth for which attribute types the key request may
+  // include — bounds what a tampered session JWT can influence.
+  const allowedAttrTypes = collectRequestedAttrTypes(opts.attributes);
   let senderEmail: string | undefined;
 
   const session = {
@@ -86,7 +128,7 @@ export async function resolveSigningKeysFromYivi(
         return r
           .text()
           .then((jwt: string) => {
-            const { email, otherAttrTypes } = parseDisclosedJwt(jwt);
+            const { email, otherAttrTypes } = parseDisclosedJwt(jwt, allowedAttrTypes);
             senderEmail = email;
 
             // Build signing key request:
@@ -153,7 +195,9 @@ export async function resolveSigningKeysFromYivi(
   return {
     pubSignKey: result.pubSignKey,
     privSignKey: result.privSignKey,
-    senderEmail: senderEmail ?? opts.senderEmail,
+    // Prefer the client-provided email (trusted) over the value read from the
+    // unverified JWT payload.
+    senderEmail: opts.senderEmail ?? senderEmail,
   };
 }
 

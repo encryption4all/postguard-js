@@ -3,6 +3,7 @@ import { YiviClient } from '@privacybydesign/yivi-client';
 import { YiviWeb } from '@privacybydesign/yivi-web';
 import { PostGuardError, YiviSessionError } from '../errors.js';
 import { injectYiviCss } from './inject-css.js';
+import { decodeJwtPayloadUnsafe } from '../util/jwt.js';
 
 // Re-export utilities from shared module
 export { sortPolicies, secondsTill4AM, buildKeyRequest } from '../util/policy.js';
@@ -15,6 +16,18 @@ interface CacheEntry {
 }
 
 export const JWT_CACHE_MAX_SIZE = 100;
+
+/**
+ * Upper bound on how long a cached JWT is honoured, regardless of the `exp`
+ * claim carried in its (unverified) payload.
+ *
+ * SECURITY: the `exp` used below is read from the JWT payload without verifying
+ * its signature, so it must not be trusted verbatim. USKs are only valid until
+ * the next 4 AM rotation (< 24h), so a cache lifetime beyond a day is never
+ * legitimate — clamp to it. The PKG still validates the JWT signature on every
+ * reuse, so the clamp simply bounds the local cache lifetime.
+ */
+export const MAX_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 const jwtCache = new Map<string, CacheEntry>();
 
@@ -62,11 +75,19 @@ function cacheJwt(
   jwt: string
 ): void {
   try {
-    // Decode JWT payload (base64url → JSON)
-    const payload = jwt.split('.')[1];
-    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    const expiresAt = decoded.exp as number;
-    if (!expiresAt) return;
+    // Decode JWT payload (base64url → JSON) WITHOUT verifying the signature.
+    const decoded = decodeJwtPayloadUnsafe(jwt);
+    if (!decoded) return;
+
+    const exp = decoded.exp;
+    if (typeof exp !== 'number' || !Number.isFinite(exp)) return;
+
+    const nowSec = Date.now() / 1000;
+    // Never trust the JWT-claimed `exp` beyond a bounded window (see
+    // MAX_CACHE_TTL_SECONDS).
+    const expiresAt = Math.min(exp, nowSec + MAX_CACHE_TTL_SECONDS);
+    // Reject already-expired (or non-positive) claims outright.
+    if (expiresAt <= nowSec) return;
 
     sweepExpired();
 
