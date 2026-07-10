@@ -15,6 +15,17 @@ function sanitizeHeaderValue(value: string): string {
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
 }
 
+/**
+ * Escape a value for safe insertion into an RFC 2045 quoted-string parameter
+ * (e.g. `name="..."` / `filename="..."`). Backslashes and double-quotes are
+ * backslash-escaped so a `"` in the value cannot terminate the quoted string
+ * early and smuggle in additional parameters. CR/LF are collapsed first so the
+ * result stays on a single header line.
+ */
+function escapeQuotedStringParam(value: string): string {
+  return sanitizeHeaderValue(value).replace(/[\\"]/g, '\\$&');
+}
+
 /** Escape regex metacharacters so a value can be used literally in `new RegExp()`. */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -74,7 +85,7 @@ export function buildMime(input: BuildMimeOptions): Uint8Array {
       const b64 = arrayBufferToBase64(att.data);
       const formatted = b64.replace(/(.{76})/g, '$1\r\n');
 
-      const attName = sanitizeHeaderValue(att.name);
+      const attName = escapeQuotedStringParam(att.name);
       const attType = sanitizeHeaderValue(att.type);
 
       mime += `--${boundary}\r\nContent-Type: ${attType}; name="${attName}"\r\n`;
@@ -116,7 +127,10 @@ export function injectMimeHeaders(
   }
 
   for (const [name, value] of Object.entries(headersToInject)) {
-    headerBlock += `\r\n${name}: ${value}`;
+    // Strip CR/LF from both the header name and value so neither can smuggle in
+    // extra header lines (CRLF injection). `sanitizeHeaderValue` was previously
+    // applied to values elsewhere but not to injected header names.
+    headerBlock += `\r\n${sanitizeHeaderValue(name)}: ${sanitizeHeaderValue(value)}`;
   }
 
   return headerBlock + body;
