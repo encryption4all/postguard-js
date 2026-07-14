@@ -864,6 +864,41 @@ describe('Cryptify API', () => {
       );
     });
 
+    it('cancels the previous reader before retrying so a flapping connection does not leak readers', async () => {
+      // Attempt 1 errors before delivering any bytes. Wrap getReader so we
+      // can observe cancel() on the reader the retry loop abandons — a
+      // leaked reader would keep a lock on the discarded response body.
+      const cancelSpy = vi.fn();
+      const failingBody = streamThenError([], new TypeError('connection reset'));
+      const realGetReader = failingBody.getReader.bind(failingBody);
+      (failingBody as { getReader: () => ReadableStreamDefaultReader<Uint8Array> }).getReader = () => {
+        const reader = realGetReader();
+        const realCancel = reader.cancel.bind(reader);
+        reader.cancel = (reason?: unknown) => {
+          cancelSpy();
+          return realCancel(reason);
+        };
+        return reader;
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, body: failingBody })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          body: streamOf(new Uint8Array([7])),
+        });
+
+      const { stream } = downloadFileWithRetry('https://cryptify.example.com', 'uuid', fastRetry);
+      const bytes = await drain(stream);
+
+      expect(Array.from(bytes)).toEqual([7]);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // The first attempt's reader must have been cancelled exactly once
+      // before the retry opened a fresh fetch.
+      expect(cancelSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('fails fast if resume returns 200 instead of 206 (silent-rewind protection)', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
