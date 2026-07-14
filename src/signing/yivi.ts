@@ -163,7 +163,14 @@ export async function resolveSigningKeysFromYivi(
     minimal: true,
     language: 'en',
     state: {
-      serverSentEvents: false,
+      // Prefer the irmaserver's Server-Sent Events stream (/frontend/statusevents)
+      // for near-instant status updates; yivi-client automatically falls back to
+      // polling if the SSE connection can't be established within `timeout`.
+      // (Previously this was `false`, which forced polling for every session.)
+      serverSentEvents: {
+        endpoint: 'statusevents',
+        timeout: 2000,
+      },
       polling: {
         endpoint: 'status',
         interval: 500,
