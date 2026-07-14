@@ -30,11 +30,28 @@ export async function createZipReadable(files: File[]): Promise<ReadableStream> 
   const writable = zipTransform.writable;
   const writer = writable.getWriter();
 
+  // Feed every file into the ZIP writer, keeping each write's promise plus
+  // the close promise. Conflux (and the underlying file reads) surface
+  // failures through these promises; the previous fire-and-forget left them
+  // unobserved, so a failing source or a conflux error became an unhandled
+  // rejection instead of reaching the consumer of `readable`.
+  const pending: Promise<void>[] = [];
   for (const f of files) {
     const s = createFileReadable(f);
-    writer.write({ name: f.name, lastModified: f.lastModified, stream: () => s });
+    pending.push(writer.write({ name: f.name, lastModified: f.lastModified, stream: () => s }));
   }
-  writer.close();
+  pending.push(writer.close());
+
+  // Observe all the writer promises so their rejections can't escape as
+  // unhandled. On failure, abort the writer, which errors the linked
+  // `readable` so anything piping it (e.g. sealStream in encrypt.ts) sees
+  // the failure instead of a silently truncated archive.
+  Promise.all(pending).catch((err) => {
+    writer.abort(err).catch(() => {
+      // abort() rejects when the stream is already errored/closed; the
+      // original error is already propagating through `readable`.
+    });
+  });
 
   return readable;
 }

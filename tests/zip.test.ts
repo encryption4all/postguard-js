@@ -312,4 +312,47 @@ describe('createZipReadable', () => {
     // globalThis for the rest of the process.
     expect('self' in globalThis).toBe(false);
   });
+
+  it('propagates a failing source instead of leaking an unhandled rejection', async () => {
+    // Regression: the writer.write/close promises used to be fire-and-forget.
+    // When a source file read fails, conflux errors the writer, so those
+    // ignored promises rejected with no handler and surfaced as unhandled
+    // rejections. The fix observes them and aborts the writer, which errors
+    // the returned readable so the consumer sees the failure.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      // A File-like whose slice().arrayBuffer() rejects, so createFileReadable
+      // produces a stream that errors as soon as conflux pulls from it.
+      const badFile = {
+        name: 'bad.bin',
+        lastModified: 0,
+        size: 8,
+        slice() {
+          return {
+            arrayBuffer: () => Promise.reject(new Error('source read failed')),
+          } as unknown as Blob;
+        },
+      } as unknown as File;
+
+      const stream = await createZipReadable([badFile]);
+
+      // Draining the archive must reject rather than resolve as if the ZIP
+      // were complete.
+      await expect(
+        (async () => {
+          for await (const _chunk of stream) {
+            // drain
+          }
+        })(),
+      ).rejects.toThrow();
+
+      // Give Node a macrotask to flush any unobserved rejection.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });
