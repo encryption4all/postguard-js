@@ -2,7 +2,7 @@ const DEFAULT_CHUNK_SIZE = 5_000_000;
 
 export default class Chunker extends TransformStream<Uint8Array, Uint8Array> {
   constructor(chunkSize: number = DEFAULT_CHUNK_SIZE, offset?: number) {
-    let buf = new ArrayBuffer(chunkSize);
+    let buf = new Uint8Array(chunkSize);
     let bufOffset = 0;
     let firstChunk = true;
 
@@ -17,24 +17,23 @@ export default class Chunker extends TransformStream<Uint8Array, Uint8Array> {
           const remainingChunk = chunk.byteLength - chunkOffset;
           const remainingBuffer = chunkSize - bufOffset;
           if (remainingChunk >= remainingBuffer) {
-            new Uint8Array(buf).set(
-              chunk.slice(chunkOffset, chunkOffset + remainingBuffer),
-              bufOffset
-            );
-            const copy = new Uint8Array(chunkSize);
-            copy.set(new Uint8Array(buf));
-            controller.enqueue(copy);
+            // Fill the current buffer from a view into the chunk (no copy of
+            // the slice), enqueue it, then start a fresh buffer. The enqueued
+            // buffer is never written to again, so this is a single copy.
+            buf.set(chunk.subarray(chunkOffset, chunkOffset + remainingBuffer), bufOffset);
+            controller.enqueue(buf);
+            buf = new Uint8Array(chunkSize);
             chunkOffset += remainingBuffer;
             bufOffset = 0;
           } else {
-            new Uint8Array(buf).set(chunk.slice(chunkOffset), bufOffset);
+            buf.set(chunk.subarray(chunkOffset), bufOffset);
             chunkOffset += remainingChunk;
             bufOffset += remainingChunk;
           }
         }
       },
       flush(controller: TransformStreamDefaultController) {
-        controller.enqueue(new Uint8Array(buf, 0, bufOffset));
+        controller.enqueue(buf.subarray(0, bufOffset));
       },
     });
   }
