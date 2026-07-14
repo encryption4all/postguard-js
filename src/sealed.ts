@@ -28,8 +28,11 @@ export class Sealed {
     return !!this.config.cryptifyUrl;
   }
 
-  /** Resolve signing keys once and cache for subsequent calls. */
+  /** Resolve signing keys once and cache for subsequent calls. When the caller
+   *  supplies pre-resolved keys (e.g. from pg.prepareSign()), use them directly
+   *  and never start a Yivi session. */
   private async getSigningKeys(): Promise<SigningKeys> {
+    if (this.options.signingKeys) return this.options.signingKeys;
     if (!this.cachedSigningKeys) {
       this.cachedSigningKeys = await resolveSigningKeys(
         this.config.pkgUrl,
