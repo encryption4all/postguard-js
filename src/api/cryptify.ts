@@ -410,6 +410,10 @@ export function downloadFileWithRetry(
       while (true) {
         attempt += 1;
         const { signal: timed, cleanup } = withTimeout(signal, retry.downloadTimeoutMs);
+        // Hoisted so the `catch` can release it before looping to a fresh
+        // fetch — otherwise a flapping connection leaks one response-body
+        // reader (holding a lock on an abandoned stream) per retry.
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
         try {
           let innerStream: ReadableStream<Uint8Array>;
           if (received === 0) {
@@ -421,7 +425,7 @@ export function downloadFileWithRetry(
           }
           cleanup();
 
-          const reader = innerStream.getReader();
+          reader = innerStream.getReader();
           for (;;) {
             const { value, done } = await reader.read();
             if (done) {
@@ -434,6 +438,11 @@ export function downloadFileWithRetry(
           }
         } catch (err) {
           cleanup();
+          // Release the previous reader (and, via cancel, its underlying
+          // stream) before looping to a fresh fetch. `cancel()` both drops
+          // the lock and signals the source, so a mid-stream failure does
+          // not leave a dangling reader per retry.
+          await reader?.cancel().catch(() => {});
           if (signal?.aborted) {
             controller.error(err);
             return;
