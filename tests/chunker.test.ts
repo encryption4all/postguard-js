@@ -67,6 +67,37 @@ describe('Chunker', () => {
     expect(chunks[1]).toEqual(new Uint8Array([5]));
   });
 
+  it('fills a chunk from data spanning multiple transform calls', async () => {
+    // Each output chunk is assembled from bytes delivered across several
+    // writes, and individual writes straddle the chunk boundary.
+    const chunker = new Chunker(4);
+    const chunks = await pipeAndCollect(chunker, [
+      new Uint8Array([1, 2, 3]),
+      new Uint8Array([4, 5, 6, 7, 8]),
+      new Uint8Array([9, 10]),
+    ]);
+
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(chunks[1]).toEqual(new Uint8Array([5, 6, 7, 8]));
+    expect(chunks[2]).toEqual(new Uint8Array([9, 10]));
+  });
+
+  it('does not alias buffers across emitted chunks', async () => {
+    // Regression guard: emitted chunks must be independent allocations, so a
+    // later fill can never mutate an already-enqueued chunk.
+    const chunker = new Chunker(2);
+    const chunks = await pipeAndCollect(chunker, [
+      new Uint8Array([1, 2, 3, 4]),
+    ]);
+
+    expect(chunks[0]).toEqual(new Uint8Array([1, 2]));
+    expect(chunks[1]).toEqual(new Uint8Array([3, 4]));
+    // Mutating the second chunk must not touch the first.
+    chunks[1].set([9, 9]);
+    expect(chunks[0]).toEqual(new Uint8Array([1, 2]));
+  });
+
   it('respects offset on first chunk', async () => {
     const chunker = new Chunker(4, 2);
     const chunks = await pipeAndCollect(chunker, [
