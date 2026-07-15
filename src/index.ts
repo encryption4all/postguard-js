@@ -20,6 +20,10 @@ export type {
   SessionSign,
   SessionCallback,
   SessionRequest,
+  // Pre-warmed signing (pg.prepareSign)
+  PrepareSignOptions,
+  PreparedSign,
+  SigningKeys,
   // New API input/output
   EncryptInput,
   UploadOptions,

@@ -374,4 +374,69 @@ describe('PostGuard', () => {
       ).rejects.toThrow(/sign\.yivi requires a DOM/);
     });
   });
+
+  describe('prepareSign', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('returns a handle with mobileUrl, keys and cancel', () => {
+      vi.stubGlobal('document', undefined);
+      const prepared = pg.prepareSign({ element: '#yivi' });
+      expect(prepared.mobileUrl).toBeInstanceOf(Promise);
+      expect(prepared.keys).toBeInstanceOf(Promise);
+      expect(typeof prepared.cancel).toBe('function');
+      // Swallow the expected DOM-guard rejection so it isn't reported as
+      // unhandled by this synchronous assertion test.
+      prepared.keys.catch(() => {});
+    });
+
+    it('rejects both keys and mobileUrl when no DOM is present', async () => {
+      // Without a DOM the session can't start; the early failure must reach
+      // whoever awaits the URL, not just whoever awaits the keys.
+      vi.stubGlobal('document', undefined);
+      const prepared = pg.prepareSign({ element: '#yivi' });
+      await expect(prepared.keys).rejects.toBeInstanceOf(YiviSessionError);
+      await expect(prepared.mobileUrl).rejects.toBeInstanceOf(YiviSessionError);
+    });
+
+    it('rejects immediately when the abort signal is already aborted', async () => {
+      // Stub a truthy document so we clear the DOM guard and hit the
+      // abort guard (which sits before any yivi-web construction).
+      vi.stubGlobal('document', {});
+      const prepared = pg.prepareSign({
+        element: '#yivi',
+        signal: AbortSignal.abort(),
+      });
+      await expect(prepared.keys).rejects.toThrow(/Aborted/);
+    });
+  });
+
+  describe('encrypt with pre-resolved signingKeys', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('skips the Yivi session (never touches sign.element) when keys are supplied', async () => {
+      // No DOM here: if getSigningKeys did NOT honor the supplied keys, it
+      // would fall through to resolveSigningKeysFromYivi and reject with the
+      // "requires a DOM" YiviSessionError. Proving the upload rejects for some
+      // OTHER reason (no real crypto/network in tests) confirms the pre-warmed
+      // keys short-circuited session resolution.
+      vi.stubGlobal('document', undefined);
+      const sealed = pg.encrypt({
+        files: [new File([new Uint8Array([1, 2, 3])], 'a.bin')],
+        recipients: [pg.recipient.email('a@b.com')],
+        sign: pg.sign.yivi({ element: '#never-rendered' }),
+        signingKeys: {
+          pubSignKey: 'PUB',
+          privSignKey: 'PRIV',
+          senderEmail: 'me@example.com',
+        },
+      });
+      await expect(
+        sealed.upload({ notify: { recipients: false } })
+      ).rejects.not.toThrow(/requires a DOM/);
+    });
+  });
 });

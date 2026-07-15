@@ -95,10 +95,50 @@ export interface EncryptInput {
   recipients: Recipient[];
   /** Signing method */
   sign: SignMethod;
+  /** Pre-resolved signing keys — e.g. from `pg.prepareSign()`, which runs the
+   *  Yivi disclosure ahead of time so a mobile user can open the app on a
+   *  single genuine tap. When provided, encrypt() uses these directly and does
+   *  NOT start a new Yivi session (the `sign.element` widget is never touched).
+   *  `sign` is still required: it supplies envelope metadata and, when
+   *  `includeSender` is set, the friendly-sender line (from `senderEmail`). */
+  signingKeys?: SigningKeys;
   /** Progress callback (0-100) for upload operations */
   onProgress?: (percentage: number) => void;
   /** Abort signal for cancellation */
   signal?: AbortSignal;
+}
+
+/** Options for pg.prepareSign() — start a Yivi signing session ahead of the
+ *  actual encrypt() call. Mirrors the Yivi fields of a `sign` method; the
+ *  disclosure it performs is identity-bound (sender email + optional
+ *  attributes) and independent of the files/recipients, so the resolved keys
+ *  can be reused for whatever is ultimately encrypted. */
+export interface PrepareSignOptions {
+  /** DOM selector for the Yivi widget host. On mobile you can keep this
+   *  offscreen/hidden and drive the app open from `mobileUrl` instead. */
+  element: string;
+  senderEmail?: string;
+  attributes?: AttrConItem[];
+  includeSender?: boolean;
+  /** Abort the in-flight session from outside (in addition to `cancel()`). */
+  signal?: AbortSignal;
+}
+
+/** Handle returned by pg.prepareSign(). */
+export interface PreparedSign {
+  /** Resolves with the Yivi app deep-link URL once the session pointer is
+   *  known — put it on an `<a href>` so a single user tap opens the app on
+   *  iOS (a Universal Link only hands off to the app inside a genuine
+   *  gesture). Only settles on mobile, where Yivi shows the app button; on
+   *  desktop (QR flow) it stays pending, so race it with a timeout there.
+   *  Rejects if the session fails before the button is shown. */
+  mobileUrl: Promise<string>;
+  /** Resolves with signing keys when the user completes disclosure. Pass into
+   *  encrypt() via `signingKeys`. Rejects with YiviSessionError on
+   *  cancel/timeout/close. */
+  keys: Promise<SigningKeys>;
+  /** Abort the in-flight session and clean up the widget host. */
+  cancel(): void;
 }
 
 /** Options for sealed.upload() */

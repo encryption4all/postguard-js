@@ -13,6 +13,19 @@ export interface YiviSignOptions {
   includeSender?: boolean;
 }
 
+/** Runtime hooks for a Yivi signing session — kept separate from
+ *  `YiviSignOptions` (which describes the disclosure request) because these
+ *  concern the live session, not its contents. */
+export interface YiviSignRuntime {
+  /** Called once with the Yivi app deep-link URL as soon as the session
+   *  pointer is known and Yivi shows its mobile app button. Lets a caller
+   *  (`prepareSign`) hand the URL to an `<a href>` so a single user tap opens
+   *  the app. Fires on mobile only; on desktop the QR flow is used instead. */
+  onMobileUrl?: (url: string) => void;
+  /** Abort the session (cancels `yivi.start()` and clears the host element). */
+  signal?: AbortSignal;
+}
+
 /** Build the JSON body POSTed to `${pkgUrl}/v2/request/start`.
  *  Exposed for unit testing — the runtime call path uses it via `JSON.stringify`. */
 export function buildStartRequestBody(opts: YiviSignOptions): {
@@ -96,13 +109,18 @@ export function parseDisclosedJwt(
 export async function resolveSigningKeysFromYivi(
   pkgUrl: string,
   opts: YiviSignOptions,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  runtime?: YiviSignRuntime
 ): Promise<SigningKeys> {
   if (typeof document === 'undefined') {
     throw new YiviSessionError(
       'sign.yivi requires a DOM (browser environment). ' +
       'Use sign.apiKey for server-side encryption or sign.session with a custom callback.'
     );
+  }
+
+  if (runtime?.signal?.aborted) {
+    throw new YiviSessionError('Aborted');
   }
 
   const extraHeaders = headers ? Object.fromEntries(new Headers(headers)) : {};
@@ -183,6 +201,33 @@ export async function resolveSigningKeysFromYivi(
 
   yivi.use(YiviWeb);
   yivi.use(YiviClient);
+
+  // Passive listener plugin: yivi-core hands every plugin each state change,
+  // and the mobile "ShowingYiviButton" state carries the app deep-link URL in
+  // its payload (`mobile`). Capture it here — cleaner than scraping the
+  // rendered `.yivi-web-button-link` href — so `prepareSign` can surface the
+  // URL for a one-tap app open. Has no `start`, so yivi-core never drives it.
+  if (runtime?.onMobileUrl) {
+    const onMobileUrl = runtime.onMobileUrl;
+    let fired = false;
+    class MobileUrlCapture {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      constructor(_deps: unknown) {}
+      stateChange(state: { newState?: string; payload?: { mobile?: string } }): void {
+        if (!fired && state?.newState === 'ShowingYiviButton' && state.payload?.mobile) {
+          fired = true;
+          onMobileUrl(state.payload.mobile);
+        }
+      }
+    }
+    yivi.use(MobileUrlCapture as any);
+  }
+
+  // Let an external signal abort the in-flight session. yivi-core's abort()
+  // transitions the state machine to "Aborted", which rejects start() below.
+  if (runtime?.signal) {
+    runtime.signal.addEventListener('abort', () => yivi.abort(), { once: true });
+  }
 
   // yivi-core's start() rejects with a bare string final-state name on
   // anything other than Success ("Cancelled", "TimedOut", "Aborted").
