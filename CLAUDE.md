@@ -82,3 +82,36 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 - `main` is the release branch. `npx semantic-release` runs on push to `main` (`.github/workflows/delivery.yml`), so **commit messages and PR titles must follow Conventional Commits** — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
 - Version in `package.json` is a placeholder (`0.0.0-managed-by-semantic-release`) — do not edit it manually; semantic-release rewrites it during publish.
+
+---
+
+## Agent notes (migrated from the dobby memory repo)
+
+## Overview
+`@e4a/pg-js`, the TypeScript SDK. Release: semantic-release.
+
+## Build pipeline (gitignored generated sources)
+`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
+
+Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `npm test` and `npm run typecheck` directly from a fresh `npm ci` to catch a script that was missed.
+
+## Repo layout
+- `src/email/envelope.ts`: HTML template for the PostGuard encrypted email; sender pill styles in `buildAttributePills`.
+- CI split: `delivery.yml` (release on push to main), `integration.yml` (PR checks: typecheck + build + test + smoke across Node 22/24, Bun, Deno).
+
+## Package scripts
+- `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run all three generators.
+- `build`: tsdown.
+- `typecheck`: `tsc --noEmit`.
+- `test` / `test:watch`: vitest.
+
+## Signing keys / Yivi sessions
+- `Sealed` is a lazy encryption builder; `toBytes()` and `upload()` are terminal.
+- `createEnvelope` calls `toBytes()` then conditionally `upload()`, so signing-key resolution can happen twice (showing two Yivi QR codes) without caching.
+- `Sealed.getSigningKeys()` caches the resolved value. Pass pre-resolved keys to `sealRaw`/`encryptPipeline` via the optional `signingKeys` param. The cache is value-based, not promise-based: safe for sequential callers but not concurrent ones.
+
+## Client-side JWT trust boundary
+Yivi/IRMA session-result JWTs are decoded without signature verification client-side. Never make a trust decision on a decoded claim. Use `src/util/jwt.ts`'s `decodeJwtPayloadUnsafe` (structural-only decode), then bound the claim's effect:
+- `decrypt-session.ts` clamps the cache TTL to `min(exp, now + MAX_CACHE_TTL_SECONDS)`.
+- `signing/yivi.ts` intersects disclosed attribute types with the set the client itself requested before building the PKG key request; a client-provided `senderEmail` wins over the JWT value.
+The PKG server verifies the signature before issuing keys; the client-side work is defense-in-depth only.
