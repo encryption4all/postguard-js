@@ -97,7 +97,7 @@ Org-wide lesson: any repo combining gitignored generated sources with build-time
 
 ## Repo layout
 - `src/email/envelope.ts`: HTML template for the PostGuard encrypted email; sender pill styles in `buildAttributePills`.
-- CI split: `delivery.yml` (release on push to main), `integration.yml` (PR checks: typecheck, build, test on Node 24).
+- CI split: `delivery.yml` (release on push to main), `integration.yml` (PR checks: typecheck + build + test + smoke across Node 22/24, Bun, Deno).
 
 ## Package scripts
 - `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run both generators.
