@@ -91,7 +91,7 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 `@e4a/pg-js`, the TypeScript SDK. Release: semantic-release.
 
 ## Build pipeline (gitignored generated sources)
-`src/util/wasm-binary.ts` and `src/yivi/yivi-css-text.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs` and `scripts/generate-yivi-css.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run both generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
+`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
 
 Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `npm test` and `npm run typecheck` directly from a fresh `npm ci` to catch a script that was missed.
 
@@ -100,7 +100,7 @@ Org-wide lesson: any repo combining gitignored generated sources with build-time
 - CI split: `delivery.yml` (release on push to main), `integration.yml` (PR checks: typecheck + build + test + smoke across Node 22/24, Bun, Deno).
 
 ## Package scripts
-- `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run both generators.
+- `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run all three generators.
 - `build`: tsdown.
 - `typecheck`: `tsc --noEmit`.
 - `test` / `test:watch`: vitest.
