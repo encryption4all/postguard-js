@@ -70,6 +70,27 @@ describe('email attribute configuration (postguard#236)', () => {
     expect(body.con[0]).toEqual({ t: TEST_ATTRS.email, v: 'sender@example.com' });
   });
 
+  it('api-key signing requests carry the configured email type on the wire', async () => {
+    const { resolveSigningKeysFromApiKey } = await import('../src/signing/api-key.js');
+
+    let capturedBody: unknown;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string);
+      return new Response(
+        JSON.stringify({ status: 'DONE', proofStatus: 'VALID', pubSignKey: { key: 'k', policy: { ts: 1, con: [] } } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }) as typeof fetch;
+    try {
+      await resolveSigningKeysFromApiKey('http://pkg.test', 'PG-key', undefined, TEST_ATTRS);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    expect((capturedBody as { pubSignId: { t: string }[] }).pubSignId[0].t).toBe(TEST_ATTRS.email);
+  });
+
   it('without overrides, everything keeps the production types', () => {
     const alice = new RecipientBuilder('alice@example.com', 'email');
     const policy = buildEncryptionPolicy([alice], 1);

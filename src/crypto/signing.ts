@@ -13,7 +13,7 @@ export async function resolveSigningKeys(
 ): Promise<SigningKeys> {
   switch (sign.type) {
     case 'apiKey':
-      return resolveSigningKeysFromApiKey(pkgUrl, sign.apiKey, headers);
+      return resolveSigningKeysFromApiKey(pkgUrl, sign.apiKey, headers, emailAttributes);
     case 'yivi':
       return resolveSigningKeysFromYivi(pkgUrl, {
         element: sign.element,

@@ -1,6 +1,7 @@
 import { NetworkError } from '../errors.js';
 import { mergeHeaders } from '../util/headers.js';
 import type { SigningKeys, SessionStartResult, AttributeCon } from '../types.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 
 /** Fetch the master public key from the PKG server */
 export async function fetchMPK(pkgUrl: string, headers?: HeadersInit): Promise<unknown> {
@@ -28,11 +29,17 @@ export async function fetchVerificationKey(pkgUrl: string, headers?: HeadersInit
   return json.publicKey;
 }
 
-/** Fetch signing keys using an API key (PostGuard for Business) */
+/** Fetch signing keys using an API key (PostGuard for Business).
+ *
+ *  Note: under API-key auth the PKG derives the signing identity from the
+ *  business database and ignores this body — the configured type is sent
+ *  anyway so the wire request stays consistent with the rest of the client
+ *  under an `emailAttributes` override. */
 export async function fetchSigningKeysWithApiKey(
   pkgUrl: string,
   apiKey: string,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  emailAttributes?: EmailAttributes
 ): Promise<SigningKeys> {
   const response = await fetch(`${pkgUrl}/v2/irma/sign/key`, {
     method: 'POST',
@@ -41,7 +48,7 @@ export async function fetchSigningKeysWithApiKey(
       Authorization: `Bearer ${apiKey}`,
     })),
     body: JSON.stringify({
-      pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],
+      pubSignId: [{ t: (emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES).email }],
     }),
   });
   if (!response.ok) {
