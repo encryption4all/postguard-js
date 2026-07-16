@@ -1,5 +1,6 @@
 import type { SessionCallback, SigningKeys } from '../types.js';
 import { getSigningKeysWithJwt } from '../api/pkg.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 
 /** Resolve signing keys by calling a user-provided session callback to get a JWT,
  *  then exchanging it with the PKG for signing keys. */
@@ -7,11 +8,13 @@ export async function resolveSigningKeysFromSession(
   pkgUrl: string,
   callback: SessionCallback,
   senderEmail: string | undefined,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  emailAttributes?: EmailAttributes
 ): Promise<SigningKeys> {
+  const attrs = emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
   const emailAttr = senderEmail
-    ? { t: 'pbdf.sidn-pbdf.email.email', v: senderEmail }
-    : { t: 'pbdf.sidn-pbdf.email.email' };
+    ? { t: attrs.email, v: senderEmail }
+    : { t: attrs.email };
 
   const jwt = await callback({
     con: [emailAttr],
@@ -21,7 +24,7 @@ export async function resolveSigningKeysFromSession(
   return getSigningKeysWithJwt(
     pkgUrl,
     jwt,
-    { pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }] },
+    { pubSignId: [{ t: attrs.email }] },
     headers
   );
 }

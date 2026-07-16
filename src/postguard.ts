@@ -50,6 +50,7 @@ export class PostGuard extends PostGuardBase {
         senderEmail: opts.senderEmail,
         attributes: opts.attributes,
         includeSender: opts.includeSender,
+        emailAttributes: this.emailAttributes,
       },
       this.config.headers,
       { onMobileUrl: resolveUrl, signal },

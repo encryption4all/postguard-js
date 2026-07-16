@@ -12,11 +12,15 @@ import {
   PG_CLIENT_VERSION_HEADER,
   defaultClientVersionHeaderValue,
 } from './util/client-version.js';
+import { resolveEmailAttributes, type EmailAttributes } from './util/attributes.js';
 
 /** Base class with config, builders, and email helpers shared by PostGuard variants. */
 export class PostGuardBase {
   /** @internal */
   protected readonly config: PostGuardConfig;
+
+  /** Email attribute types, resolved once from the config (postguard#236). @internal */
+  protected readonly emailAttributes: EmailAttributes;
 
   /** Email helpers for building/parsing PostGuard-encrypted emails */
   readonly email: EmailHelpers;
@@ -32,6 +36,7 @@ export class PostGuardBase {
       headers.set(PG_CLIENT_VERSION_HEADER, defaultClientVersionHeaderValue());
     }
     this.config = { ...config, headers };
+    this.emailAttributes = resolveEmailAttributes(config.emailAttributes);
     this.email = new EmailHelpers(this.config);
   }
 

@@ -17,6 +17,13 @@ export interface PostGuardConfig {
    * 404) and caller-driven aborts are not retried.
    */
   retry?: RetryOptions;
+  /**
+   * Attribute types carrying the email identity (default: the production
+   * pbdf types). Test environments override these with test-scheme types
+   * (e.g. `irma-demo.sidn-pbdf.email.email`); overrides must match the PKG's
+   * `PKG_EMAIL_ATTRIBUTE` and cryptify's `email_attribute` settings.
+   */
+  emailAttributes?: { email?: string; domain?: string };
 }
 
 // --- Recipients ---

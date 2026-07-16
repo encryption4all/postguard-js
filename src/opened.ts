@@ -15,6 +15,7 @@ import {
   unsealAndCollect,
 } from './crypto/decrypt.js';
 import { extractAllZipEntries } from './util/zip.js';
+import { resolveEmailAttributes } from './util/attributes.js';
 import { triggerBrowserDownloads } from './util/download.js';
 import { parseSender } from './util/identity.js';
 import { ProgressPipe } from './util/progress.js';
@@ -88,6 +89,7 @@ export class Opened {
       opts.session,
       this.config.headers,
       opts.enableCache,
+      resolveEmailAttributes(this.config.emailAttributes),
     );
 
     // Attach progress callback just before we drain the stream: bytes

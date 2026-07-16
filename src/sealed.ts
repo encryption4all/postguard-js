@@ -1,5 +1,6 @@
 import type { PostGuardConfig, EncryptInput, SigningKeys, UploadOptions, UploadResult } from './types.js';
 import { sealRaw } from './crypto/encrypt.js';
+import { resolveEmailAttributes } from './util/attributes.js';
 import { encryptPipeline } from './crypto/encrypt.js';
 import { createZipReadable } from './util/zip.js';
 import { resolveSigningKeys } from './crypto/signing.js';
@@ -38,6 +39,7 @@ export class Sealed {
         this.config.pkgUrl,
         this.options.sign,
         this.config.headers,
+        resolveEmailAttributes(this.config.emailAttributes),
       );
     }
     return this.cachedSigningKeys;
@@ -57,6 +59,7 @@ export class Sealed {
         data: this.options.data,
         headers: this.config.headers,
         signingKeys,
+        emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
       });
     }
 
@@ -70,6 +73,7 @@ export class Sealed {
       data: zipReadable,
       headers: this.config.headers,
       signingKeys,
+      emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
     });
   }
 
@@ -128,6 +132,7 @@ export class Sealed {
       delivery: opts?.notify,
       headers: this.config.headers,
       signingKeys,
+      emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
       retry: this.config.retry,
       onUploadInit: opts?.onUploadInit,
     });

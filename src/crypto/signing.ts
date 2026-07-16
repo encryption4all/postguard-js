@@ -1,4 +1,5 @@
 import type { SignMethod, SigningKeys } from '../types.js';
+import type { EmailAttributes } from '../util/attributes.js';
 import { resolveSigningKeysFromApiKey } from '../signing/api-key.js';
 import { resolveSigningKeysFromYivi } from '../signing/yivi.js';
 import { resolveSigningKeysFromSession } from '../signing/session.js';
@@ -7,7 +8,8 @@ import { resolveSigningKeysFromSession } from '../signing/session.js';
 export async function resolveSigningKeys(
   pkgUrl: string,
   sign: SignMethod,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  emailAttributes?: EmailAttributes
 ): Promise<SigningKeys> {
   switch (sign.type) {
     case 'apiKey':
@@ -18,8 +20,9 @@ export async function resolveSigningKeys(
         senderEmail: sign.senderEmail,
         attributes: sign.attributes,
         includeSender: sign.includeSender,
+        emailAttributes,
       }, headers);
     case 'session':
-      return resolveSigningKeysFromSession(pkgUrl, sign.callback, sign.senderEmail, headers);
+      return resolveSigningKeysFromSession(pkgUrl, sign.callback, sign.senderEmail, headers, emailAttributes);
   }
 }
