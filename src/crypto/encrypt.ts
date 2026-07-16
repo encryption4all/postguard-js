@@ -3,6 +3,7 @@ import type { Recipient, SignMethod, SigningKeys, UploadResult, YiviSign } from 
 import { fetchMPK } from '../api/pkg.js';
 import { createUploadStream } from '../api/cryptify.js';
 import { buildEncryptionPolicy } from '../recipients/builders.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 import { resolveSigningKeys } from './signing.js';
 import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
@@ -17,6 +18,8 @@ export interface EncryptPipelineOptions {
   sign: SignMethod;
   files: File[];
   recipients: Recipient[];
+  /** Email attribute types (see `PostGuardConfig.emailAttributes`). */
+  emailAttributes?: EmailAttributes;
   onProgress?: (percentage: number) => void;
   signal?: AbortSignal;
   /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
@@ -42,6 +45,7 @@ export interface EncryptPipelineOptions {
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
 export async function encryptPipeline(options: EncryptPipelineOptions): Promise<UploadResult> {
   const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } = options;
+  const emailAttrs = options.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
 
   const abortController = new AbortController();
   const effectiveSignal = signal
@@ -51,19 +55,19 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
     fetchMPK(pkgUrl, headers),
-    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers, emailAttrs),
   ]);
 
   // Build encryption policy
   const ts = Math.round(Date.now() / 1000);
-  const policy = buildEncryptionPolicy(recipients, ts);
+  const policy = buildEncryptionPolicy(recipients, ts, emailAttrs);
 
   // If the sign method requests including the sender, add a sender entry
   // so the sender can also decrypt the sealed file.
   if (sign.type === 'yivi' && (sign as YiviSign).includeSender && signingKeys.senderEmail) {
     policy[signingKeys.senderEmail] = {
       ts,
-      con: [{ t: 'pbdf.sidn-pbdf.email.email', v: signingKeys.senderEmail }],
+      con: [{ t: emailAttrs.email, v: signingKeys.senderEmail }],
     };
   }
 
@@ -166,27 +170,30 @@ export interface SealRawOptions {
   headers?: HeadersInit;
   /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
   signingKeys?: SigningKeys;
+  /** Email attribute types (see `PostGuardConfig.emailAttributes`). */
+  emailAttributes?: EmailAttributes;
 }
 
 /** Seal raw data: sign -> policy -> sealStream -> return encrypted bytes */
 export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   const { pkgUrl, sign, recipients, data, headers } = options;
+  const emailAttrs = options.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
 
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
     fetchMPK(pkgUrl, headers),
-    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers, emailAttrs),
   ]);
 
   // Build encryption policy
   const ts = Math.round(Date.now() / 1000);
-  const policy = buildEncryptionPolicy(recipients, ts);
+  const policy = buildEncryptionPolicy(recipients, ts, emailAttrs);
 
   // Include sender in policy if requested
   if (sign.type === 'yivi' && (sign as YiviSign).includeSender && signingKeys.senderEmail) {
     policy[signingKeys.senderEmail] = {
       ts,
-      con: [{ t: 'pbdf.sidn-pbdf.email.email', v: signingKeys.senderEmail }],
+      con: [{ t: emailAttrs.email, v: signingKeys.senderEmail }],
     };
   }
 

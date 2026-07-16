@@ -5,6 +5,7 @@ import { getUSK } from '../api/pkg.js';
 import { downloadFile, downloadFileWithRetry } from '../api/cryptify.js';
 import { resolveRetryOptions, type RetryOptions } from '../util/retry.js';
 import { buildKeyRequest } from '../util/policy.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 import { retrieveUSKViaYivi } from '../yivi/decrypt-session.js';
 import { extractAllZipEntries } from '../util/zip.js';
 import { triggerBrowserDownloads } from '../util/download.js';
@@ -111,16 +112,18 @@ export async function resolveUSK(
   element?: string,
   session?: SessionCallback,
   headers?: HeadersInit,
-  enableCache?: boolean
+  enableCache?: boolean,
+  emailAttributes?: EmailAttributes
 ): Promise<unknown> {
-  const keyRequest = buildKeyRequest(recipientKey, policy);
+  const attrs = emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
+  const keyRequest = buildKeyRequest(recipientKey, policy, attrs);
 
   if (session) {
     const jwt = await session({
       con: keyRequest.con,
       sort: 'Decryption',
       hints: policy.con.map((c) => {
-        if (c.t === 'pbdf.sidn-pbdf.email.email') return { t: c.t, v: recipientKey };
+        if (c.t === attrs.email) return { t: c.t, v: recipientKey };
         return c;
       }),
     });

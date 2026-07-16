@@ -5,12 +5,15 @@ import { injectYiviCss } from '../yivi/inject-css.js';
 import { YiviSessionError } from '../errors.js';
 import { decodeJwtPayloadUnsafe } from '../util/jwt.js';
 import type { SigningKeys, AttrConItem, AttrReq } from '../types.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 
 export interface YiviSignOptions {
   element: string;
   senderEmail?: string;
   attributes?: AttrConItem[];
   includeSender?: boolean;
+  /** Email attribute types (see `PostGuardConfig.emailAttributes`). */
+  emailAttributes?: EmailAttributes;
 }
 
 /** Runtime hooks for a Yivi signing session — kept separate from
@@ -31,10 +34,11 @@ export interface YiviSignRuntime {
 export function buildStartRequestBody(opts: YiviSignOptions): {
   con: AttrConItem[];
 } {
+  const emailType = (opts.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES).email;
   const emailAttr: AttrReq = opts.senderEmail
-    ? { t: 'pbdf.sidn-pbdf.email.email', v: opts.senderEmail }
-    : { t: 'pbdf.sidn-pbdf.email.email' };
-  // Callers must not include pbdf.sidn-pbdf.email.email in `attributes`; it
+    ? { t: emailType, v: opts.senderEmail }
+    : { t: emailType };
+  // Callers must not include the email attribute type in `attributes`; it
   // is always prepended automatically and would appear twice otherwise.
   return { con: [emailAttr, ...(opts.attributes ?? [])] };
 }
@@ -72,7 +76,7 @@ export function collectRequestedAttrTypes(attributes?: AttrConItem[]): Set<strin
  * types flow into the signing-key request sent to PKG. Any disclosed attribute
  * type the client never asked for is ignored. `email` is used only for the
  * display/identity value and never drives the key request body (which always
- * uses the fixed `pbdf.sidn-pbdf.email.email` type id).
+ * uses the configured email attribute type id).
  *
  * Returns the sender email and the de-duplicated list of allowed disclosed
  * attribute type ids.
@@ -153,7 +157,7 @@ export async function resolveSigningKeysFromYivi(
             // - pubSignId: email (always public)
             // - privSignId: any other disclosed attributes (optional sender identity)
             const keyRequest: Record<string, unknown> = {
-              pubSignId: [{ t: 'pbdf.sidn-pbdf.email.email' }],
+              pubSignId: [{ t: (opts.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES).email }],
             };
             if (otherAttrTypes.length > 0) {
               keyRequest.privSignId = otherAttrTypes.map(t => ({ t }));

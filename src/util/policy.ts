@@ -11,18 +11,21 @@ export function secondsTill4AM(): number {
   return (secondsTillMidnight + 4 * 60 * 60) % (24 * 60 * 60);
 }
 
+import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from './attributes.js';
+
 /** Build the key request from a policy entry for a specific recipient */
 export function buildKeyRequest(
   key: string,
-  policy: { ts: number; con: { t: string; v?: string }[] }
+  policy: { ts: number; con: { t: string; v?: string }[] },
+  attrs: EmailAttributes = DEFAULT_EMAIL_ATTRIBUTES
 ): { con: { t: string; v?: string }[]; validity: number } {
   const recipientAndCreds = sortPolicies(policy.con);
 
   const stripped = JSON.parse(JSON.stringify(recipientAndCreds));
   for (const c of stripped) {
-    if (c.t === 'pbdf.sidn-pbdf.email.email') {
+    if (c.t === attrs.email) {
       c.v = key;
-    } else if (c.t === 'pbdf.sidn-pbdf.email.domain') {
+    } else if (c.t === attrs.domain) {
       if (!c.v && key.includes('@')) {
         c.v = key.split('@')[1];
       }
