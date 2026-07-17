@@ -139,8 +139,11 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
 
 /** Await two stream-pipeline promises, aborting on first failure and
  *  re-throwing the first error. The losers' eventual rejections are
- *  observed (`.catch(() => {})`) so they don't surface as unhandled. */
-async function awaitAllOrAbort(
+ *  observed (`.catch(() => {})`) so they don't surface as unhandled.
+ *
+ *  Exported for unit testing; not part of the package's public API
+ *  (`src/index.ts` does not re-export it). */
+export async function awaitAllOrAbort(
   seal: Promise<void>,
   pipe: Promise<void>,
   abortController: AbortController
