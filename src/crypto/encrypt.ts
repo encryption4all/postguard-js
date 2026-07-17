@@ -7,6 +7,7 @@ import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attribut
 import { resolveSigningKeys } from './signing.js';
 import Chunker, { withTransform } from './chunker.js';
 import { createZipReadable } from '../util/zip.js';
+import { nowSeconds } from '../util/policy.js';
 import { loadWasm } from '../util/wasm.js';
 import type { RetryOptions } from '../util/retry.js';
 
@@ -59,7 +60,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   ]);
 
   // Build encryption policy
-  const ts = Math.round(Date.now() / 1000);
+  const ts = nowSeconds();
   const policy = buildEncryptionPolicy(recipients, ts, emailAttrs);
 
   // If the sign method requests including the sender, add a sender entry
@@ -186,7 +187,7 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   ]);
 
   // Build encryption policy
-  const ts = Math.round(Date.now() / 1000);
+  const ts = nowSeconds();
   const policy = buildEncryptionPolicy(recipients, ts, emailAttrs);
 
   // Include sender in policy if requested

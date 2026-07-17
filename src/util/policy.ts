@@ -3,6 +3,17 @@ export function sortPolicies(con: { t: string; v?: string }[]): { t: string; v?:
   return [...con].sort((a, b) => a.t.localeCompare(b.t));
 }
 
+/** Current Unix time in whole seconds.
+ *
+ * Uses `floor`, never `round`: this stamps the policy timestamp a sealed
+ * container is keyed on, and the PKG rejects a USK request whose timestamp is
+ * in the future ("chronology error"). `Math.round` can land up to ~1s ahead of
+ * the real time, so an immediate decrypt (encrypt→decrypt within the same
+ * second) could fail; `floor` is always ≤ now. */
+export function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 /** Calculate seconds until 4 AM (PKG key validity period) */
 export function secondsTill4AM(): number {
   const now = Date.now();
