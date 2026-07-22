@@ -1,4 +1,4 @@
-import type { DecryptFileResult, DecryptDataResult, SenderIdentity, SessionCallback } from '../types.js';
+import type { SenderIdentity, SessionCallback } from '../types.js';
 import { DecryptionError, IdentityMismatchError } from '../errors.js';
 import { fetchVerificationKey } from '../api/pkg.js';
 import { getUSK } from '../api/pkg.js';
@@ -7,13 +7,10 @@ import { resolveRetryOptions, type RetryOptions } from '../util/retry.js';
 import { buildKeyRequest } from '../util/policy.js';
 import { DEFAULT_EMAIL_ATTRIBUTES, type EmailAttributes } from '../util/attributes.js';
 import { retrieveUSKViaYivi } from '../yivi/decrypt-session.js';
-import { extractAllZipEntries } from '../util/zip.js';
-import { triggerBrowserDownloads } from '../util/download.js';
 import { loadWasm } from '../util/wasm.js';
-import { parseSender } from '../util/identity.js';
 import { ProgressPipe } from '../util/progress.js';
 
-// --- Inspect (shared by Opened and legacy functions) ---
+// --- Inspect (shared by Sealed/Opened) ---
 
 export interface InspectSealedOptions {
   pkgUrl: string;
@@ -90,7 +87,7 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
   return { unsealer, policies, sender, pipe };
 }
 
-// --- Unseal helpers (shared by Opened and legacy functions) ---
+// --- Unseal helpers (shared by Sealed/Opened) ---
 
 export function resolveRecipientKey(policies: Map<string, any>, recipient?: string): string {
   if (recipient && policies.has(recipient)) {
@@ -174,77 +171,4 @@ export async function unsealAndCollect(
   }
 
   return { chunks, sender };
-}
-
-// --- Legacy top-level functions (used internally by Sealed/Opened) ---
-
-export interface DecryptFromUuidOptions {
-  pkgUrl: string;
-  cryptifyUrl: string;
-  uuid: string;
-  element?: string;
-  session?: SessionCallback;
-  recipient?: string;
-  signal?: AbortSignal;
-  headers?: HeadersInit;
-}
-
-/** Decrypt from Cryptify UUID: download -> unseal -> ZIP parse */
-export async function decryptFromUuid(options: DecryptFromUuidOptions): Promise<DecryptFileResult> {
-  const { pkgUrl, cryptifyUrl, uuid, element, session, recipient, signal, headers } = options;
-
-  const { unsealer, policies, sender: preUnsealSender } = await inspectSealed({
-    pkgUrl, cryptifyUrl, uuid, signal, headers,
-  });
-
-  const key = resolveRecipientKey(policies, recipient);
-  const policy = policies.get(key);
-  const usk = await resolveUSK(pkgUrl, key, policy, element, session, headers);
-
-  const { chunks, sender } = await unsealAndCollect(unsealer, key, usk, preUnsealSender);
-
-  const zipBlob = new Blob(chunks as BlobPart[], { type: 'application/zip' });
-  const extractedFiles = await extractAllZipEntries(zipBlob);
-
-  return {
-    files: extractedFiles,
-    blob: zipBlob,
-    sender: parseSender(sender),
-    download: () => triggerBrowserDownloads(extractedFiles),
-  };
-}
-
-export interface DecryptFromDataOptions {
-  pkgUrl: string;
-  data: Uint8Array | ReadableStream<Uint8Array>;
-  element?: string;
-  session?: SessionCallback;
-  recipient?: string;
-  signal?: AbortSignal;
-  headers?: HeadersInit;
-}
-
-/** Decrypt from raw data: unseal -> return plaintext bytes */
-export async function decryptFromData(options: DecryptFromDataOptions): Promise<DecryptDataResult> {
-  const { pkgUrl, data, element, session, recipient, headers } = options;
-
-  const { unsealer, policies, sender: preUnsealSender } = await inspectSealed({
-    pkgUrl, data, headers,
-  });
-
-  const key = resolveRecipientKey(policies, recipient);
-  const policy = policies.get(key);
-  const usk = await resolveUSK(pkgUrl, key, policy, element, session, headers);
-
-  const { chunks, sender } = await unsealAndCollect(unsealer, key, usk, preUnsealSender);
-
-  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-  const plaintext = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    plaintext.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return { plaintext, sender: parseSender(sender) };
 }
