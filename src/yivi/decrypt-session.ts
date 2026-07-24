@@ -114,6 +114,41 @@ export const __testing = {
   clear: () => jwtCache.clear(),
 };
 
+/**
+ * Resolve as soon as `selector` matches an element in the DOM, rather than
+ * waiting a fixed delay before handing the host element to yivi-core.
+ *
+ * The signing flow (`src/signing/yivi.ts`) builds `YiviCore` with no delay at
+ * all because its host element is already mounted; this mirrors that — when the
+ * element is already present we resolve on the same tick, so the session starts
+ * immediately instead of always sitting through a 500 ms timeout. When the
+ * element is not yet mounted we watch for it via `MutationObserver`, with a
+ * bounded fallback timeout so a never-appearing element can't hang the session.
+ * In non-DOM environments we resolve immediately and let yivi-core surface the
+ * real "no element" error.
+ */
+export function waitForElement(selector: string, timeoutMs = 5000): Promise<void> {
+  if (typeof document === 'undefined') return Promise.resolve();
+  if (document.querySelector(selector)) return Promise.resolve();
+  if (typeof MutationObserver === 'undefined') return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve();
+    };
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(selector)) finish();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    const timer = setTimeout(finish, timeoutMs);
+  });
+}
+
 // --- USK retrieval ---
 
 /** Retrieve a USK using a cached JWT (no Yivi session needed) */
@@ -212,8 +247,9 @@ export async function retrieveUSKViaYivi(
 
   injectYiviCss();
 
-  // Small delay to ensure DOM element is ready
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // Start as soon as the host element is in the DOM instead of always waiting a
+  // fixed 500 ms (mirrors the signing flow, which builds YiviCore with no delay).
+  await waitForElement(element);
 
   yivi.use(YiviWeb);
   yivi.use(YiviClient);

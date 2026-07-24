@@ -5,6 +5,7 @@ import {
   buildKeyRequest,
   JWT_CACHE_MAX_SIZE,
   MAX_CACHE_TTL_SECONDS,
+  waitForElement,
   __testing as jwtCacheInternals,
 } from '../src/yivi/decrypt-session.js';
 
@@ -206,5 +207,82 @@ describe('jwt cache exp hardening', () => {
   it('does not cache a structurally malformed JWT', () => {
     jwtCacheInternals.cacheJwt('junk@example.com', POLICY, 'not-a-jwt');
     expect(jwtCacheInternals.size()).toBe(0);
+  });
+});
+
+// The decrypt session used to always `setTimeout(500)` before starting Yivi.
+// waitForElement replaces that fixed delay with a real DOM-readiness check, so
+// the session starts as soon as the host element is present.
+describe('waitForElement', () => {
+  const origDocument = (globalThis as any).document;
+  const origObserver = (globalThis as any).MutationObserver;
+
+  afterEach(() => {
+    (globalThis as any).document = origDocument;
+    (globalThis as any).MutationObserver = origObserver;
+    vi.useRealTimers();
+  });
+
+  it('resolves immediately in a non-DOM environment', async () => {
+    (globalThis as any).document = undefined;
+    await expect(waitForElement('#yivi')).resolves.toBeUndefined();
+  });
+
+  it('resolves without any fixed delay when the element is already present', async () => {
+    vi.useFakeTimers();
+    (globalThis as any).document = { querySelector: () => ({}) };
+
+    let resolved = false;
+    void waitForElement('#yivi').then(() => { resolved = true; });
+
+    // A microtask flush is enough — no timers are advanced, so a reintroduced
+    // 500 ms setTimeout in the ready-path would leave this false.
+    await Promise.resolve();
+    expect(resolved).toBe(true);
+  });
+
+  it('resolves as soon as the element appears, not before', async () => {
+    let present = false;
+    let observerCb: (() => void) | undefined;
+    (globalThis as any).document = {
+      documentElement: {},
+      querySelector: () => (present ? {} : null),
+    };
+    (globalThis as any).MutationObserver = class {
+      constructor(cb: () => void) { observerCb = cb; }
+      observe() {}
+      disconnect() {}
+    };
+
+    let resolved = false;
+    const p = waitForElement('#yivi').then(() => { resolved = true; });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false); // element not there yet -> still waiting
+
+    present = true;
+    observerCb?.(); // simulate the element being added to the DOM
+    await p;
+    expect(resolved).toBe(true);
+  });
+
+  it('falls back to the bounded timeout if the element never appears', async () => {
+    vi.useFakeTimers();
+    (globalThis as any).document = {
+      documentElement: {},
+      querySelector: () => null,
+    };
+    (globalThis as any).MutationObserver = class {
+      observe() {}
+      disconnect() {}
+    };
+
+    let resolved = false;
+    void waitForElement('#yivi', 5000).then(() => { resolved = true; });
+
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(resolved).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(resolved).toBe(true);
   });
 });
