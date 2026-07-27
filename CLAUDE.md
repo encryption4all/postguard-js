@@ -8,16 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common commands
 
+All commands from the repo root unless noted; root `build`/`test`/`typecheck` are `pnpm -r` wrappers. Watch modes and single-test runs need `cd packages/pg-js` first.
+
 | Task                         | Command              |
 |------------------------------|----------------------|
-| Install dependencies         | `npm install`        |
-| Build (ESM + `.d.mts`)       | `npm run build`      |
-| Watch-mode build             | `npm run dev`        |
-| Type-check (no emit)         | `npm run typecheck`  |
-| Run all tests once           | `npm test`           |
-| Watch tests                  | `npm run test:watch` |
-| Run a single test file       | `npx vitest run tests/api.test.ts` |
-| Run a single test by name    | `npx vitest run -t "name fragment"` |
+| Install dependencies         | `pnpm install`       |
+| Build (ESM + `.d.mts`)       | `pnpm build`         |
+| Watch-mode build             | `pnpm dev` (in `packages/pg-js`) |
+| Type-check (no emit)         | `pnpm typecheck`     |
+| Run all tests once           | `pnpm test`          |
+| Watch tests                  | `pnpm test:watch` (in `packages/pg-js`) |
+| Run a single test file       | `pnpm exec vitest run tests/api.test.ts` (in `packages/pg-js`) |
+| Run a single test by name    | `pnpm exec vitest run -t "name fragment"` (in `packages/pg-js`) |
 
 ### Prebuild generators (important)
 
@@ -26,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `scripts/generate-wasm-base64.mjs` — reads `node_modules/@e4a/pg-wasm/web/index_bg.wasm`, writes `src/util/wasm-binary.ts` (base64 of the WASM) AND `src/util/pg-wasm-shim.js` (a patched copy of pg-wasm's `index.js` with wasm-bindgen's `new URL("index_bg.wasm", import.meta.url)` default-value branch stripped — that branch never fires at runtime but webpack 5 fails on it because no separate WASM file ships in our dist).
 - `scripts/generate-yivi-css.mjs` — reads `node_modules/@privacybydesign/yivi-css/dist/yivi.css` and writes `src/yivi/yivi-css-text.ts` as a string constant.
 
-All three generated files are git-ignored. If `npm run dev` (which does not run prebuild) is used on a fresh clone, the build will fail until the generators run. Run `npm run prebuild` once, or use `npm run build` / `npm test`.
+All three generated files are git-ignored. If `pnpm dev` (which does not run prebuild) is used on a fresh clone, the build will fail until the generators run. `pnpm install` covers this (`prepare` runs them); otherwise run `pnpm prebuild` once in `packages/pg-js`, or use `pnpm build` / `pnpm test`.
 
 If `generate-wasm-base64.mjs` errors that the regex no longer matches, wasm-bindgen has changed its output shape — update the regex (or drop the patch entirely if upstream is clean now).
 

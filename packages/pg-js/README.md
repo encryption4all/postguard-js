@@ -70,23 +70,24 @@ PG_API_KEY=PG-... deno run -A scripts/smoke.mjs
 
 ## Development
 
-Install dependencies and build:
+This package lives in a pnpm workspace at `packages/pg-js`. From the repo root:
 
 ```bash
-npm install
-npm run prebuild
-npm run build
+pnpm install   # runs the prebuild generators + a full build via `prepare`
+pnpm build
 ```
 
 Run the tests:
 
 ```bash
-npm run test
+pnpm test
 ```
+
+Watch mode (`pnpm dev`, `pnpm test:watch`) runs from this directory.
 
 ## Releasing
 
-Releases are handled by [semantic-release](https://semantic-release.gitbook.io/) on the `main` branch. When commits land on `main`, semantic-release determines the next version from conventional commit messages and publishes to npm automatically.
+Releases are managed by [changesets](https://github.com/changesets/changesets). A PR that should ship runs `pnpm changeset` and commits the generated file; merging to `main` opens (or updates) a "Version Packages" PR, and merging **that** publishes to npm with provenance.
 
 ## License
 
