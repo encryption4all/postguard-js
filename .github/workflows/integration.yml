@@ -3,11 +3,6 @@ name: Integration
 on:
     pull_request:
         branches: [main]
-    # The Version Packages PR is opened with GITHUB_TOKEN, which triggers no
-    # pull_request workflows — build its branch on push instead so the PR
-    # still carries a CI signal.
-    push:
-        branches: ['changeset-release/main']
     workflow_call:
 
 jobs:

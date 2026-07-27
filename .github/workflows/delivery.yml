@@ -38,6 +38,10 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
+            # The Version Packages PR this opens carries no pre-merge CI:
+            # GITHUB_TOKEN-triggered events start no workflows at all. The
+            # publish itself stays gated — `needs: integration` runs the full
+            # matrix on the version commit's push to main before this job.
             - name: Version or publish (changesets)
               uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
               with:
@@ -47,3 +51,6 @@ jobs:
                   commit: 'chore: version packages'
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # pnpm ignores publishConfig.provenance; the npm-config key
+                  # is what `pnpm publish` (via changeset publish) reads.
+                  NPM_CONFIG_PROVENANCE: 'true'

@@ -22,7 +22,7 @@ describe('defaultClientVersionHeaderValue', () => {
     // version.ts is generated from package.json, which carries the real
     // version now that changesets maintains it (no more release placeholder).
     const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    expect(appVersion).toBe(pkg.version);
+    expect(appVersion).toBe(process.env.PG_JS_VERSION?.trim() || pkg.version);
   });
 
   it('detects the current JS runtime as host (whatever runs the test)', () => {

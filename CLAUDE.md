@@ -90,10 +90,10 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 ## Agent notes (migrated from the dobby memory repo)
 
 ## Overview
-Monorepo. `packages/pg-js` = `@e4a/pg-js`, the TypeScript SDK (the only package so far; apps join per encryption4all/postguard-js#123). pnpm workspaces; release via changesets. All SDK commands below run inside `packages/pg-js`.
+Monorepo. `packages/pg-js` = `@e4a/pg-js`, the TypeScript SDK (the only package so far; apps join per encryption4all/postguard-js#123). pnpm workspaces; release via changesets. The package scripts listed below live in `packages/pg-js/package.json` (working-directory rule: line 11).
 
 ## Build pipeline (gitignored generated sources)
-`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
+`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `pnpm test` works; CI runs `typecheck` before `test`.
 
 Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `pnpm test` and `pnpm typecheck` directly from a fresh `pnpm install` to catch a script that was missed.
 
