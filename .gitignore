@@ -1,7 +1,3 @@
 node_modules/
 dist/
 *.tsbuildinfo
-src/util/wasm-binary.ts
-src/util/pg-wasm-shim.js
-src/util/version.ts
-src/yivi/yivi-css-text.ts

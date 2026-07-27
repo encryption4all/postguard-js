@@ -79,21 +79,21 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 
 ## Releases and CI
 
-- `main` is the release branch. `npx semantic-release` runs on push to `main` (`.github/workflows/delivery.yml`), so **commit messages and PR titles must follow Conventional Commits** — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
+- `main` is the release branch. Releases are managed by **changesets** (`.github/workflows/delivery.yml`): a PR that should ship adds a changeset file (`pnpm changeset`); merging to main opens/updates a "Version Packages" PR; merging THAT publishes to npm with provenance. PR titles must still follow Conventional Commits — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
-- Version in `package.json` is a placeholder (`0.0.0-managed-by-semantic-release`) — do not edit it manually; semantic-release rewrites it during publish.
+- Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
 
 ---
 
 ## Agent notes (migrated from the dobby memory repo)
 
 ## Overview
-`@e4a/pg-js`, the TypeScript SDK. Release: semantic-release.
+Monorepo. `packages/pg-js` = `@e4a/pg-js`, the TypeScript SDK (the only package so far; apps join per encryption4all/postguard-js#123). pnpm workspaces; release via changesets. All SDK commands below run inside `packages/pg-js`.
 
 ## Build pipeline (gitignored generated sources)
 `src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
 
-Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `npm test` and `npm run typecheck` directly from a fresh `npm ci` to catch a script that was missed.
+Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `pnpm test` and `pnpm typecheck` directly from a fresh `pnpm install` to catch a script that was missed.
 
 ## Repo layout
 - `src/email/envelope.ts`: HTML template for the PostGuard encrypted email; sender pill styles in `buildAttributePills`.
