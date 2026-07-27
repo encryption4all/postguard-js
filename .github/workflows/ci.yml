@@ -45,6 +45,34 @@ jobs:
       - run: npm ci
       - run: npm run test:unit
 
+  # Run the Playwright e2e specs (tests/**) against a production preview build.
+  # The Playwright config's own webServer does `npm run build && npm run preview`
+  # on port 4173, so this job takes the same path as a local `npm run test:e2e`.
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      # Traces (retain-on-failure) and screenshots (only-on-failure) land in
+      # test-results/; the html reporter writes playwright-report/.
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   # Run prettier --check, eslint, and stylelint.
   lint:
     name: Lint

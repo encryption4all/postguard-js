@@ -2,9 +2,10 @@
 
 ## Architecture & toolchain
 
-- SvelteKit (Svelte 5 runes), TypeScript, `adapter-static`. Build: vite. Tests: Playwright (e2e) + vitest (`test:unit`). Lint: prettier + eslint. Release: Release-please.
+- SvelteKit (Svelte 5 runes), TypeScript, `adapter-static`. Build: vite. Tests: Playwright (`test:e2e`, specs in `tests/`) + vitest (`test:unit`, specs in `src/**`). Lint: prettier + eslint. Release: Release-please.
 - PR titles must be conventional-commit (`fix:`, `feat:`, `chore:`, `docs:`) — the repo runs `amannn/action-semantic-pull-request` via `pr-title.yml`.
 - CI runs `npm run test:unit` as a PR gate (added in commit `19e8d9c`). `test:unit` is `svelte-kit sync && vitest run` — the sync is required because the root tsconfig extends the generated `.svelte-kit/tsconfig.json` (vitest errors with `TSCONFIG_ERROR` without it).
+- CI also runs `npm run test:e2e` as a PR gate (job `E2E Tests`, chromium only). Playwright's own `webServer` does the `npm run build && npm run preview` on port 4173, so CI and a local run take the identical path. On failure the job uploads `playwright-report/` and `test-results/` (traces + screenshots).
 - Bot limitation: the GitHub App cannot push `.github/workflows/` changes — workflow edits need a maintainer.
 
 ## Dependency-bump gotchas
@@ -45,6 +46,8 @@
 
 - The send button is intentionally `aria-disabled="true"` (never natively disabled) so it can surface the validation modal — tests must `.click({ force: true })`. Accessible names: button "Sign & send", email field "Email address".
 - E2E for a cancelled Yivi disclosure without a real app: mock `POST **/pkg/v2/request/start` (controllable `sessionPtr.u`, no `frontendRequest`), then flip the `/status` mock from `"INITIALIZED"` to `"CANCELLED"`. Preview server port is 4173.
+- `playwright.config.ts` must keep `testDir: 'tests'`. Playwright's default testDir is the config's own directory, so without it the runner also collects `src/**/*.test.ts` (the vitest specs) and dies on `Cannot read properties of undefined (reading 'config')` before running anything.
+- The browsers in `/opt/ms-playwright` on the agent workspace are a different revision than the one `@playwright/test` pins, so `npx playwright test` cannot find them and the install into that path is not writable. Run `PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright npx playwright install chromium` once, then prefix runs with the same variable. Leave off `--with-deps` (which the CI job does use): it shells out to `sudo apt-get`, which is unavailable in the workspace, and the whole install then fails.
 
 ## Product / copy
 
@@ -56,4 +59,4 @@
 
 ## Before claiming tests green
 
-Run `npm run test` (Playwright) once locally before claiming green.
+Run `npm run test:e2e` (Playwright) and `npm run test:unit` (vitest) once locally before claiming green.
