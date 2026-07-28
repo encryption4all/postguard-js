@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   PG_CLIENT_VERSION_HEADER,
@@ -15,12 +16,13 @@ describe('defaultClientVersionHeaderValue', () => {
     expect(defaultClientVersionHeaderValue().split(',')).toHaveLength(4);
   });
 
-  it('reports app=pg-js with a version', () => {
+  it('reports app=pg-js with the package version', () => {
     const [, , app, appVersion] = defaultClientVersionHeaderValue().split(',');
     expect(app).toBe('pg-js');
-    // Under the pretest-generated version.ts the placeholder maps to the dev
-    // sentinel; a released build embeds the real version instead.
-    expect(appVersion).toBe('0.0.0-dev');
+    // version.ts is generated from package.json, which carries the real
+    // version now that changesets maintains it (no more release placeholder).
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    expect(appVersion).toBe(process.env.PG_JS_VERSION?.trim() || pkg.version);
   });
 
   it('detects the current JS runtime as host (whatever runs the test)', () => {

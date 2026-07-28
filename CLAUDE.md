@@ -8,16 +8,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common commands
 
+All commands from the repo root unless noted; root `build`/`test`/`typecheck` are `pnpm -r` wrappers. Watch modes and single-test runs need `cd packages/pg-js` first.
+
 | Task                         | Command              |
 |------------------------------|----------------------|
-| Install dependencies         | `npm install`        |
-| Build (ESM + `.d.mts`)       | `npm run build`      |
-| Watch-mode build             | `npm run dev`        |
-| Type-check (no emit)         | `npm run typecheck`  |
-| Run all tests once           | `npm test`           |
-| Watch tests                  | `npm run test:watch` |
-| Run a single test file       | `npx vitest run tests/api.test.ts` |
-| Run a single test by name    | `npx vitest run -t "name fragment"` |
+| Install dependencies         | `pnpm install`       |
+| Build (ESM + `.d.mts`)       | `pnpm build`         |
+| Watch-mode build             | `pnpm dev` (in `packages/pg-js`) |
+| Type-check (no emit)         | `pnpm typecheck`     |
+| Run all tests once           | `pnpm test`          |
+| Watch tests                  | `pnpm test:watch` (in `packages/pg-js`) |
+| Run a single test file       | `pnpm exec vitest run tests/api.test.ts` (in `packages/pg-js`) |
+| Run a single test by name    | `pnpm exec vitest run -t "name fragment"` (in `packages/pg-js`) |
 
 ### Prebuild generators (important)
 
@@ -26,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `scripts/generate-wasm-base64.mjs` — reads `node_modules/@e4a/pg-wasm/web/index_bg.wasm`, writes `src/util/wasm-binary.ts` (base64 of the WASM) AND `src/util/pg-wasm-shim.js` (a patched copy of pg-wasm's `index.js` with wasm-bindgen's `new URL("index_bg.wasm", import.meta.url)` default-value branch stripped — that branch never fires at runtime but webpack 5 fails on it because no separate WASM file ships in our dist).
 - `scripts/generate-yivi-css.mjs` — reads `node_modules/@privacybydesign/yivi-css/dist/yivi.css` and writes `src/yivi/yivi-css-text.ts` as a string constant.
 
-All three generated files are git-ignored. If `npm run dev` (which does not run prebuild) is used on a fresh clone, the build will fail until the generators run. Run `npm run prebuild` once, or use `npm run build` / `npm test`.
+All three generated files are git-ignored. If `pnpm dev` (which does not run prebuild) is used on a fresh clone, the build will fail until the generators run. `pnpm install` covers this (`prepare` runs them); otherwise run `pnpm prebuild` once in `packages/pg-js`, or use `pnpm build` / `pnpm test`.
 
 If `generate-wasm-base64.mjs` errors that the regex no longer matches, wasm-bindgen has changed its output shape — update the regex (or drop the patch entirely if upstream is clean now).
 
@@ -79,21 +81,21 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 
 ## Releases and CI
 
-- `main` is the release branch. `npx semantic-release` runs on push to `main` (`.github/workflows/delivery.yml`), so **commit messages and PR titles must follow Conventional Commits** — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
+- `main` is the release branch. Releases are managed by **changesets** (`.github/workflows/delivery.yml`): a PR that should ship adds a changeset file (`pnpm changeset`); merging to main opens/updates a "Version Packages" PR; merging THAT publishes to npm with provenance. PR titles must still follow Conventional Commits — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
-- Version in `package.json` is a placeholder (`0.0.0-managed-by-semantic-release`) — do not edit it manually; semantic-release rewrites it during publish.
+- Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
 
 ---
 
 ## Agent notes (migrated from the dobby memory repo)
 
 ## Overview
-`@e4a/pg-js`, the TypeScript SDK. Release: semantic-release.
+Monorepo. `packages/pg-js` = `@e4a/pg-js`, the TypeScript SDK (the only package so far; apps join per encryption4all/postguard-js#123). pnpm workspaces; release via changesets. The package scripts listed below live in `packages/pg-js/package.json` (working-directory rule: line 11).
 
 ## Build pipeline (gitignored generated sources)
-`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `npm test` works; CI runs `typecheck` before `test`.
+`src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `pnpm test` works; CI runs `typecheck` before `test`.
 
-Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `npm test` and `npm run typecheck` directly from a fresh `npm ci` to catch a script that was missed.
+Org-wide lesson: any repo combining gitignored generated sources with build-time hooks needs the generator wired into every script that imports the generated module, not just `build`. When auditing, run `pnpm test` and `pnpm typecheck` directly from a fresh `pnpm install` to catch a script that was missed.
 
 ## Repo layout
 - `src/email/envelope.ts`: HTML template for the PostGuard encrypted email; sender pill styles in `buildAttributePills`.

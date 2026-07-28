@@ -2,25 +2,22 @@
 // SDK can report itself in the X-POSTGUARD-CLIENT-VERSION header.
 //
 // Resolution order:
-//   1. process.env.PG_JS_VERSION — set by semantic-release's exec prepareCmd
-//      (`${nextRelease.version}`) so the published build embeds the real version.
-//   2. package.json `version` — used for normal/local builds.
-//   3. `0.0.0-dev` fallback — for dev builds where package.json still carries
-//      the semantic-release placeholder (or any 0.0.0 sentinel).
+//   1. process.env.PG_JS_VERSION — optional override for special builds.
+//   2. package.json `version` — the real version, maintained by changesets
+//      (including 0.0.0-* prereleases, which are legitimate under
+//      `changeset pre` for a package that has not reached 0.0.1).
+//   3. `0.0.0-dev` fallback — only if package.json is unreadable.
 //
 // Run as a prebuild step: node scripts/generate-version.mjs
 
 import { readFileSync, writeFileSync } from 'fs';
-
-const PLACEHOLDER = '0.0.0-managed-by-semantic-release';
 
 function resolveVersion() {
   const fromEnv = process.env.PG_JS_VERSION?.trim();
   if (fromEnv) return fromEnv;
   try {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-    const v = pkg.version;
-    if (v && v !== PLACEHOLDER && !v.startsWith('0.0.0')) return v;
+    if (pkg.version) return pkg.version;
   } catch {
     // fall through to the dev fallback
   }

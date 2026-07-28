@@ -1,0 +1,64 @@
+{
+  "name": "@e4a/pg-js",
+  "version": "2.3.3",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Browser SDK for PostGuard — end-to-end encrypted file sharing with identity-based encryption",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/encryption4all/postguard-js.git",
+    "directory": "packages/pg-js"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.mts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prebuild": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretypecheck": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretest": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "pretest:watch": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs",
+    "build": "tsdown",
+    "prepare": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs && tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@e4a/pg-wasm": "^0.6.1",
+    "@privacybydesign/yivi-client": "^1.0.0",
+    "@privacybydesign/yivi-core": "^1.0.0",
+    "@privacybydesign/yivi-css": "^1.0.1",
+    "@privacybydesign/yivi-web": "^1.0.1",
+    "@transcend-io/conflux": "^6.1.3"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  },
+  "keywords": [
+    "postguard",
+    "ibe",
+    "encryption",
+    "identity-based-encryption",
+    "yivi",
+    "irma"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
