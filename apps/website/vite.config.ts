@@ -1,5 +1,17 @@
 import { sveltekit } from '@sveltejs/kit/vite'
 import type { Plugin, UserConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+// VITE_APP_VERSION comes from this package's version, which changesets maintains.
+// It used to live in `.env`, rewritten by release-please's `extra-files` — that
+// substitution silently never fired, so every build since 1.0.0 reported
+// APP_VERSION="1.0.0" to GlitchTip and in crash reports. Reading package.json
+// here keeps one source of truth. `??=` so an explicit env var still wins.
+const pkg = JSON.parse(
+    readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+) as { version: string }
+process.env.VITE_APP_VERSION ??= pkg.version
 
 // Matches the `+page.svelte` components inside the `/debug/*` route group, e.g.
 // `src/routes/(app)/debug/qr/+page.svelte`. The path separator is normalised to
