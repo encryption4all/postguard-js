@@ -1,4 +1,4 @@
-import { FILEHOST_URL, ROLLING_LIMIT } from '$lib/env'
+import { ROLLING_LIMIT } from '$lib/env'
 
 /**
  * Response shape of `GET /usage?email=...` on the cryptify backend (see encryption4all/cryptify#100).
@@ -34,31 +34,6 @@ export function classifyUsage(u: UsageResponse): UsageStatus {
         resetsAt: u.resets_at ? new Date(u.resets_at) : null,
         warn: u.used_bytes >= u.limit_bytes * WARN_FRACTION,
         blocked: u.used_bytes >= u.limit_bytes,
-    }
-}
-
-/**
- * Fetch the current sender usage from cryptify. Returns null when the endpoint is
- * unreachable or unavailable (e.g. backend not yet deployed) so the UI degrades quietly.
- * `signal` lets callers cancel in-flight requests when the user keeps typing.
- */
-export async function fetchUsage(
-    email: string,
-    signal?: AbortSignal
-): Promise<UsageStatus | null> {
-    try {
-        const url = `${FILEHOST_URL}/usage?email=${encodeURIComponent(email)}`
-        const res = await fetch(url, { signal, credentials: 'omit' })
-        if (!res.ok) return null
-        const body = (await res.json()) as UsageResponse
-        if (
-            typeof body.used_bytes !== 'number' ||
-            typeof body.limit_bytes !== 'number'
-        )
-            return null
-        return classifyUsage(body)
-    } catch {
-        return null
     }
 }
 

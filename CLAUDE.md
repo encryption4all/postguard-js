@@ -55,7 +55,7 @@
 - JSON-LD parent organization is Yivi (not Radboud University).
 - Outlook-tab copy on `/addons` lives in `src/lib/locales/{en,nl}.json` under `addons.Outlook` (one HTML string) — append new `<li>` items at the end of the `<ol>`.
 - The recipient notification email is generated in `encryption4all/cryptify` (`src/email.rs` + `templates/email/*`), NOT here — `EmailPreviewModal.svelte` only previews cryptify's rendered HTML. And a user complaint about a small/hard-to-copy "code" in an email is usually the Yivi email-attribute verification flow (privacybydesign/irmamobile epic #598), not cryptify's download link — check there before routing.
-- `UsageWarning` fires when the SENDER's email becomes known (after `pg.sign.yivi(...)` with `includeSender: true`) — never probe on the first recipient email; quotas are per-sender. Server 413 on `POST /fileupload/finalize/<uuid>` is the authoritative backstop.
+- There is no live pre-flight usage probe. Sender quotas (per-sender) are enforced by the server 413 on `POST /fileupload/finalize/<uuid>` — parsed by `parseLimitExceededBody` in `src/lib/usage.ts` — with a browser-local estimate in `src/lib/localUsage.ts` for the warning ahead of upload. A `GET /usage` client (`fetchUsage`) and a `UsageWarning` component were sketched but never wired into the UI; the `fetchUsage` remnant was removed (see #323).
 
 ## Before claiming tests green
 
