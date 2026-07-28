@@ -6,6 +6,7 @@
 //   renderReport(dts)       render that model as etc/pg-js.api.md
 //   parseReport(markdown)   read etc/pg-js.api.md back into a model
 //   classify(base, head)    the smallest semver bump two models require
+//   comparisonBase(git, ref) the commit a branch should be compared against
 //   pendingBump(files, pkg) the largest bump the pending changesets declare
 //
 // The CLI wrapper that does the file and git I/O lives in ../api-report.mjs.
