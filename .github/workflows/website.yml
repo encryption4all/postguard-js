@@ -212,7 +212,6 @@ jobs:
 
     # Merge platform digests into one multi-platform manifest and apply tags:
     #   push to main → :edge and :<version from apps/website/package.json>
-    #   pull request → :pr-123
     # The version tag is unconditional on main rather than gated on a release
     # step: changesets bumps apps/website/package.json in its Version Packages
     # PR, so merging that PR is what moves this tag. Re-tagging an unchanged
@@ -231,9 +230,15 @@ jobs:
                 working-directory: .
         steps:
             - uses: actions/checkout@v6
+            # Two statements, not `echo "value=$(...)"`: echo's own exit status
+            # would mask a failing substitution under the default `bash -e`, and
+            # the step would emit `value=` and pass, publishing only :edge with
+            # the version tag silently missing.
             - name: Read the app version
               id: version
-              run: echo "value=$(node -p "require('./apps/website/package.json').version")" >> "$GITHUB_OUTPUT"
+              run: |
+                  version="$(node -p "require('./apps/website/package.json').version")"
+                  echo "value=$version" >> "$GITHUB_OUTPUT"
             - name: Download digests
               uses: actions/download-artifact@v8
               with:
@@ -245,10 +250,12 @@ jobs:
               uses: docker/metadata-action@v6
               with:
                   images: ${{ env.IMAGE }}
+                  # This job only runs on main (see the `if` above), so there is
+                  # no PR tag path here — `:pr-N` images would need the build job
+                  # to push, which it deliberately does not.
                   tags: |
                       type=edge,branch=main
-                      type=ref,event=pr
-                      type=raw,value=${{ steps.version.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
+                      type=raw,value=${{ steps.version.outputs.value }}
             - uses: docker/setup-buildx-action@v4
             - name: Log in to GHCR
               uses: docker/login-action@v4

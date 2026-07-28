@@ -84,12 +84,19 @@ services:
     # PostGuard website - Development with hot reload
     postguard-website:
         build:
-            context: .
-            dockerfile: docker/dev.Dockerfile
+            # Repo root: the site's @e4a/pg-js is a workspace link, so the whole
+            # workspace has to be installed for it to resolve.
+            context: ../..
+            dockerfile: apps/website/docker/dev.Dockerfile
         volumes:
-            - .:/app
-            - /app/node_modules
-            - /app/.svelte-kit
+            - ../..:/repo
+            # Anonymous volumes keep the image's installed trees from being
+            # shadowed by the bind mount above. Both are needed: pnpm puts the
+            # workspace store at the root and a per-package node_modules (which
+            # holds the pg-js symlink) in the app.
+            - /repo/node_modules
+            - /repo/apps/website/node_modules
+            - /repo/apps/website/.svelte-kit
         env_file:
             - .env.dev
         environment:

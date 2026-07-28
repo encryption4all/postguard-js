@@ -15,11 +15,12 @@ docker-compose up
 
 The website is available at http://localhost:8080.
 
-To run without Docker:
+To run without Docker (from the monorepo root — this app is a pnpm workspace
+package and its `@e4a/pg-js` dependency is a workspace link):
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm --filter postguard-website dev
 ```
 
 ### Environment variables
@@ -34,7 +35,9 @@ npm run dev
 
 ## Releasing
 
-Releases are automated with [release-please](https://github.com/googleapis/release-please). Merging to `main` triggers a release PR, and merging that PR publishes Docker images to GHCR.
+Releases are managed by [changesets](https://github.com/changesets/changesets) from the monorepo root. A PR that should ship adds a changeset (`pnpm changeset`); merging to `main` opens or updates a "Version Packages" PR, and merging that bumps this package's version. The Docker image is published to GHCR on every push to `main` as `:edge` and as `:<version>` from this package's `version` field.
+
+The app is `private: true`, so changesets versions it without publishing it to npm.
 
 ## License
 

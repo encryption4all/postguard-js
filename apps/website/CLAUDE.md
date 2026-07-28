@@ -2,15 +2,15 @@
 
 ## Architecture & toolchain
 
-- SvelteKit (Svelte 5 runes), TypeScript, `adapter-static`. Build: vite. Tests: Playwright (`test:e2e`, specs in `tests/`) + vitest (`test:unit`, specs in `src/**`). Lint: prettier + eslint. Release: Release-please.
+- SvelteKit (Svelte 5 runes), TypeScript, `adapter-static`. Build: vite. Tests: Playwright (`test:e2e`, specs in `tests/`) + vitest (`test:unit`, specs in `src/**`). Lint: prettier + eslint. Release: changesets, from the monorepo root (this package is private; the docker tag follows its version).
 - PR titles must be conventional-commit (`fix:`, `feat:`, `chore:`, `docs:`) — the repo runs `amannn/action-semantic-pull-request` via `pr-title.yml`.
-- CI runs `npm run test:unit` as a PR gate (added in commit `19e8d9c`). `test:unit` is `svelte-kit sync && vitest run` — the sync is required because the root tsconfig extends the generated `.svelte-kit/tsconfig.json` (vitest errors with `TSCONFIG_ERROR` without it).
-- CI also runs `npm run test:e2e` as a PR gate (job `E2E Tests`, chromium only). Playwright's own `webServer` does the `npm run build && npm run preview` on port 4173, so CI and a local run take the identical path. On failure the job uploads `playwright-report/` and `test-results/` (traces + screenshots).
+- CI runs `pnpm test:unit` as a PR gate (added in commit `19e8d9c`). `test:unit` is `svelte-kit sync && vitest run` — the sync is required because the root tsconfig extends the generated `.svelte-kit/tsconfig.json` (vitest errors with `TSCONFIG_ERROR` without it).
+- CI also runs `pnpm test:e2e` as a PR gate (job `E2E Tests`, chromium only). Playwright's own `webServer` does the `pnpm build && pnpm preview` on port 4173, so CI and a local run take the identical path. On failure the job uploads `playwright-report/` and `test-results/` (traces + screenshots).
 - Bot limitation: the GitHub App cannot push `.github/workflows/` changes — workflow edits need a maintainer.
 
 ## Dependency-bump gotchas
 
-- `npm ci` works WITHOUT `--legacy-peer-deps` since `svelte-preprocess@6.0.5` (peer range now allows typescript 6). Do not reintroduce the flag.
+- `pnpm install --frozen-lockfile (from the repo root)` works WITHOUT `--legacy-peer-deps` since `svelte-preprocess@6.0.5` (peer range now allows typescript 6). Do not reintroduce the flag.
 - `svelte-preprocess` 6.0.4 broke every `<script lang="ts">` build; 6.0.5 fixed it and is already on main (landed incidentally in commit `a23d1cb`). Do not open a bump PR for #238 — it is resolved.
 - Bumping `@sveltejs/kit` to ≥ 2.59 requires adding `@types/node` to devDependencies in the same commit (`svelte-kit sync` writes `"types": ["node"]`, and `svelte-check --threshold warning` treats the missing types as fatal).
 - `pg-js` 0.10 → 1.x renamed the notify API: `UploadOptions.notify` is now `{ recipients?, sender?, message?, language? }` with both flags defaulting to `false`. To keep the old behaviour set `recipients: true, sender: true`. Only call site: `src/lib/components/filesharing/SendButton.svelte`.
@@ -59,4 +59,4 @@
 
 ## Before claiming tests green
 
-Run `npm run test:e2e` (Playwright) and `npm run test:unit` (vitest) once locally before claiming green.
+Run `pnpm test:e2e` (Playwright) and `pnpm test:unit` (vitest) once locally before claiming green.

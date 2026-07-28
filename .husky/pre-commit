@@ -1,0 +1,2 @@
+# lint-staged runs per workspace package; add a line here when an app joins.
+pnpm --filter postguard-website exec lint-staged
