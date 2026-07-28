@@ -118,6 +118,13 @@ in a `refactor:` commit.
 - Declarations that are reachable but not re-exported (e.g. `PostGuardBase`,
   `EmailHelpers`) are in the report too. They are part of the surface via inheritance
   and property types even though `src/index.ts` never names them.
+- The name in the rollup is not a stable identity. When two declarations share a
+  name, rolldown suffixes one of them (`EmailAttributes$1`) and which one depends on
+  module order, so a new file that reuses an internal type name shuffles names in the
+  report without changing anything consumers can see. The classifier matches
+  declarations across the two reports by identity instead (the public name for an
+  exported declaration, otherwise the route that reaches it), and prints such a
+  rename as a `note` line that requires no bump.
 
 ---
 

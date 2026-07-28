@@ -1,6 +1,6 @@
 // Public API surface tracking for @e4a/pg-js.
 //
-// Three pure pieces, all exercised by tests/api-surface.test.ts:
+// Pure pieces, all exercised by tests/api-surface.test.ts:
 //
 //   buildModel(dts)         parse a rolled-up .d.ts into a comparable model
 //   renderReport(dts)       render that model as etc/pg-js.api.md
@@ -37,11 +37,19 @@ export const BUMP_RANK = { none: 0, patch: 1, minor: 2, major: 3 };
  * `interface`/`namespace` pair — so `declarations` maps a name to the whole
  * group rather than to a single statement. Keeping only one would hide the rest
  * from both the report and the comparison.
+ *
+ * The name in the rollup is not the declaration's identity: rolldown appends a
+ * `$1` suffix to whichever of two same-named declarations it renames, and which
+ * one that is depends on module order. So every group also carries an `id` that
+ * rolldown does not choose (see `assignIds`), and a `ref…` copy of each printed
+ * text in which references to other declarations are replaced by markers, so
+ * `classify` can compare texts across a rename.
  */
 export function buildModel(dts) {
   const source = ts.createSourceFile(VIRTUAL_FILE, dts, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const exports = [];
   const declarations = new Map();
+  const statements = new Map();
 
   for (const statement of source.statements) {
     if (ts.isExportDeclaration(statement)) {
@@ -62,19 +70,44 @@ export function buildModel(dts) {
     const group = declarations.get(entry.name);
     if (group) mergeEntry(group, entry);
     else declarations.set(entry.name, startGroup(entry));
+    statements.set(entry.name, [...(statements.get(entry.name) ?? []), statement]);
   }
 
   exports.sort((a, b) => compareNames(a.name, b.name));
+
+  // Both passes need the full set of declaration names, so they run once the
+  // loop above is done. Nothing keeps a reference to the AST: the model has to
+  // compare equal whether it came from the build or from the report.
+  const references = new Map();
+  for (const name of declarations.keys()) {
+    references.set(name, collectReferences(statements.get(name), declarations, name));
+  }
+  const ids = assignIds(declarations, exports, references);
+  const mark = referenceMarker([...declarations.keys()]);
+  for (const [name, group] of declarations) {
+    group.id = ids.get(name);
+    group.refTexts = group.texts.map(mark);
+    group.refHeaders = group.headers.map(mark);
+    group.signatures = group.signatures.map((signature) => mapSignature(signature, mark));
+    for (const member of group.members.values()) {
+      member.texts = member.texts.map(mark);
+      member.signatures = member.signatures.map((signature) => mapSignature(signature, mark));
+    }
+  }
+
   return { exports, declarations };
 }
 
 function startGroup(entry) {
   return {
     name: entry.name,
+    id: entry.name,
     kind: entry.kind,
     kinds: [entry.kind],
     texts: [entry.text],
+    refTexts: [],
     headers: [entry.header],
+    refHeaders: [],
     members: entry.members,
     signatures: entry.signatures,
   };
@@ -278,6 +311,129 @@ function compareNames(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+// --- identity --------------------------------------------------------------
+
+const HERITAGE_LABEL = '<heritage>';
+const BODY_LABEL = '<body>';
+
+/**
+ * An identity for each declaration that does not depend on the name rolldown
+ * printed.
+ *
+ * Rolldown resolves a name collision by suffixing one of the two declarations
+ * with `$1`, and which one it picks follows module order. Keying the comparison
+ * on the printed name therefore turns "a new file happens to reuse an internal
+ * type name" into a removal plus an unrelated addition, which reads as a major
+ * break in a purely additive change. The names in `src/index.ts` are ours; the
+ * suffixes are not.
+ *
+ * So: a declaration named in the export clause is identified by the public name
+ * it is exported under (the smallest one, if several). Every other declaration
+ * is identified by the route that reaches it, `<parent id>/<member>:<n>`,
+ * walked breadth-first from the exported declarations, since a declaration is
+ * only in the rollup because something exported references it. Both halves are
+ * chosen in `src/`, not by the bundler.
+ *
+ * A declaration nothing references gets `?<name>` and falls back to matching by
+ * name, which is all there is to go on.
+ */
+function assignIds(declarations, exports, references) {
+  const ids = new Map();
+  const roots = new Map();
+  for (const entry of exports) {
+    if (!declarations.has(entry.from)) continue;
+    const current = roots.get(entry.from);
+    if (current === undefined || compareNames(entry.name, current) < 0) roots.set(entry.from, entry.name);
+  }
+
+  let frontier = [...roots.keys()].sort((a, b) => compareNames(roots.get(a), roots.get(b)));
+  for (const name of frontier) ids.set(name, roots.get(name));
+
+  while (frontier.length > 0) {
+    // Shallowest route wins, and the smallest one among equally shallow ones,
+    // so the id does not depend on the order declarations happen to appear in.
+    const claims = new Map();
+    for (const name of frontier) {
+      const parent = ids.get(name);
+      for (const reference of references.get(name)) {
+        if (ids.has(reference.name)) continue;
+        const claim = `${parent}/${reference.label}:${reference.index}`;
+        const current = claims.get(reference.name);
+        if (current === undefined || compareNames(claim, current) < 0) claims.set(reference.name, claim);
+      }
+    }
+    frontier = [...claims.keys()].sort((a, b) => compareNames(claims.get(a), claims.get(b)));
+    for (const name of frontier) ids.set(name, claims.get(name));
+  }
+
+  for (const name of declarations.keys()) if (!ids.has(name)) ids.set(name, `?${name}`);
+  return ids;
+}
+
+/**
+ * Which other declarations a declaration mentions, and where.
+ *
+ * The label is the member the reference sits in, so the route to a declaration
+ * survives everything except a rename of that member, which is a change of its
+ * own. Identifiers that only look like a declaration name (a property named
+ * after a type, say) are counted too; that costs nothing, because both sides of
+ * a comparison count them the same way.
+ */
+function collectReferences(statements, declarations, ownName) {
+  const references = [];
+  const counters = new Map();
+
+  const add = (label, name) => {
+    if (name === ownName || !declarations.has(name)) return;
+    const index = counters.get(label) ?? 0;
+    counters.set(label, index + 1);
+    references.push({ label, index, name });
+  };
+  const walk = (node, label) => {
+    if (ts.isIdentifier(node)) add(label, node.text);
+    else node.forEachChild((child) => walk(child, label));
+  };
+
+  for (const statement of statements) {
+    if (ts.isClassDeclaration(statement) || ts.isInterfaceDeclaration(statement)) {
+      for (const clause of statement.heritageClauses ?? []) walk(clause, HERITAGE_LABEL);
+      for (const member of statement.members) walk(member, memberKey(member));
+      continue;
+    }
+    walk(statement, BODY_LABEL);
+  }
+
+  return references;
+}
+
+const MARKER = /«([^»]*)»/g;
+
+/**
+ * Wrap every reference to a declaration in `«…»`, so `classify` can swap the
+ * names for the identities it matched the two sides on.
+ *
+ * Longest name first, and no word or `$` character either side, so the
+ * `EmailAttributes` in `EmailAttributes$1` is not marked on its own.
+ */
+function referenceMarker(names) {
+  if (names.length === 0) return (text) => text;
+  const alternatives = [...names]
+    .sort((a, b) => b.length - a.length || compareNames(a, b))
+    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const pattern = new RegExp(`([\\w$]*)(${alternatives})(?![\\w$])`, 'g');
+  return (text) => text.replace(pattern, (match, prefix, name) => (prefix ? match : `«${name}»`));
+}
+
+/** Apply a text transform (marking, then resolving) to every type in a signature. */
+function mapSignature(signature, transform) {
+  return {
+    typeParameters: transform(signature.typeParameters),
+    parameters: signature.parameters.map((parameter) => ({ ...parameter, text: transform(parameter.text) })),
+    returnType: transform(signature.returnType),
+  };
+}
+
 // --- report ----------------------------------------------------------------
 
 const REPORT_INTRO = [
@@ -340,32 +496,47 @@ export function parseReport(markdown) {
  * pointless major.
  */
 export function classify(base, head) {
+  const { matched, keys } = matchDeclarations(base, head);
+  const resolveBase = resolver(keys.base);
+  const resolveHead = resolver(keys.head);
   const changes = [];
 
-  for (const [name, baseEntry] of base.declarations) {
-    const headEntry = head.declarations.get(name);
-    if (!headEntry) {
-      changes.push({ level: 'major', name, detail: `${baseEntry.kind} \`${name}\` was removed` });
+  for (const [name, baseGroup] of base.declarations) {
+    const headGroup = matched.get(name);
+    if (!headGroup) {
+      changes.push({ level: 'major', name, detail: `${baseGroup.kind} \`${name}\` was removed` });
       continue;
     }
-    if (headEntry.kind !== baseEntry.kind) {
+    // A rename only reaches consumers through the export clause, which is
+    // compared separately. It does explain a report diff, so say it anyway.
+    if (headGroup.name !== name) {
+      changes.push({
+        level: 'none',
+        name: headGroup.name,
+        detail: `the rollup renamed \`${name}\` to \`${headGroup.name}\``,
+      });
+    }
+    if (headGroup.kind !== baseGroup.kind) {
       changes.push({
         level: 'major',
         name,
-        detail: `\`${name}\` changed from ${baseEntry.kind} to ${headEntry.kind}`,
+        detail: `\`${name}\` changed from ${baseGroup.kind} to ${headGroup.kind}`,
       });
       continue;
     }
-    if (sameTexts(baseEntry.texts, headEntry.texts)) continue;
+    const baseEntry = resolveEntry(baseGroup, resolveBase);
+    const headEntry = resolveEntry(headGroup, resolveHead);
+    if (sameTexts(baseEntry.refTexts, headEntry.refTexts)) continue;
     changes.push(...compareEntry(baseEntry, headEntry));
   }
 
-  for (const [name, headEntry] of head.declarations) {
-    if (base.declarations.has(name)) continue;
-    changes.push({ level: 'minor', name, detail: `${headEntry.kind} \`${name}\` was added` });
+  const claimed = new Set([...matched.values()].map((group) => group.name));
+  for (const [name, headGroup] of head.declarations) {
+    if (claimed.has(name)) continue;
+    changes.push({ level: 'minor', name, detail: `${headGroup.kind} \`${name}\` was added` });
   }
 
-  changes.push(...compareExports(base.exports, head.exports));
+  changes.push(...compareExports(base.exports, head.exports, keys));
 
   const level = changes.some((c) => c.level === 'major')
     ? 'major'
@@ -377,18 +548,106 @@ export function classify(base, head) {
 }
 
 /**
+ * Decide which head declaration each base declaration became.
+ *
+ * Identity first (see `assignIds`), then the printed name for whatever is left
+ * over. The second pass matters when a declaration's identity moved for a
+ * reason of its own (it became exported, say, so its id is now the public name
+ * rather than a route) while its name stayed put. Anything still unmatched is a
+ * genuine removal or addition.
+ *
+ * `keys` gives both sides a shared name for each matched pair, which is what
+ * turns the `«…»` markers back into something comparable across a rename.
+ */
+function matchDeclarations(base, head) {
+  const matched = new Map();
+  const claimed = new Set();
+  const byId = new Map([...head.declarations.values()].map((group) => [group.id, group]));
+
+  for (const [name, baseGroup] of base.declarations) {
+    const headGroup = byId.get(baseGroup.id);
+    if (headGroup && !claimed.has(headGroup.name)) {
+      matched.set(name, headGroup);
+      claimed.add(headGroup.name);
+    }
+  }
+  for (const [name, baseGroup] of base.declarations) {
+    if (matched.has(name)) continue;
+    const headGroup = head.declarations.get(baseGroup.name);
+    if (headGroup && !claimed.has(headGroup.name)) {
+      matched.set(name, headGroup);
+      claimed.add(headGroup.name);
+    }
+  }
+
+  const keys = { base: new Map(), head: new Map() };
+  let pair = 0;
+  for (const [name, headGroup] of matched) {
+    const key = `«pair ${pair++}»`;
+    keys.base.set(name, key);
+    keys.head.set(headGroup.name, key);
+  }
+  for (const name of base.declarations.keys()) {
+    if (!keys.base.has(name)) keys.base.set(name, `«gone ${name}»`);
+  }
+  for (const name of head.declarations.keys()) {
+    if (!keys.head.has(name)) keys.head.set(name, `«new ${name}»`);
+  }
+
+  return { matched, keys };
+}
+
+function resolver(keys) {
+  return (text) => text.replace(MARKER, (match, name) => keys.get(name) ?? match);
+}
+
+function resolveEntry(group, resolve) {
+  return {
+    name: group.name,
+    kind: group.kind,
+    headers: group.headers,
+    refHeaders: group.refHeaders.map(resolve),
+    refTexts: group.refTexts.map(resolve),
+    signatures: group.signatures.map((signature) => mapSignature(signature, resolve)),
+    members: new Map(
+      [...group.members].map(([key, member]) => [
+        key,
+        {
+          key: member.key,
+          optional: member.optional,
+          texts: member.texts.map(resolve),
+          signatures: member.signatures.map((signature) => mapSignature(signature, resolve)),
+        },
+      ])
+    ),
+  };
+}
+
+/**
  * Compare the export clauses in both directions.
  *
  * The clause carries more than a set of names: an alias can be re-pointed at a
  * different declaration, and a value export can be downgraded to `export type`,
  * which breaks `new C()` at runtime while every declaration stays put. Both are
  * invisible to a name-only comparison.
+ *
+ * What an alias points at is compared through the matched pair, not by local
+ * name, so a rollup rename of an exported declaration (`export { PostGuard$1 as
+ * PostGuard }`) is not read as a re-pointed alias.
  */
-function compareExports(baseExports, headExports) {
+function compareExports(baseExports, headExports, keys) {
   const changes = [];
   const byName = (list) => new Map(list.map((e) => [e.name, e]));
   const base = byName(baseExports);
   const head = byName(headExports);
+  const samePoint = (baseExport, headExport) => {
+    const baseKey = keys.base.get(baseExport.from);
+    const headKey = keys.head.get(headExport.from);
+    // Neither side tracks the declaration (a multi-declarator `const`, say):
+    // the local name is all there is to compare.
+    if (baseKey === undefined || headKey === undefined) return baseExport.from === headExport.from;
+    return baseKey === headKey;
+  };
 
   for (const [name, baseExport] of base) {
     const headExport = head.get(name);
@@ -396,7 +655,7 @@ function compareExports(baseExports, headExports) {
       changes.push({ level: 'major', name, detail: `\`${name}\` is no longer exported` });
       continue;
     }
-    if (headExport.from !== baseExport.from) {
+    if (!samePoint(baseExport, headExport)) {
       changes.push({
         level: 'major',
         name,
@@ -425,10 +684,10 @@ function compareEntry(baseEntry, headEntry) {
   if (baseEntry.kind === 'class' || baseEntry.kind === 'interface') {
     // Deduplicated, so merging two blocks of an interface into one is not a
     // change by itself — only the heritage clauses and type parameters are.
-    const baseHeaders = [...new Set(baseEntry.headers)];
-    const headHeaders = [...new Set(headEntry.headers)];
+    const baseHeaders = [...new Set(baseEntry.refHeaders)];
+    const headHeaders = [...new Set(headEntry.refHeaders)];
     if (!sameTexts(baseHeaders, headHeaders)) {
-      const shown = headHeaders.map((header) => header.replace(/\s*\{$/, '')).join(', ');
+      const shown = [...new Set(headEntry.headers)].map((header) => header.replace(/\s*\{$/, '')).join(', ');
       changes.push({
         level: 'major',
         name: baseEntry.name,

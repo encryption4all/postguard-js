@@ -121,8 +121,11 @@ function gate(baseRef) {
 
   const { level, changes } = classify(parseReport(baseReport), parseReport(readFileSync(REPORT_PATH, 'utf8')));
 
-  if (changes.length === 0) {
+  // A `none` change is something that explains a report diff without reaching
+  // consumers, such as the rollup renaming an internal declaration.
+  if (level === 'none') {
     console.log(`api-report: no public API change against ${against}`);
+    for (const change of changes) console.log(`  note  ${change.detail}`);
     return;
   }
 

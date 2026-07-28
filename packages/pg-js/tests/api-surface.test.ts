@@ -166,6 +166,80 @@ describe('classify', () => {
     });
   });
 
+  /**
+   * rolldown resolves a name collision by suffixing one of the two
+   * declarations, and which one it picks follows module order. The shape below
+   * is what it emits when a new module declares a type that happens to share a
+   * name with an internal one: the pre-existing `EmailAttributes` becomes
+   * `EmailAttributes$1` and the newcomer keeps the plain name.
+   */
+  describe('a declaration the rollup renamed', () => {
+    const base = [
+      `interface EmailAttributes { domain: string; email: string; }`,
+      `declare class PostGuardBase { protected readonly emailAttributes: EmailAttributes; }`,
+      `declare class PostGuard extends PostGuardBase { }`,
+      `export { PostGuard };`,
+    ].join('\n');
+
+    const head = (renamed: string) =>
+      [
+        `interface EmailAttributes { probeOnly: true; }`,
+        `interface EmailAttributes$1 { ${renamed} }`,
+        `declare class PostGuardBase { protected readonly emailAttributes: EmailAttributes$1; }`,
+        `declare class PostGuard extends PostGuardBase { }`,
+        `declare function probeCollide(a: EmailAttributes): boolean;`,
+        `export { PostGuard, type EmailAttributes as ProbeEmailAttributes, probeCollide };`,
+      ].join('\n');
+
+    it('is minor when the colliding declaration is purely additive', () => {
+      const added = head(`domain: string; email: string;`);
+      expect(detailsOf(base, added)).toEqual([
+        'the rollup renamed `EmailAttributes` to `EmailAttributes$1`',
+        'interface `EmailAttributes` was added',
+        'function `probeCollide` was added',
+        '`ProbeEmailAttributes` is now exported',
+        '`probeCollide` is now exported',
+      ]);
+      expect(levelOf(base, added)).toBe('minor');
+    });
+
+    it('still names the break when the newcomer wears the old shape', () => {
+      // The impostor is byte-identical to the declaration that was there, so
+      // matching on the name compares the real one against nothing and drops
+      // `domain` from the list entirely.
+      const broken = head(`domainAttr: string; email: string;`);
+      expect(detailsOf(base, broken)).toEqual([
+        'the rollup renamed `EmailAttributes` to `EmailAttributes$1`',
+        '`EmailAttributes.domain` was removed',
+        '`EmailAttributes.domainAttr` was added as a required member',
+        'interface `EmailAttributes` was added',
+        'function `probeCollide` was added',
+        '`ProbeEmailAttributes` is now exported',
+        '`probeCollide` is now exported',
+      ]);
+      expect(levelOf(base, broken)).toBe('major');
+    });
+
+    it('is not read as a re-pointed alias when the renamed declaration is exported', () => {
+      const before = `declare class PostGuard { go(): void; }\nexport { PostGuard };`;
+      const after = [
+        `declare class PostGuard { fresh(): void; }`,
+        `declare class PostGuard$1 { go(): void; }`,
+        `export { PostGuard$1 as PostGuard, type PostGuard as ProbePostGuard };`,
+      ].join('\n');
+      expect(detailsOf(before, after)).toEqual([
+        'the rollup renamed `PostGuard` to `PostGuard$1`',
+        'class `PostGuard` was added',
+        '`ProbePostGuard` is now exported',
+      ]);
+      expect(levelOf(before, after)).toBe('minor');
+    });
+
+    it('keeps the markers it matches on out of the report', () => {
+      expect(renderReport(head(`domain: string; email: string;`))).not.toContain('«');
+    });
+  });
+
   it('treats a changed base class as major', () => {
     const base = `declare class Other { }\ndeclare class C { a(): void; }\nexport { C, Other };`;
     const head = `declare class Other { }\ndeclare class C extends Other { a(): void; }\nexport { C, Other };`;
