@@ -1,0 +1,6 @@
+[submodule "apps/website/cryptify"]
+	path = apps/website/cryptify
+	url = git@github.com:encryption4all/cryptify.git
+[submodule "apps/website/postguard"]
+	path = apps/website/postguard
+	url = git@github.com:encryption4all/postguard.git
