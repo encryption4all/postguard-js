@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/browser'
 import { APP_VERSION, GLITCHTIP_DSN } from '$lib/env'
+import { scrubEvent } from '$lib/reportScrub'
 
 let initialised = false
 
@@ -12,6 +13,8 @@ export function initErrorReporting(): void {
         // handlers, no breadcrumb tracing. User must press the report button.
         defaultIntegrations: false,
         sendClientReports: false,
+        // Last-line scrub for anything sensitive that slips into an event.
+        beforeSend: scrubEvent,
     })
     initialised = true
 }
@@ -31,7 +34,9 @@ export async function reportError(
 
     const ctx: Record<string, unknown> = { ...extra }
     if (typeof window !== 'undefined') {
-        ctx.url = window.location.href
+        // Origin + pathname only — the query string can carry recipient and
+        // download-reference values that a diagnostic report does not need.
+        ctx.url = window.location.origin + window.location.pathname
         ctx.viewport = `${window.innerWidth}x${window.innerHeight}`
         ctx.devicePixelRatio = window.devicePixelRatio
     }
