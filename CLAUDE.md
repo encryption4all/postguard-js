@@ -20,6 +20,7 @@ All commands from the repo root unless noted; root `build`/`test`/`typecheck` ar
 | Watch tests                  | `pnpm test:watch` (in `packages/pg-js`) |
 | Run a single test file       | `pnpm exec vitest run tests/api.test.ts` (in `packages/pg-js`) |
 | Run a single test by name    | `pnpm exec vitest run -t "name fragment"` (in `packages/pg-js`) |
+| Refresh the API report       | `pnpm api:update` (in `packages/pg-js`, after a build) |
 
 ### Prebuild generators (important)
 
@@ -84,6 +85,37 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 - `main` is the release branch. Releases are managed by **changesets** (`.github/workflows/delivery.yml`): a PR that should ship adds a changeset file (`pnpm changeset`); merging to main opens/updates a "Version Packages" PR; merging THAT publishes to npm with provenance. PR titles must still follow Conventional Commits — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
 - Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
+
+### Public API surface report
+
+`packages/pg-js/etc/pg-js.api.md` is a committed snapshot of the package's public
+type surface, rendered from the rolled-up `dist/index.d.mts`. It exists so a change
+to the compatibility contract shows up as a reviewable diff instead of riding along
+in a `refactor:` commit.
+
+- `postbuild` runs `node scripts/api-report.mjs --check`, so `pnpm build` fails when
+  the report is stale. That includes CI's Build step, on all three runtime lanes.
+  Fix it with `pnpm api:update` (in `packages/pg-js`, after a build), read the diff,
+  and commit it.
+- `pnpm api:gate [--base <ref>]` does the same check, then classifies the report diff
+  against a base ref and fails when the pending changeset is too small: a removal or
+  a changed signature needs `major`, a new export needs at least `minor`. It reads the
+  base ref from the local object store, so a shallow CI checkout must
+  `git fetch --no-tags --depth=1 origin main` first.
+- `api:gate` is NOT yet a CI step. The job patch is a comment on
+  encryption4all/postguard-js#135 and needs a maintainer to apply it, because the bot
+  cannot push `.github/workflows/`. Until then, run it locally on API-changing PRs.
+- The classifier (`scripts/lib/api-surface.mjs`, unit-tested by
+  `tests/api-surface.test.ts`) is deliberately conservative: only trailing optional
+  parameters count as additive, and everything else that changes an existing
+  declaration is treated as breaking. When it is wrong, say so on the PR rather than
+  loosening it for one case.
+- The report drops `private` members and sorts members by name, so internal state and
+  reordering never force a version bump. `protected` members stay, since subclasses
+  see them.
+- Declarations that are reachable but not re-exported (e.g. `PostGuardBase`,
+  `EmailHelpers`) are in the report too. They are part of the surface via inheritance
+  and property types even though `src/index.ts` never names them.
 
 ---
 
