@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.8.0](https://github.com/encryption4all/postguard-website/compare/v1.7.0...v1.8.0) (2026-07-28)
+
+
+### Features
+
+* **decrypt-progress:** show progress bar inside decrypt card with brand blue ([#243](https://github.com/encryption4all/postguard-website/issues/243)) ([e4e66f7](https://github.com/encryption4all/postguard-website/commit/e4e66f79764e79930de45caf8bb0486a6ca31c0a))
+* **decrypt:** show private signing attributes on the download page ([#257](https://github.com/encryption4all/postguard-website/issues/257)) ([4d348ae](https://github.com/encryption4all/postguard-website/commit/4d348aeb72a3d28a0ff0843cbefb67d011409225))
+* **decrypt:** smooth transitions between Yivi, decrypt, and done states ([#249](https://github.com/encryption4all/postguard-website/issues/249)) ([21abd88](https://github.com/encryption4all/postguard-website/commit/21abd88181c4a8bb89cc3b2a10ebd22cad88a114))
+* **emailPreview:** i18n fix, open links in new tab, HTML/text switcher ([#246](https://github.com/encryption4all/postguard-website/issues/246)) ([d52ee5b](https://github.com/encryption4all/postguard-website/commit/d52ee5ba885ca1abc5b1eac9cebc9bdb8db7d643))
+* **error-reporting:** CrashReport panel + Sentry-compatible client ([#247](https://github.com/encryption4all/postguard-website/issues/247)) ([a23d1cb](https://github.com/encryption4all/postguard-website/commit/a23d1cb7b7cc2691146eac1a28191d062130d261))
+* **filesharing:** add explanatory hover text to recipient attribute buttons ([#316](https://github.com/encryption4all/postguard-website/issues/316)) ([7a39c4b](https://github.com/encryption4all/postguard-website/commit/7a39c4b238a310cd04f73c5f8d4565ecb2bdaffa))
+* **filesharing:** one-tap Yivi app open on iOS via pre-warmed session ([#321](https://github.com/encryption4all/postguard-website/issues/321)) ([8c17d11](https://github.com/encryption4all/postguard-website/commit/8c17d11cc1240b7b437ee4bbd4dcb15c4e001ce5))
+* **filesharing:** optional name disjunction via condiscon; fix canEncrypt reactivity ([#240](https://github.com/encryption4all/postguard-website/issues/240)) ([00b4187](https://github.com/encryption4all/postguard-website/commit/00b41873170a6b6aedc7a87054d5db6b3118d405))
+* **filesharing:** progress bar during download/decrypt + per-file downloads ([#241](https://github.com/encryption4all/postguard-website/issues/241)) ([52bfed7](https://github.com/encryption4all/postguard-website/commit/52bfed7f98aff2045e67e483d6c99332591295b4))
+* **home:** homepage onboarding, differentiator-led copy & related fixes ([#312](https://github.com/encryption4all/postguard-website/issues/312)) ([103590e](https://github.com/encryption4all/postguard-website/commit/103590e2745525accc8d1e5953ebf248fc31438f))
+* **home:** onboarding "how it works" homepage + compose/sign clarity ([#310](https://github.com/encryption4all/postguard-website/issues/310)) ([ae230dd](https://github.com/encryption4all/postguard-website/commit/ae230ddffe659a3335f9883a35851e27a1067adf))
+* **marketing:** plain-language "In short" summaries on About & Privacy ([#311](https://github.com/encryption4all/postguard-website/issues/311)) ([fecf3f2](https://github.com/encryption4all/postguard-website/commit/fecf3f26f47a7d69a9f123a032e0cc5889ebc7ee))
+* **metrics:** tag cryptify uploads with X-Cryptify-Source: website ([#228](https://github.com/encryption4all/postguard-website/issues/228)) ([70ee865](https://github.com/encryption4all/postguard-website/commit/70ee86562c47bfc7e04e763014e351cb0563aa21))
+* **staging:** in-page preview of cryptify's notification email ([#244](https://github.com/encryption4all/postguard-website/issues/244)) ([7c3e774](https://github.com/encryption4all/postguard-website/commit/7c3e7742840a3890a867eb35f117a26dc3e40db1))
+
+
+### Bug Fixes
+
+* add X-Content-Type-Options and CSP report-only headers to nginx ([#287](https://github.com/encryption4all/postguard-website/issues/287)) ([a0fdbe6](https://github.com/encryption4all/postguard-website/commit/a0fdbe6d8910530d151aa58c5b0659f4f750efec))
+* **blog:** make RSS feed discoverable site-wide ([#262](https://github.com/encryption4all/postguard-website/issues/262)) ([98a063a](https://github.com/encryption4all/postguard-website/commit/98a063a32ca580a18d4f30fc68c294b7bed711ed))
+* compose panel — relocate required-fields legend & clarify send-button state ([#300](https://github.com/encryption4all/postguard-website/issues/300)) ([afade9f](https://github.com/encryption4all/postguard-website/commit/afade9fa0d0b8de775c24150c749742600bad2c1))
+* **decrypt:** a11y for DecryptionProgress + keep label announceable in banner ([#250](https://github.com/encryption4all/postguard-website/issues/250)) ([277712b](https://github.com/encryption4all/postguard-website/commit/277712bc2cd8dd16cc6981e2b866a3ed0f5f86cf))
+* **decrypt:** await postal-mime import in parseMail to avoid race ([#256](https://github.com/encryption4all/postguard-website/issues/256)) ([920c6f1](https://github.com/encryption4all/postguard-website/commit/920c6f16a567a0db6111764ef32503d4363d97df)), closes [#253](https://github.com/encryption4all/postguard-website/issues/253)
+* **errorReporting:** minimize data in opt-in crash reports ([#328](https://github.com/encryption4all/postguard-website/issues/328)) ([1ad6af1](https://github.com/encryption4all/postguard-website/commit/1ad6af18e3d07d1395590fed9b7bc363ba805b18)), closes [#325](https://github.com/encryption4all/postguard-website/issues/325)
+* exclude /debug/* route group from production build ([#263](https://github.com/encryption4all/postguard-website/issues/263)) ([06df390](https://github.com/encryption4all/postguard-website/commit/06df390ff5502ba8a85aa7fb3daa3dde30662cbe))
+* **fileshare:** reset scroll so compose step opens at the top ([#308](https://github.com/encryption4all/postguard-website/issues/308)) ([3d37021](https://github.com/encryption4all/postguard-website/commit/3d37021ad20d093bb80a6f005dfa0a3ed79b4c83))
+* **filesharing:** announce decrypt progress to AT, trim removal comment ([#242](https://github.com/encryption4all/postguard-website/issues/242)) ([bc1a1b5](https://github.com/encryption4all/postguard-website/commit/bc1a1b50aa533e9e689afcbd139205ca44600b0e)), closes [#138](https://github.com/encryption4all/postguard-website/issues/138)
+* **filesharing:** convey required vs optional fields to assistive tech ([#283](https://github.com/encryption4all/postguard-website/issues/283)) ([24d0a99](https://github.com/encryption4all/postguard-website/commit/24d0a993437c358229ea9620b2220b0947f08137)), closes [#268](https://github.com/encryption4all/postguard-website/issues/268) [#269](https://github.com/encryption4all/postguard-website/issues/269)
+* **filesharing:** make attached-file state obvious in the file-attach step ([#307](https://github.com/encryption4all/postguard-website/issues/307)) ([9a8fe47](https://github.com/encryption4all/postguard-website/commit/9a8fe478429fdcc16b68746667196fe532cab23b))
+* **filesharing:** make recipient field read clearly as the address field ([#306](https://github.com/encryption4all/postguard-website/issues/306)) ([1e7bf1a](https://github.com/encryption4all/postguard-website/commit/1e7bf1a59cf40285ee79ad9fd4ea7ab88bf10c99))
+* **filesharing:** make validation 'continue' button clearly clickable ([#284](https://github.com/encryption4all/postguard-website/issues/284)) ([b2e92c7](https://github.com/encryption4all/postguard-website/commit/b2e92c75fc3a2d4efd8c348e17d24484f148e4cf)), closes [#267](https://github.com/encryption4all/postguard-website/issues/267)
+* **filesharing:** open Yivi app from a user tap on iOS ([#319](https://github.com/encryption4all/postguard-website/issues/319)) ([9521fff](https://github.com/encryption4all/postguard-website/commit/9521fff442d168156262a1c9de048555658f3d56))
+* **filesharing:** recover gracefully from an interrupted Yivi disclosure ([#305](https://github.com/encryption4all/postguard-website/issues/305)) ([5d33836](https://github.com/encryption4all/postguard-website/commit/5d338363f48bae322aa06b440ed551f9b97629b8))
+* **filesharing:** require a real TLD in recipient email validation ([#304](https://github.com/encryption4all/postguard-website/issues/304)) ([57b3c56](https://github.com/encryption4all/postguard-website/commit/57b3c56abab0adac7e281199acf0fbfc6486d1be))
+* hide app footer on mobile viewports ([#282](https://github.com/encryption4all/postguard-website/issues/282)) ([ec2a6e5](https://github.com/encryption4all/postguard-website/commit/ec2a6e52d08770c9ae8b3ed31260f7d63eb65e75))
+* **nginx:** allowlist Yivi and storage origins in report-only CSP connect-src ([#318](https://github.com/encryption4all/postguard-website/issues/318)) ([6049484](https://github.com/encryption4all/postguard-website/commit/60494844961bc3b66e12d6576feb1b3475d1e8ec))
+* **send:** surface empty-state prompt when no file is attached ([#303](https://github.com/encryption4all/postguard-website/issues/303)) ([f1296a0](https://github.com/encryption4all/postguard-website/commit/f1296a04fabd3de6ccb4acb95b1b23195bcc89d6))
+* show sender-confirmation notice on the send confirmation page ([#315](https://github.com/encryption4all/postguard-website/issues/315)) ([06c0ba1](https://github.com/encryption4all/postguard-website/commit/06c0ba10ad8f42b7a377efb92fa876f1f20401e2)), closes [#275](https://github.com/encryption4all/postguard-website/issues/275)
+
 ## [1.7.0](https://github.com/encryption4all/postguard-website/compare/v1.6.0...v1.7.0) (2026-05-16)
 
 
