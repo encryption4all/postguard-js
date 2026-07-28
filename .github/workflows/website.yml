@@ -1,0 +1,271 @@
+name: Website
+
+# Checks and docker delivery for apps/website.
+#
+# Deliberately NOT path-filtered to apps/website/**: the point of the monorepo
+# is that an SDK change in packages/pg-js is tested against its consumers in the
+# same PR, which a filter would hide. The check suite is seconds of wall clock.
+#
+# The image name is hardcoded rather than derived from ${{ github.repository }}:
+# that expression resolves to `postguard-js` in this repo, while postguard-ops
+# pins ghcr.io/encryption4all/postguard-website in prod, so deriving it would
+# publish to a name nothing deploys.
+#
+# Publishing happens on main only; PRs build without pushing. See the comment on
+# the build job for why (cross-repo GHCR package access).
+
+on:
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
+
+permissions:
+    contents: read
+
+env:
+    IMAGE: ghcr.io/encryption4all/postguard-website
+
+defaults:
+    run:
+        working-directory: apps/website
+
+jobs:
+    svelte-check:
+        name: Svelte Check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            # From the repo root: the workspace lockfile covers every package,
+            # and the website resolves @e4a/pg-js through workspace:*.
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+            - run: pnpm exec svelte-kit sync
+            - run: pnpm exec svelte-check --threshold warning
+
+    test-unit:
+        name: Unit Tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+            - run: pnpm test:unit
+
+    test-e2e:
+        name: E2E Tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+            - name: Install Playwright chromium
+              run: pnpm exec playwright install --with-deps chromium
+            - run: pnpm test:e2e
+            # Traces (retain-on-failure) and screenshots (only-on-failure) land
+            # in test-results/; the html reporter writes playwright-report/.
+            - name: Upload Playwright artifacts
+              if: failure()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: playwright-artifacts
+                  path: |
+                      apps/website/playwright-report/
+                      apps/website/test-results/
+                  retention-days: 7
+
+    lint:
+        name: Lint
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+            - run: pnpm exec svelte-kit sync
+            - run: pnpm lint
+            # Fail on references to undefined CSS custom properties.
+            - run: pnpm lint:css
+
+    nginx:
+        name: nginx config test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: '3.x'
+            - run: pip install crossplane
+              working-directory: .
+
+            # Dev config is a full standalone nginx.conf; --single-file skips the
+            # include of /etc/nginx/mime.types (absent in CI, not a syntax concern).
+            - name: Validate docker/nginx.dev.conf
+              run: |
+                  crossplane parse --single-file -o /tmp/dev.json docker/nginx.dev.conf
+                  python -c "import json,sys; d=json.load(open('/tmp/dev.json')); [print('::error file=apps/website/docker/nginx.dev.conf,line={}::{}'.format(e.get('line'), e['error'])) for e in d.get('errors', [])]; sys.exit(0 if d['status']=='ok' else 1)"
+
+            # Prod server template is rendered by the image's envsubst entrypoint
+            # into conf.d at runtime; render its two upstream vars and wrap in
+            # http{} so it is parsed in the context it actually runs in.
+            - name: Validate docker/default.conf.template
+              run: |
+                  IRMA_UPSTREAM_URL=http://irma-server:8088 PKG_UPSTREAM_URL=http://postguard-pkg:8087 \
+                    envsubst '${IRMA_UPSTREAM_URL} ${PKG_UPSTREAM_URL}' < docker/default.conf.template > /tmp/server.conf
+                  { echo 'events {}'; echo 'http {'; cat /tmp/server.conf; echo '}'; } > /tmp/prod-nginx.conf
+                  crossplane parse -o /tmp/prod.json /tmp/prod-nginx.conf
+                  python -c "import json,sys; d=json.load(open('/tmp/prod.json')); [print('::error file=apps/website/docker/default.conf.template::{}'.format(e['error'])) for e in d.get('errors', [])]; sys.exit(0 if d['status']=='ok' else 1)"
+
+    # Build each platform on its native runner and push by digest (no tag yet).
+    # Context is the repo root: the site depends on @e4a/pg-js as workspace:*,
+    # so the image build installs the workspace and builds the SDK first.
+    build:
+        name: Build (${{ matrix.name }})
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: write
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: linux/amd64
+                      runner: ubuntu-24.04
+                      name: amd64
+                    - platform: linux/arm64
+                      runner: ubuntu-24.04-arm
+                      name: arm64
+        defaults:
+            run:
+                working-directory: .
+        steps:
+            - uses: actions/checkout@v6
+            - uses: docker/setup-buildx-action@v4
+            - name: Log in to GHCR
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            # On PRs: build only, no registry write. GHCR grants package write
+            # per repository, and the postguard-website package belongs to the
+            # (soon-archived) postguard-website repo, so this repo's token
+            # cannot push to it until that package grants postguard-js write
+            # access. Building still validates the Dockerfile on every PR,
+            # which is the part worth gating on. `:pr-N` preview tags are the
+            # only casualty; restore them by flipping `push` back to true once
+            # the package access is granted.
+            - name: Build (PR — validate only, no push)
+              if: github.ref != 'refs/heads/main'
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: apps/website/docker/Dockerfile
+                  platforms: ${{ matrix.platform }}
+                  push: false
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+            - name: Build and push by digest
+              id: build
+              if: github.ref == 'refs/heads/main'
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: apps/website/docker/Dockerfile
+                  platforms: ${{ matrix.platform }}
+                  outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+            - name: Export digest
+              if: github.ref == 'refs/heads/main'
+              run: |
+                  mkdir -p /tmp/digests
+                  digest="${{ steps.build.outputs.digest }}"
+                  touch "/tmp/digests/${digest#sha256:}"
+            - name: Upload digest
+              if: github.ref == 'refs/heads/main'
+              uses: actions/upload-artifact@v7
+              with:
+                  name: digest-${{ matrix.name }}
+                  path: /tmp/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
+
+    # Merge platform digests into one multi-platform manifest and apply tags:
+    #   push to main → :edge and :<version from apps/website/package.json>
+    # The version tag is unconditional on main rather than gated on a release
+    # step: changesets bumps apps/website/package.json in its Version Packages
+    # PR, so merging that PR is what moves this tag. Re-tagging an unchanged
+    # version is a no-op.
+    finalize:
+        name: Finalize Docker manifest
+        needs: build
+        # Only main pushes digests, so there is nothing to assemble on a PR.
+        if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        defaults:
+            run:
+                working-directory: .
+        steps:
+            - uses: actions/checkout@v6
+            # Two statements, not `echo "value=$(...)"`: echo's own exit status
+            # would mask a failing substitution under the default `bash -e`, and
+            # the step would emit `value=` and pass, publishing only :edge with
+            # the version tag silently missing.
+            - name: Read the app version
+              id: version
+              run: |
+                  version="$(node -p "require('./apps/website/package.json').version")"
+                  echo "value=$version" >> "$GITHUB_OUTPUT"
+            - name: Download digests
+              uses: actions/download-artifact@v8
+              with:
+                  path: /tmp/digests
+                  pattern: digest-*
+                  merge-multiple: true
+            - name: Docker metadata
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: ${{ env.IMAGE }}
+                  # This job only runs on main (see the `if` above), so there is
+                  # no PR tag path here — `:pr-N` images would need the build job
+                  # to push, which it deliberately does not.
+                  tags: |
+                      type=edge,branch=main
+                      type=raw,value=${{ steps.version.outputs.value }}
+            - uses: docker/setup-buildx-action@v4
+            - name: Log in to GHCR
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            - name: Create and push manifest
+              working-directory: /tmp/digests
+              run: |
+                  docker buildx imagetools create \
+                    $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+                    $(printf '${{ env.IMAGE }}@sha256:%s ' *)

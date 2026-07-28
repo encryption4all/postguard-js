@@ -1,0 +1,5 @@
+Contact: mailto:info@postguard.eu
+Expires: 2027-04-21T00:00:00.000Z
+Preferred-Languages: en, nl
+Canonical: https://postguard.eu/.well-known/security.txt
+Policy: https://github.com/encryption4all/postguard-website/security/policy

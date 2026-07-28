@@ -90,7 +90,11 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 ## Agent notes (migrated from the dobby memory repo)
 
 ## Overview
-Monorepo. `packages/pg-js` = `@e4a/pg-js`, the TypeScript SDK (the only package so far; apps join per encryption4all/postguard-js#123). pnpm workspaces; release via changesets. The package scripts listed below live in `packages/pg-js/package.json` (working-directory rule: line 11).
+Monorepo, pnpm workspaces, release via changesets. `packages/pg-js` = `@e4a/pg-js`, the published TypeScript SDK; `apps/website` = the PostGuard site (private, versioned by changesets but not published; its docker image is `ghcr.io/encryption4all/postguard-website`). Remaining apps join per encryption4all/postguard-js#123. The package scripts listed below live in `packages/pg-js/package.json` (working-directory rule: line 11); the website's live in `apps/website/package.json` and run via `pnpm --filter postguard-website <script>`.
+
+Security overrides (`cookie`, `esbuild`) live in the ROOT `package.json` under `pnpm.overrides`. pnpm ignores an `overrides` block in a workspace member entirely — that is how both pins silently regressed to vulnerable versions during the website import. Add new pins at the root only.
+
+Husky lives at the repo root (`.husky/`), because `.git` is there; its pre-commit hook runs lint-staged per package. A `prepare: husky` in a workspace member is a silent no-op.
 
 ## Build pipeline (gitignored generated sources)
 `src/util/wasm-binary.ts`, `src/yivi/yivi-css-text.ts`, and `src/util/version.ts` are gitignored and generated at build time by `scripts/generate-wasm-base64.mjs`, `scripts/generate-yivi-css.mjs`, and `scripts/generate-version.mjs`. Tests transitively import them. `prebuild`, `pretypecheck`, `pretest`, and `pretest:watch` all run all three generators, so a fresh-clone `pnpm test` works; CI runs `typecheck` before `test`.

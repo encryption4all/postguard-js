@@ -1,0 +1,675 @@
+@use '$lib/assets/fonts/overpass-webfont/_overpass' as overpass;
+@use '$lib/assets/fonts/overpass-mono-webfont/_overpass-mono' as overpass-mono;
+
+@include overpass.print-overpass-font-face(
+    $styles: (normal),
+    $path_to_dist: '$lib/assets/fonts/overpass-webfont/'
+);
+
+@include overpass-mono.print-overpass-mono-font-face(
+    $path_to_dist: '$lib/assets/fonts/overpass-mono-webfont/'
+);
+
+summary {
+    cursor: pointer;
+}
+
+html,
+body {
+    position: relative;
+    height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+    background: var(--pg-general-background);
+    font-family: var(--pg-font-family);
+    color: var(--pg-text);
+    z-index: -5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+@media (resolution: 1dppx) {
+    body {
+        -webkit-font-smoothing: subpixel-antialiased;
+        -moz-osx-font-smoothing: auto;
+    }
+}
+
+/* Global type scale.
+   Almost everything on the site sizes from the root font size via rem / ch / em
+   (the --pg-font-size-* scale, rem-based spacing and input heights, ch-based
+   widths…), so this is the single knob for scaling the whole UI up or down
+   while keeping every proportion — and therefore the site's feel — intact.
+   100% = browser default (16px). 106.25% = 17px. 112.5% = 18px. */
+html {
+    font-size: 106.25%;
+}
+
+:root {
+    /* Typography */
+    --pg-font-family: 'Overpass', sans-serif;
+    --pg-input-font-size: 0.9rem;
+
+    /* Font sizes */
+    --pg-font-size-xs: 0.75rem; /* tiny labels */
+    --pg-font-size-sm: 0.85rem; /* secondary / caption text */
+    --pg-font-size-md: 0.95rem; /* default body text (most common) */
+    --pg-font-size-base: 1rem; /* base / 16 px equivalent */
+    --pg-font-size-lg: 1.15rem; /* slightly larger body */
+    --pg-font-size-xl: 1.5rem; /* section headings */
+    --pg-font-size-2xl: 1.75rem; /* page-level headings */
+
+    /* Font weights */
+    --pg-font-weight-regular: 400;
+    --pg-font-weight-medium: 600;
+    --pg-font-weight-bold: 700;
+    --pg-font-weight-extrabold: 800;
+
+    /* Colors */
+    --pg-primary: #3095de;
+    --pg-primary-rgb: 48, 149, 222;
+    --pg-primary-contrast: #1673b6;
+    --pg-general-background: #ffffff;
+    --pg-soft-background: #f2f8fd;
+    --pg-strong-background: #c6e2f6;
+    --pg-text: #030e17;
+    --pg-text-secondary: #4d6371;
+    --pg-input-normal: #5f7381;
+    --pg-input-hover: #45545e;
+    --pg-input-active: #2b343b;
+    --pg-input-error: #b61616;
+    --pg-warning: #c2710c;
+    --pg-success: #1a9d57;
+    --pg-on-primary: #ffffff;
+    --pg-disabled-background: #6b7d8a;
+    --pg-disabled-foreground: #ffffff;
+
+    /* Spacing */
+    --pg-border-radius-sm: 4px;
+    --pg-border-radius-md: 6px;
+    --pg-border-radius-lg: 8px;
+
+    /* Layout */
+    /* Standard content width for text/reading pages (privacy, about, blog).
+       ~62ch keeps line length in the comfortable range for readability. */
+    --pg-reading-width: 62ch;
+}
+
+.dark {
+    /* Dark mode */
+    --pg-primary: #3095de;
+    --pg-primary-rgb: 48, 149, 222;
+    --pg-primary-contrast: #3095de;
+    --pg-general-background: #061b2d;
+    --pg-soft-background: #092944;
+    --pg-strong-background: #0c365a;
+    --pg-text: #ffffff;
+    --pg-text-secondary: #98aab6;
+    --pg-input-normal: #7e92a0;
+    --pg-input-hover: #98a8b3;
+    --pg-input-active: #c4cdd4;
+    --pg-input-error: #de3030;
+    --pg-warning: #f5a623;
+    --pg-success: #34d17f;
+
+    .invert {
+        filter: invert(100%);
+    }
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--pg-general-background);
+}
+
+.custom-field input {
+    border: none;
+    -webkit-appearance: none;
+    -ms-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: transparent;
+    padding: 12px;
+    border-radius: 3px;
+}
+
+select {
+    color: var(--pg-text-secondary);
+}
+
+button {
+    all: unset;
+    cursor: pointer;
+    font-family: 'Overpass';
+    font-style: normal;
+    box-sizing: border-box;
+}
+
+.btn-accent {
+    font-size: var(--pg-font-size-sm);
+    border-radius: 100px;
+    background: linear-gradient(
+        135deg,
+        var(--pg-input-active) 0%,
+        var(--pg-text) 100%
+    );
+    color: var(--pg-general-background);
+    padding: 6px 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    transition:
+        background 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.btn-accent:hover {
+    background: linear-gradient(
+        135deg,
+        var(--pg-input-hover) 0%,
+        var(--pg-input-active) 100%
+    );
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-accent:active {
+    transform: translateY(0);
+}
+
+/* Global input styling */
+input.pg-input,
+select.pg-input,
+textarea.pg-input {
+    font-family: var(--pg-font-family);
+    font-size: var(--pg-input-font-size);
+    height: 2.5rem;
+    background-color: var(--pg-general-background);
+    border: 1px solid var(--pg-input-normal);
+    border-radius: var(--pg-border-radius-md);
+    padding: 0 0.85rem;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+    box-sizing: border-box;
+    width: 100%;
+    color: var(--pg-text);
+}
+
+input::placeholder {
+    color: var(--pg-text-secondary);
+}
+
+textarea::placeholder {
+    color: var(--pg-text-secondary);
+}
+
+/* Textarea should not have fixed height */
+textarea.pg-input {
+    height: auto;
+    min-height: 5rem;
+    padding: 0.5rem 0.85rem;
+}
+
+input.pg-input:hover,
+select.pg-input:hover,
+textarea.pg-input:hover {
+    border-color: var(--pg-input-hover);
+}
+
+input.pg-input:focus,
+select.pg-input:focus,
+textarea.pg-input:focus {
+    border-color: var(--pg-primary-contrast);
+    outline: 2px solid var(--pg-primary);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 3px rgba(var(--pg-primary-rgb), 0.1);
+}
+
+input.pg-input:focus:not(:focus-visible),
+select.pg-input:focus:not(:focus-visible),
+textarea.pg-input:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* 1x (non-Retina) displays: thinner border. Always keep the focus
+   outline so keyboard users still see a focus indicator (2.4.7). */
+@media (resolution: 1dppx) {
+    input.pg-input,
+    select.pg-input,
+    textarea.pg-input {
+        border-width: 1px;
+    }
+}
+
+input.pg-input:invalid:not(:focus):not(:placeholder-shown),
+select.pg-input:invalid:not(:focus),
+textarea.pg-input:invalid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--pg-input-error);
+}
+
+input.pg-input:disabled,
+select.pg-input:disabled,
+textarea.pg-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+a,
+p,
+li,
+label,
+td,
+tr,
+summary {
+    font-family: 'Overpass';
+    font-style: normal;
+    color: var(--pg-text);
+}
+
+p {
+    font-size: var(--pg-font-size-base);
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+}
+
+a {
+    text-decoration-color: var(--pg-primary);
+}
+
+h2 {
+    font-size: var(--pg-font-size-xl);
+    font-weight: var(--pg-font-weight-extrabold);
+    line-height: 30px;
+    letter-spacing: 0;
+}
+
+h3 {
+    font-size: var(--pg-font-size-lg);
+    font-weight: var(--pg-font-weight-bold);
+    color: var(--pg-text);
+    margin: 0;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--pg-soft-background);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--pg-strong-background);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pg-text-secondary);
+}
+
+.swiper {
+    width: 100%;
+    height: auto;
+}
+
+.swiper-slide {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.swiper-pagination-bullet {
+    display: visible;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1px solid var(--pg-text);
+    background-color: transparent;
+    opacity: 100%;
+}
+
+.swiper-pagination-bullet-active {
+    background-color: var(--pg-text);
+}
+
+.grid-container {
+    position: relative;
+    display: grid;
+    // max-width: 900px;
+    margin: 0 5%;
+    grid-gap: 5%;
+    height: 90%;
+    align-items: center;
+    justify-content: center;
+}
+
+@media only screen and (max-width: 800px) {
+    .grid-container {
+        grid-auto-flow: row;
+        max-height: 100%;
+        overflow-y: scroll;
+        margin: 0 3% 0 3%;
+        padding-bottom: 5%;
+        grid-gap: 1rem;
+        border-bottom: 1px solid var(--pg-text);
+
+        .grid-item {
+            max-width: 550px;
+            width: 92%;
+
+            &.header h2 {
+                inline-size: unset;
+            }
+        }
+    }
+
+    .swiper-pagination-bullet {
+        display: none;
+    }
+}
+
+/* ── Utility classes (from shared-styles.css) ───────────────────────── */
+
+/* Hide from sighted users but keep readable by screen readers */
+/* https://webaim.org/techniques/css/invisiblecontent/ */
+.sr-only {
+    position: absolute;
+    left: -10000px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Make sr-only content visible when it receives keyboard focus
+   (e.g. skip-links). Pairs with the layout-level .skip-link styles. */
+.sr-only-focusable:focus,
+.sr-only-focusable:focus-visible {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.mobile-hide {
+    @media only screen and (max-width: 768px) {
+        display: none !important;
+    }
+}
+
+.desktop-hide {
+    @media only screen and (min-width: 768px) {
+        display: none !important;
+    }
+}
+
+.big-screen-hide {
+    @media only screen and (min-width: 1280px) {
+        display: none !important;
+    }
+}
+
+/* ── Primary button (from primaryButton.css) ─────────────────────────── */
+
+.primary-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: fit-content;
+    white-space: nowrap;
+    font-size: var(--pg-font-size-lg);
+    font-weight: var(--pg-font-weight-medium);
+    font-family: var(--pg-font-family);
+    border-radius: var(--pg-border-radius-md);
+    /* Routed through a local var so hover/active derive from the same base.
+       Dark mode overrides it (see `.dark .primary-btn`) because the shared
+       --pg-primary-contrast is too light there for a white label to clear
+       WCAG AA. */
+    --_btn-bg: var(--pg-primary-contrast);
+    background: var(--_btn-bg);
+    color: var(--pg-on-primary);
+    box-shadow:
+        inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 6px 14px rgba(0, 0, 0, 0.16);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition:
+        background 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+    padding: 0.8rem 1.3rem;
+}
+
+.primary-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--_btn-bg) 82%, #000);
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+        0 4px 6px rgba(0, 0, 0, 0.22),
+        0 10px 20px rgba(0, 0, 0, 0.18);
+}
+
+.primary-btn:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.25),
+        0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.primary-btn:focus-visible {
+    outline: 2px solid var(--pg-primary);
+    outline-offset: 2px;
+}
+
+.primary-btn:disabled {
+    background: var(--pg-disabled-background);
+    color: var(--pg-disabled-foreground);
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 1;
+}
+
+/* In dark mode --pg-primary-contrast is #3095de; a white label on it is only
+   3.24:1 (fails WCAG AA). Pin the button to a deeper blue so the label stays
+   white and legible — 4.82:1 here vs. 5.05:1 in light mode — instead of the
+   dark-on-blue that inverting the label would produce. */
+.dark .primary-btn {
+    --_btn-bg: #2277b3;
+}
+
+/* ── Filesharing shared styles (from filesharing/shared-styles.css) ───── */
+
+.crypt-select-protection-input-box {
+    background-color: var(--pg-general-background);
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+}
+
+@media only screen and (min-width: 768px) {
+    .crypt-select-protection-input-box {
+        padding-left: 1.25rem;
+    }
+}
+
+.crypt-select-protection-input-box h4 {
+    font-size: var(--pg-font-size-md);
+    text-align: left;
+    color: var(--pg-input-hover);
+    font-weight: var(--pg-font-weight-bold);
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+@media only screen and (max-width: 400px) {
+    .crypt-btn-cancel {
+        width: 13rem !important;
+    }
+}
+
+.crypt-btn {
+    border: none;
+    border-radius: 2.6rem;
+    background: linear-gradient(
+        135deg,
+        var(--pg-input-active) 0%,
+        var(--pg-text) 100%
+    );
+    cursor: pointer;
+    color: var(--pg-general-background);
+    font-weight: var(--pg-font-weight-bold);
+    font-size: var(--pg-font-size-lg);
+    line-height: 1.6rem;
+    padding: 0.5rem 0;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition:
+        background 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.crypt-btn:hover:not(:disabled):not([disabled]):not(.crypt-btn-disabled) {
+    background: linear-gradient(
+        135deg,
+        var(--pg-input-hover) 0%,
+        var(--pg-input-active) 100%
+    );
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+}
+
+.crypt-btn:active:not(:disabled):not([disabled]):not(.crypt-btn-disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.crypt-btn:disabled,
+.crypt-btn[disabled],
+.crypt-btn-disabled {
+    background: var(--pg-strong-background);
+    color: var(--pg-text-secondary);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.yivi-btn-logo {
+    display: flex;
+    padding-right: 1rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.attributes-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+}
+
+/* ── File input cross-component signing state (from files-shared-sheet.css) */
+/* Targets elements inside UploadedFileTemplate from FileInput's signing state */
+
+.signing {
+    .files {
+        div {
+            button {
+                display: none;
+            }
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
+
+.grid-item.header,
+.privacy-content {
+    // display: flex;
+    // flex-direction: column;
+    // position: relative;
+    // height: 100%;
+    // max-width: 400px;
+    // text-align: left;
+
+    h3 r {
+        margin-bottom: 0;
+    }
+
+    h2 {
+        position: relative;
+        inline-size: 350px;
+        overflow-wrap: break-word;
+        margin-bottom: 0;
+        z-index: 0;
+
+        span {
+            background-color: var(--pg-general-background);
+            padding-right: 10px;
+        }
+
+        &:after {
+            content: '';
+            position: absolute;
+            bottom: 12px;
+            left: 0;
+            right: 50px;
+            height: 4px;
+            background-color: var(--pg-primary);
+            border-radius: 3.5px;
+            z-index: -1;
+        }
+    }
+}
+
+/* ── Low-density (1×) screen overrides ──────────────────────────────── */
+
+@media (resolution: 1dppx) {
+    html,
+    body {
+        -webkit-font-smoothing: subpixel-antialiased;
+    }
+
+    .primary-btn:focus-visible {
+        outline: 2px solid var(--pg-primary);
+        outline-offset: 2px;
+    }
+
+    .crypt-btn:hover:not(:disabled):not([disabled]):not(.crypt-btn-disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-accent:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+}

@@ -1,0 +1,67 @@
+---
+title: "May update: PostGuard for Business launch, add-ins and reliability"
+description: "The recap of everything that changed in PostGuard through March and April. Highlights include the soft launch of PostGuard for Business, new add-ins for Thunderbird and Outlook, and major reliability upgrades for large file transfers."
+date: "2026-05-08"
+author: "Ruben Hensen"
+image: "/blog/may_update.png"
+---
+
+# May Update
+![PostGuard cover](/blog/may_update.png)
+We've been hard at work turning PostGuard from a research project into a usable service for everyone. Let me walk you through all the exciting changes from the past few months. 
+
+## Infrastructure Move
+We used to be hosted at the Radboud University and at Procolix. We have modernized everything into containers and moved to the Yivi Kubernetes cluster on Scaleway. We also renewed our deal with Procolix, who generously provides us with the fileshare server. We are very grateful for that. We've also finished moving all the domains and the email server.
+
+## Soft launch of PostGuard for Business
+We officially launched PostGuard for Business. We currently have two proof-of-concept partners with the Dutch government to programmatically send encrypted emails to citizens. 
+
+To support these partners, we’ve made the Business portal fully bilingual (Dutch and English) and ensured it hits WCAG 2.2 AA accessibility standards. Whether you're using a screen reader or just prefer a specific language, PostGuard for Business is ready for you. If you want to try it out, just head on over to https://business.postguard.eu/ and press register.
+
+## Brand new Javascript/Typescript SDK
+We made implementing PostGuard for Business easy as pie. The new SDK is "zero-config"; we've inlined the Web Assembly, so you don't have to mess with Vite or Webpack plugins anymore. We also wrapped everything in a new builder pattern. Programmatically sending encrypted email has never been easier:
+
+```js
+const sealed = await pg.Sealed.init(pkgUrl)
+  .addRecipient(citizen.email)
+  .extraAttribute('kvk', organisation.kvk)
+  .seal(files);
+
+const { uuid } = await sealed.upload({
+  onProgress: (p) => console.log(`Uploading: ${p}%`),
+});
+```
+
+The SDK handles all the complicated stuff: zipping, chunking, encrypting, and even creating the email envelopes for our own add-ins.
+
+## Also a .NET SDK with native performance
+We created a C-ABI bridge (pg-ffi) that exposes the Rust core to .NET. We wrap this in an easy-to-use NuGet package so you can easily send PostGuard for Business emails using .NET too. It’s published via "Trusted Publishing," so you know the code is secure and exactly what we intended to ship.
+```csharp
+var sealed = pg.Encrypt(new EncryptInput
+{
+    Files = [new PgFile("report.txt", fileStream)],
+    Recipients = [
+        pg.Recipient.Email("citizen@example.com"),
+        pg.Recipient.EmailDomain("info@org.nl")
+    ],
+    Sign = pg.Sign.ApiKey("PG-your-key")
+});
+```
+
+## Brand new add-ins for Thunderbird and Outlook
+We released the alpha version of our Thunderbird and Outlook add-ins. There is still some work to do, but sending email through Thunderbird or Outlook for Mac, Windows, or online is now possible. Our goal is to make it the smoothest way to send encrypted email. Check it out at https://postguard.eu/addons.
+
+![PostGuard cover](/blog/outlook_plugin_may.png)
+
+## YADW (Yet Another Docs Website)
+At https://docs.postguard.eu you can now see all our documentation in one central place. It contains some great information if you are curious how PostGuard works under the hood."
+
+![PostGuard cover](/blog/postguard_docs_may.png)
+
+## Reliability & Miscellaneous
+We’ve also been hard at work on a bunch of other things:
+*   We’ve made uploads and downloads much more robust. If your WiFi blinks during a transfer, we now support idempotent chunk retries and resumable downloads, so you don't have to start over from 0%.
+*   We've increased the PostGuard free tier to 5GB every 14 days.
+*   We've tightened the security around the PKG server to keep your keys even safer.
+
+It’s all a bit too much to sum up in one small blog, but we're incredibly proud of how far we've come!

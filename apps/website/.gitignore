@@ -1,0 +1,22 @@
+/node_modules
+.claude/
+.svelte-kit
+build
+package
+.idea
+.vscode
+.env.local
+.env.*.local
+
+# Playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
+*.pem
+*.pub
+*.sec
+
+# macOS
+.DS_Store
