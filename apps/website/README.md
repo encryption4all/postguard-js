@@ -10,8 +10,14 @@ Docker Compose is the recommended way to get started:
 
 ```bash
 git submodule update --init --recursive
-docker-compose up
+./scripts/gen-irma-key.sh   # once: throwaway JWT key for the local irma-server
+docker compose up
 ```
+
+`gen-irma-key.sh` is idempotent and the key it writes is gitignored. Skipping it
+does not fail loudly: Docker creates an empty _directory_ at the missing bind
+mount, and irma-server then starts against a directory instead of a key, taking
+the Yivi disclosure flow down.
 
 The website is available at http://localhost:8080.
 

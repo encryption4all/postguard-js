@@ -18,12 +18,5 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.5",
     "husky": "^9.1.7"
-  },
-  "pnpm": {
-    "//": "Security overrides for transitive deps. pnpm honours these ONLY in the root manifest \u2014 an `overrides` block in a workspace member is silently ignored, which is how cookie/esbuild regressed to vulnerable versions during the website import. cookie <0.7.0: CVE-2024-47764. esbuild <=0.24.2: GHSA-67mh-4wv8-2f99.",
-    "overrides": {
-      "cookie": "^1.1.1",
-      "esbuild": "^0.27.2"
-    }
   }
 }

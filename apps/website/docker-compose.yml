@@ -96,6 +96,10 @@ services:
             # holds the pg-js symlink) in the app.
             - /repo/node_modules
             - /repo/apps/website/node_modules
+            # pg-js's own node_modules too: the bind mount above shadows the
+            # whole workspace, and the start-up `pg-js build` needs @e4a/pg-wasm
+            # to run its generators.
+            - /repo/packages/pg-js/node_modules
             - /repo/apps/website/.svelte-kit
         env_file:
             - .env.dev

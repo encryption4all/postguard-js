@@ -1,3 +1,14 @@
 packages:
   - packages/*
   - apps/*
+
+# Security overrides for transitive deps. This is the only place pnpm reads them:
+# an `overrides` block in a workspace member is ignored outright (that is how
+# cookie/esbuild silently regressed to vulnerable versions during the website
+# import), and the root `package.json` `pnpm.overrides` field still works but
+# pnpm 10 warns it is on its way out.
+#   cookie <0.7.0:    CVE-2024-47764
+#   esbuild <=0.24.2: GHSA-67mh-4wv8-2f99
+overrides:
+  cookie: ^1.1.1
+  esbuild: ^0.27.2
