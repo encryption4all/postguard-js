@@ -314,6 +314,7 @@ function compareNames(a, b) {
 // --- identity --------------------------------------------------------------
 
 const HERITAGE_LABEL = '<heritage>';
+const TYPE_PARAM_LABEL = '<typeparam>';
 const BODY_LABEL = '<body>';
 
 /**
@@ -396,6 +397,11 @@ function collectReferences(statements, declarations, ownName) {
 
   for (const statement of statements) {
     if (ts.isClassDeclaration(statement) || ts.isInterfaceDeclaration(statement)) {
+      // A type-parameter constraint or default is a route like any other. Miss
+      // it and a declaration reachable only that way gets the `?<name>` id, so
+      // it falls back to matching on the printed name — the exact keying this
+      // module exists to avoid.
+      for (const parameter of statement.typeParameters ?? []) walk(parameter, TYPE_PARAM_LABEL);
       for (const clause of statement.heritageClauses ?? []) walk(clause, HERITAGE_LABEL);
       for (const member of statement.members) walk(member, memberKey(member));
       continue;
@@ -509,11 +515,15 @@ export function classify(base, head) {
     }
     // A rename only reaches consumers through the export clause, which is
     // compared separately. It does explain a report diff, so say it anyway.
+    // The wording stays with what was observed: the pair matched but the
+    // printed names differ. That happens when rolldown suffixes a collision,
+    // and equally when the name changed in `src/`, and the two are not
+    // distinguishable from the two reports alone.
     if (headGroup.name !== name) {
       changes.push({
         level: 'none',
         name: headGroup.name,
-        detail: `the rollup renamed \`${name}\` to \`${headGroup.name}\``,
+        detail: `\`${name}\` is now printed as \`${headGroup.name}\``,
       });
     }
     if (headGroup.kind !== baseGroup.kind) {

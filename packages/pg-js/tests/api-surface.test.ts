@@ -194,7 +194,7 @@ describe('classify', () => {
     it('is minor when the colliding declaration is purely additive', () => {
       const added = head(`domain: string; email: string;`);
       expect(detailsOf(base, added)).toEqual([
-        'the rollup renamed `EmailAttributes` to `EmailAttributes$1`',
+        '`EmailAttributes` is now printed as `EmailAttributes$1`',
         'interface `EmailAttributes` was added',
         'function `probeCollide` was added',
         '`ProbeEmailAttributes` is now exported',
@@ -209,7 +209,7 @@ describe('classify', () => {
       // `domain` from the list entirely.
       const broken = head(`domainAttr: string; email: string;`);
       expect(detailsOf(base, broken)).toEqual([
-        'the rollup renamed `EmailAttributes` to `EmailAttributes$1`',
+        '`EmailAttributes` is now printed as `EmailAttributes$1`',
         '`EmailAttributes.domain` was removed',
         '`EmailAttributes.domainAttr` was added as a required member',
         'interface `EmailAttributes` was added',
@@ -228,7 +228,7 @@ describe('classify', () => {
         `export { PostGuard$1 as PostGuard, type PostGuard as ProbePostGuard };`,
       ].join('\n');
       expect(detailsOf(before, after)).toEqual([
-        'the rollup renamed `PostGuard` to `PostGuard$1`',
+        '`PostGuard` is now printed as `PostGuard$1`',
         'class `PostGuard` was added',
         '`ProbePostGuard` is now exported',
       ]);
@@ -237,6 +237,51 @@ describe('classify', () => {
 
     it('keeps the markers it matches on out of the report', () => {
       expect(renderReport(head(`domain: string; email: string;`))).not.toContain('«');
+    });
+
+    /**
+     * A type-parameter constraint or default is the only route to a
+     * declaration that no member and no heritage clause mentions. Before
+     * `collectReferences` walked `typeParameters`, such a declaration got the
+     * `?<name>` id and fell back to matching on the printed name, so the
+     * collision below read as a removal plus an addition.
+     */
+    it('matches a declaration reachable only through a type-parameter constraint', () => {
+      const before = [
+        `interface Constraint { p: string; }`,
+        `declare class C<T extends Constraint> { m(): T; }`,
+        `export { C };`,
+      ].join('\n');
+      const after = [
+        `interface Constraint { probeOnly: true; }`,
+        `interface Constraint$1 { p: string; }`,
+        `declare class C<T extends Constraint$1> { m(): T; }`,
+        `export { C, type Constraint as ProbeConstraint };`,
+      ].join('\n');
+      expect(detailsOf(before, after)).toEqual([
+        '`Constraint` is now printed as `Constraint$1`',
+        'interface `Constraint` was added',
+        '`ProbeConstraint` is now exported',
+      ]);
+      expect(levelOf(before, after)).toBe('minor');
+    });
+
+    it('matches a declaration reachable only through a type-parameter default', () => {
+      const before = [`interface Def { p: string; }`, `interface Box<T = Def> { held: T; }`, `export { Box };`].join(
+        '\n'
+      );
+      const after = [
+        `interface Def { probeOnly: true; }`,
+        `interface Def$1 { p: string; }`,
+        `interface Box<T = Def$1> { held: T; }`,
+        `export { Box, type Def as ProbeDef };`,
+      ].join('\n');
+      expect(detailsOf(before, after)).toEqual([
+        '`Def` is now printed as `Def$1`',
+        'interface `Def` was added',
+        '`ProbeDef` is now exported',
+      ]);
+      expect(levelOf(before, after)).toBe('minor');
     });
   });
 
