@@ -40,8 +40,7 @@
         placeholder={$_('filesharing.encryptPanel.messagePlaceholder')}
         bind:value={message}
         disabled={readonly}
-        oninput={autoResize}
-    ></textarea>
+        oninput={autoResize}></textarea>
 </div>
 
 <style>

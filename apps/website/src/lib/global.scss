@@ -2,9 +2,7 @@
 @use '$lib/assets/fonts/overpass-mono-webfont/_overpass-mono' as overpass-mono;
 
 @include overpass.print-overpass-font-face(
-    $styles: (
-        normal,
-    ),
+    $styles: (normal),
     $path_to_dist: '$lib/assets/fonts/overpass-webfont/'
 );
 

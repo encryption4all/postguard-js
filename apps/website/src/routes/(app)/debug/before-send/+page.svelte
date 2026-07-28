@@ -96,8 +96,7 @@
     onMount(() => {
         setTimeout(() => {
             const dropzoneElement = document.querySelector('#my-form') as
-                | (HTMLElement & { dropzone?: Dropzone })
-                | null
+                (HTMLElement & { dropzone?: Dropzone }) | null
             if (dropzoneElement && dropzoneElement.dropzone) {
                 const dz = dropzoneElement.dropzone as Dropzone
                 mockFiles.forEach((file) => {

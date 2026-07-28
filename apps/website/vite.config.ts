@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url'
 // APP_VERSION="1.0.0" to GlitchTip and in crash reports. Reading package.json
 // here keeps one source of truth. `??=` so an explicit env var still wins.
 const pkg = JSON.parse(
-    readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+    readFileSync(
+        fileURLToPath(new URL('./package.json', import.meta.url)),
+        'utf8'
+    )
 ) as { version: string }
 process.env.VITE_APP_VERSION ??= pkg.version
 
