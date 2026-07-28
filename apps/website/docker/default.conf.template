@@ -1,0 +1,95 @@
+root /usr/share/nginx/html/postguard/;
+index index.html;
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    # Report-only for now: violations are logged to the browser console but not
+    # blocked. Tighten to `Content-Security-Policy` (enforcing) once verified clean.
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://is.yivi.app https://is.staging.yivi.app https://storage.postguard.eu https://storage.staging.postguard.eu;" always;
+
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    location ~ ^/(mitm.html|sw.js) {
+        charset UTF-8;
+        add_header Cache-Control "no-cache";
+        alias /usr/share/nginx/html/filesharing/$1;
+    }
+
+    location /decrypt/ {
+        return 301 /#fallback;
+    }
+
+    location /filesharing/ {
+        alias /usr/share/nginx/html/filesharing/;
+        index index.html;
+
+        location ~* \.(?:svg|ttf|js|css|wasm)$ {
+            expires 1y;
+            add_header Cache-Control "public";
+        }
+
+        # these do not include hashes
+        location ~ /(static|icons)/ {
+            add_header Cache-Control "no-cache";
+        }
+
+        try_files $uri $uri/ index.html =404;
+    }
+
+    # these all include hashes, so we can cache them for a long time.
+    location ~* \.(?:svg|ttf|js|css|wasm)$ {
+        expires 1y;
+        add_header Cache-Control "public";
+    }
+
+
+    # Serve mirrored addon release artifacts from static/downloads/.
+    # Thunderbird auto-update still fetches updates.json from GitHub for now.
+    location = /downloads/updates.json {
+        return 302 https://github.com/encryption4all/postguard-tb-addon/releases/latest/download/updates.json;
+    }
+
+    location ~ ^/downloads/(v[\d\.]+)/postguard-tb-addon-([\d\.]+)\.xpi$ {
+        return 302 https://github.com/encryption4all/postguard-tb-addon/releases/download/$1/postguard-tb-addon-$2.xpi;
+    }
+
+    location ~ ^/downloads/(v[\d\.]+)/updates\.json$ {
+        return 302 https://github.com/encryption4all/postguard-tb-addon/releases/download/$1/updates.json;
+    }
+
+    location /downloads/ {
+        sendfile on;
+        tcp_nopush on;
+    }
+
+    location /pkg/ {
+        proxy_pass ${PKG_UPSTREAM_URL}/;
+    }
+
+    location /irma/ {
+        proxy_pass ${IRMA_UPSTREAM_URL}/;
+    }
+
+    location / {
+        add_header Cache-Control "no-cache";
+        # nginx does not merge add_header across levels: a block with any
+        # add_header of its own drops all inherited ones. The security headers
+        # set at server level must therefore be repeated here, or HTML responses
+        # served through this block (every prerendered page + the SPA fallback)
+        # would receive none of them.
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://is.yivi.app https://is.staging.yivi.app https://storage.postguard.eu https://storage.staging.postguard.eu;" always;
+        try_files $uri $uri/ /200.html;
+    }
+}

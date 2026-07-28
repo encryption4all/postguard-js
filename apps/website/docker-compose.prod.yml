@@ -1,0 +1,107 @@
+services:
+    # Cryptify for filesharing
+    cryptify-fileshare:
+        image: ghcr.io/encryption4all/cryptify-backend:edge
+        pull_policy: always
+        container_name: postguard-cryptify-fileshare
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+            interval: 1m30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+            start_interval: 5s
+        ports:
+            - '8000:8000'
+        volumes:
+            - cryptify-data:/app/data
+            - ./cryptify/conf/config.toml:/app/config.toml:ro
+        environment:
+            - ROCKET_CONFIG=/app/config.toml
+        networks:
+            - postguard
+        restart: unless-stopped
+        depends_on:
+            postguard-pkg:
+                condition: service_healthy
+
+    # PKG service (Private Key Generator)
+    postguard-pkg:
+        image: ghcr.io/encryption4all/postguard:edge
+        pull_policy: always
+        container_name: postguard-pkg
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8087/health']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+            start_interval: 5s
+        ports:
+            - '8087:8087'
+        environment:
+            - IRMA_SERVER=http://irma-server:8088
+        # Used to load pregenerated keys. If no keys are provided, the keys are generated on startup.
+        # volumes:
+        #   - ./docker/pkg/keys:/keys:ro
+        networks:
+            - postguard
+        restart: unless-stopped
+        depends_on:
+            - irma-server
+
+    # IRMA/Yivi server
+    irma-server:
+        image: ghcr.io/privacybydesign/irma:latest
+        container_name: postguard-irma-server
+        # Replace localhost with your host machine's IP or domain for Yivi mobile app access
+        command: server --no-auth --url http://localhost:8088 --jwt-privkey-file /etc/irma/jwt_privkey.pem
+        ports:
+            - '8088:8088'
+        volumes:
+            - ./docker/irma/jwt_privkey.pem:/etc/irma/jwt_privkey.pem:ro
+        networks:
+            - postguard
+        restart: unless-stopped
+
+    # Email testing tool
+    mailcrab:
+        image: marlonb/mailcrab:latest
+        container_name: postguard-mailcrab
+        ports:
+            - '1080:1080' # Web UI
+            - '1025:1025' # SMTP
+        networks:
+            - postguard
+        restart: unless-stopped
+
+    # PostGuard website
+    postguard-website:
+        image: ghcr.io/encryption4all/postguard-website:edge
+        pull_policy: always
+        container_name: postguard-website-prod
+        ports:
+            - '8080:80'
+        environment:
+            - PKG_UPSTREAM_URL=http://postguard-pkg:8087
+            - IRMA_UPSTREAM_URL=http://irma-server:8088
+            - VITE_FILEHOST_URL=http://cryptify-fileshare:8000
+        networks:
+            - postguard
+        restart: unless-stopped
+        depends_on:
+            cryptify-fileshare:
+                condition: service_healthy
+            postguard-pkg:
+                condition: service_healthy
+            irma-server:
+                condition: service_started
+            mailcrab:
+                condition: service_started
+
+networks:
+    postguard:
+        driver: bridge
+
+volumes:
+    cryptify-data:

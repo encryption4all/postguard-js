@@ -1,0 +1,30 @@
+# PostGuard
+
+> PostGuard is a free, open-source end-to-end encryption service for emails and files, originally developed at Radboud University with NWO funding and now maintained by Yivi at Caesar Groep. It uses Identity-Based Encryption (IBE) so senders can encrypt messages using only a recipient's email address. There is no key exchange, no certificates, and no setup required.
+
+PostGuard removes the complexity of traditional public-key encryption. Instead of managing key pairs, senders encrypt directly to a recipient's identity attributes (such as an email address or phone number). The recipient authenticates with the free Yivi identity wallet to retrieve their decryption key from PostGuard's Key Generation Service. All encryption and decryption happens entirely in the user's browser. Plaintext data never leaves the device unencrypted, and PostGuard's servers never see the content. PostGuard is available as a web application for file sharing, a browser-based email decryption inbox, and as native addons for Thunderbird and Outlook.
+
+## Key Pages
+- [Homepage](https://postguard.eu/): Overview of PostGuard, its core features, and the product family.
+- [About](https://postguard.eu/about/): How PostGuard works, the Radboud University team, and funding from NWO.
+- [File Sharing](https://postguard.eu/fileshare/): Web app for sending end-to-end encrypted files to any email address.
+- [Decrypt](https://postguard.eu/decrypt/): Web app for decrypting PostGuard-encrypted messages and files.
+- [Addons](https://postguard.eu/addons/): Browser and mail-client addons (Thunderbird, Outlook) for encrypted email.
+- [Privacy Policy](https://postguard.eu/privacy/): How PostGuard handles user data and attributes.
+- [Blog](https://postguard.eu/blog/): Posts about PostGuard, identity-based encryption, and secure communication.
+
+## Blog Posts
+- [Introducing PostGuard](https://postguard.eu/blog/introducing-postguard/): Overview of PostGuard's IBE approach and why it matters.
+- [Looking ahead with PostGuard](https://postguard.eu/blog/looking-ahead-with-postguard/): Roadmap and future plans.
+
+## Developer Resources
+- [Developer Documentation](https://docs.postguard.eu/): Architecture, protocols, and integration guides.
+- [GitHub Organization](https://github.com/encryption4all): Source code for PostGuard and its related libraries.
+
+## Key Facts
+- Free and open source (MIT license).
+- Built by the Digital Security group at Radboud University, Nijmegen, Netherlands.
+- Funded by the Dutch Research Council (NWO).
+- Uses Yivi (formerly IRMA) for identity verification.
+- All encryption happens client-side in the browser; no plaintext is sent to any server.
+- Usage limit is 5 GB per 14 days.

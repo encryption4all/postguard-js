@@ -1,0 +1,89 @@
+# Multi-stage build: compile SvelteKit frontend, build Brotli modules,
+# then assemble the final Nginx image with envsubst template support.
+
+ARG NGINX_VERSION=1.27.4
+
+# ============================================================
+# Stage 1 — Build SvelteKit frontend
+# ============================================================
+FROM node:24-slim AS frontend
+
+WORKDIR /app
+COPY package.json package-lock.json .env ./
+RUN npm ci
+COPY src/ src/
+COPY static/ static/
+COPY svelte.config.js vite.config.ts tsconfig.json ./
+RUN npx svelte-kit sync && npm run build
+
+# ============================================================
+# Stage 2 — Build brotli dynamic modules
+# ============================================================
+FROM debian:bookworm-slim AS builder
+
+ARG NGINX_VERSION
+ARG NGX_BROTLI_COMMIT=a71f9312c2deb28875acc7bacfdd5695a111aa53
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake git libpcre2-dev libssl-dev zlib1g-dev wget ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Clone ngx_brotli and build its brotli C library
+WORKDIR /usr/local/src
+RUN git clone https://github.com/google/ngx_brotli.git \
+  && cd ngx_brotli \
+  && git checkout ${NGX_BROTLI_COMMIT} \
+  && git submodule update --init --recursive
+
+WORKDIR /usr/local/src/ngx_brotli/deps/brotli
+RUN cmake -B out -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+  && cmake --build out --config Release --target brotlienc -j$(nproc)
+
+# Download nginx source and build only the brotli dynamic modules
+WORKDIR /usr/local/src
+RUN wget -q http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
+  && tar -xzf nginx-${NGINX_VERSION}.tar.gz
+
+WORKDIR /usr/local/src/nginx-${NGINX_VERSION}
+RUN ./configure --with-compat --add-dynamic-module=/usr/local/src/ngx_brotli \
+  && make modules -j$(nproc)
+
+RUN mkdir -p /tmp/modules \
+  && cp objs/ngx_http_brotli_filter_module.so /tmp/modules/ \
+  && cp objs/ngx_http_brotli_static_module.so /tmp/modules/
+
+# ============================================================
+# Stage 2 — Runtime
+# ============================================================
+FROM nginx:${NGINX_VERSION}
+
+# Install brotli modules
+COPY --from=builder /tmp/modules/ngx_http_brotli_filter_module.so /usr/lib/nginx/modules/
+COPY --from=builder /tmp/modules/ngx_http_brotli_static_module.so /usr/lib/nginx/modules/
+
+# Remove default nginx site config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy nginx base config (global settings + brotli)
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Copy nginx server template (envsubst processes this at startup)
+COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+
+# Copy entrypoint script for SPA env var replacement
+COPY docker/entrypoint.sh /docker-entrypoint.d/40-substitute-env-vars.sh
+RUN chmod +x /docker-entrypoint.d/40-substitute-env-vars.sh
+
+# Bundle the addon-sync script + a Node binary so the running container can
+# self-refresh PostGuard addon downloads (see /docker-entrypoint.d/50-…).
+# We pull the binary from node:24-slim — same debian-bookworm base as nginx,
+# so the runtime libs match without an apt install.
+COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
+COPY scripts/sync-addons.mjs /opt/sync-addons/sync-addons.mjs
+COPY docker/sync-addons-loop.sh /docker-entrypoint.d/50-sync-addons.sh
+RUN chmod +x /docker-entrypoint.d/50-sync-addons.sh
+
+# Copy frontend built in Stage 1
+COPY --from=frontend /app/build /usr/share/nginx/html/postguard
+
+EXPOSE 80

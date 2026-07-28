@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="%sveltekit.assets%/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="%sveltekit.assets%/config.js"></script>
+        <script>
+            ;(function () {
+                try {
+                    var stored = localStorage.getItem('preferredtheme')
+                    var isDark =
+                        stored === 'dark' ||
+                        (stored !== 'light' &&
+                            window.matchMedia('(prefers-color-scheme: dark)')
+                                .matches)
+                    if (isDark) document.documentElement.classList.add('dark')
+                } catch (e) {}
+            })()
+        </script>
+        %sveltekit.head%
+    </head>
+    <body>
+        <div id="app">%sveltekit.body%</div>
+    </body>
+</html>

@@ -1,0 +1,46 @@
+---
+title: "Introducing PostGuard: Easy End-to-End Encryption for Everyone"
+description: "PostGuard makes end-to-end encryption accessible. Learn how identity-based encryption simplifies secure email and file sharing."
+date: "2026-04-15"
+author: "Ruben Hensen"
+image: "/pg_logo.png"
+---
+
+# Introducing PostGuard
+
+PostGuard is a free, open-source service that brings end-to-end encryption to emails and files, without the usual complexity. Built on Identity-Based Encryption (IBE), PostGuard lets you encrypt messages for anyone using just their email address. No key exchange, no certificates, no setup required.
+
+## The problem with encrypted communication
+
+Most email applications (Gmail, Outlook, Apple Mail) and most file sharing tools do not apply end-to-end encryption by default. Your messages travel through multiple servers in plaintext, meaning unauthorized parties could intercept, read, or tamper with them along the way. For sensitive information like medical records, legal documents, or personal data, this is unacceptable.
+
+Traditional encryption solutions like PGP or S/MIME exist, but they require both parties to manage cryptographic key pairs, exchange public keys beforehand, and keep certificates up to date. This complexity has kept encryption out of reach for most people.
+
+## How PostGuard is different
+
+PostGuard uses **Identity-Based Encryption (IBE)**, a different approach. With IBE, the recipient's identity, such as their email address, *is* their public key. There is nothing to exchange or look up beforehand.
+
+Here is how sending an encrypted file works:
+
+1. Enter the email addresses of your recipients.
+2. Drag and drop your files, or browse for them on your computer.
+3. Sign with Yivi to prove your own identity, so recipients know the files came from you.
+4. Hit send. PostGuard encrypts everything locally in your browser, then uploads only the encrypted data.
+
+The recipient receives a link by email, proves their identity using the free [Yivi](https://yivi.app) app, and downloads the decrypted files. At no point does PostGuard's server see your unencrypted data.
+
+## What is Yivi?
+
+[Yivi](https://yivi.app) is a free, privacy-friendly identity wallet. Instead of logging in with a username and password, Yivi lets you prove specific attributes about yourself, like "I own this email address" or "my name is X", without revealing anything else. PostGuard uses Yivi for both sender signing and recipient authentication, which means encryption is tied directly to verified identity attributes rather than passwords or key files.
+
+## Who built PostGuard?
+
+PostGuard was originally developed by a multidisciplinary research team at [Radboud University](https://www.ru.nl) in Nijmegen, the Netherlands, funded by the Dutch Research Council (NWO). The project combines expertise in cryptography, computer science, and user experience design with the goal of making strong encryption accessible to everyone.
+
+PostGuard is currently developed and maintained by [Yivi](https://yivi.app) at [Caesar Groep](https://caesar.nl), continuing the mission of bringing usable encryption to as many people as possible.
+
+## Get started
+
+Head over to [postguard.eu/fileshare](/fileshare) to try encrypted file sharing, use the [Inbox](/decrypt) to decrypt PostGuard emails in your browser, or install the [Thunderbird or Outlook add-on](/addons) for built-in email encryption.
+
+PostGuard is fully open source under the MIT license. Visit our [GitHub](https://github.com/encryption4all) to explore the code, report issues, or contribute.
