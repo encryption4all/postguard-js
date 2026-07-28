@@ -10,6 +10,9 @@ name: Website
 # that expression resolves to `postguard-js` in this repo, while postguard-ops
 # pins ghcr.io/encryption4all/postguard-website in prod, so deriving it would
 # publish to a name nothing deploys.
+#
+# Publishing happens on main only; PRs build without pushing. See the comment on
+# the build job for why (cross-repo GHCR package access).
 
 on:
     pull_request:
@@ -163,8 +166,27 @@ jobs:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
+            # On PRs: build only, no registry write. GHCR grants package write
+            # per repository, and the postguard-website package belongs to the
+            # (soon-archived) postguard-website repo, so this repo's token
+            # cannot push to it until that package grants postguard-js write
+            # access. Building still validates the Dockerfile on every PR,
+            # which is the part worth gating on. `:pr-N` preview tags are the
+            # only casualty; restore them by flipping `push` back to true once
+            # the package access is granted.
+            - name: Build (PR — validate only, no push)
+              if: github.ref != 'refs/heads/main'
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: apps/website/docker/Dockerfile
+                  platforms: ${{ matrix.platform }}
+                  push: false
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
             - name: Build and push by digest
               id: build
+              if: github.ref == 'refs/heads/main'
               uses: docker/build-push-action@v7
               with:
                   context: .
@@ -174,11 +196,13 @@ jobs:
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
             - name: Export digest
+              if: github.ref == 'refs/heads/main'
               run: |
                   mkdir -p /tmp/digests
                   digest="${{ steps.build.outputs.digest }}"
                   touch "/tmp/digests/${digest#sha256:}"
             - name: Upload digest
+              if: github.ref == 'refs/heads/main'
               uses: actions/upload-artifact@v7
               with:
                   name: digest-${{ matrix.name }}
@@ -196,7 +220,8 @@ jobs:
     finalize:
         name: Finalize Docker manifest
         needs: build
-        if: always() && needs.build.result == 'success'
+        # Only main pushes digests, so there is nothing to assemble on a PR.
+        if: always() && needs.build.result == 'success' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         permissions:
             contents: read
