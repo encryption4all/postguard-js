@@ -1,0 +1,22 @@
+# Build context is the repo root (see apps/website/docker/Dockerfile).
+.git
+.github
+**/node_modules
+**/dist
+**/build
+**/.svelte-kit
+**/.vite
+**/coverage
+**/test-results
+**/playwright-report
+
+# Website submodules have their own build contexts
+apps/website/cryptify
+apps/website/postguard
+
+# Local env overrides never belong in an image
+**/.env.local
+**/.env.*.local
+**/*.pem
+
+**/.DS_Store

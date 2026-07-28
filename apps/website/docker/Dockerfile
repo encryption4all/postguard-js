@@ -6,15 +6,29 @@ ARG NGINX_VERSION=1.27.4
 # ============================================================
 # Stage 1 — Build SvelteKit frontend
 # ============================================================
+# Build context is the REPO ROOT, not apps/website: the site depends on
+# @e4a/pg-js as `workspace:*`, so the SDK has to be installed and built here
+# rather than fetched from npm.
 FROM node:24-slim AS frontend
+RUN corepack enable
+WORKDIR /repo
 
-WORKDIR /app
-COPY package.json package-lock.json .env ./
-RUN npm ci
-COPY src/ src/
-COPY static/ static/
-COPY svelte.config.js vite.config.ts tsconfig.json ./
-RUN npx svelte-kit sync && npm run build
+# Manifests first so a source-only change reuses the install layer. Scripts are
+# skipped at install time because pg-js's `prepare` builds it, and its sources
+# are not in the image yet.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/pg-js/package.json packages/pg-js/
+COPY apps/website/package.json apps/website/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+COPY packages/pg-js/ packages/pg-js/
+COPY apps/website/ apps/website/
+
+# pg-js first: the website imports it through the workspace symlink, so its
+# dist/ must exist. Its prebuild step runs the wasm/css/version generators.
+RUN pnpm --filter @e4a/pg-js build \
+ && pnpm --filter postguard-website exec svelte-kit sync \
+ && pnpm --filter postguard-website build
 
 # ============================================================
 # Stage 2 — Build brotli dynamic modules
@@ -65,13 +79,13 @@ COPY --from=builder /tmp/modules/ngx_http_brotli_static_module.so /usr/lib/nginx
 RUN rm /etc/nginx/conf.d/default.conf
 
 # Copy nginx base config (global settings + brotli)
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY apps/website/docker/nginx.conf /etc/nginx/nginx.conf
 
 # Copy nginx server template (envsubst processes this at startup)
-COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/website/docker/default.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy entrypoint script for SPA env var replacement
-COPY docker/entrypoint.sh /docker-entrypoint.d/40-substitute-env-vars.sh
+COPY apps/website/docker/entrypoint.sh /docker-entrypoint.d/40-substitute-env-vars.sh
 RUN chmod +x /docker-entrypoint.d/40-substitute-env-vars.sh
 
 # Bundle the addon-sync script + a Node binary so the running container can
@@ -79,11 +93,11 @@ RUN chmod +x /docker-entrypoint.d/40-substitute-env-vars.sh
 # We pull the binary from node:24-slim — same debian-bookworm base as nginx,
 # so the runtime libs match without an apt install.
 COPY --from=node:24-slim /usr/local/bin/node /usr/local/bin/node
-COPY scripts/sync-addons.mjs /opt/sync-addons/sync-addons.mjs
-COPY docker/sync-addons-loop.sh /docker-entrypoint.d/50-sync-addons.sh
+COPY apps/website/scripts/sync-addons.mjs /opt/sync-addons/sync-addons.mjs
+COPY apps/website/docker/sync-addons-loop.sh /docker-entrypoint.d/50-sync-addons.sh
 RUN chmod +x /docker-entrypoint.d/50-sync-addons.sh
 
 # Copy frontend built in Stage 1
-COPY --from=frontend /app/build /usr/share/nginx/html/postguard
+COPY --from=frontend /repo/apps/website/build /usr/share/nginx/html/postguard
 
 EXPOSE 80
