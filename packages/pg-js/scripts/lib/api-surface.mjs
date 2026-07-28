@@ -31,6 +31,11 @@ export const BUMP_RANK = { none: 0, patch: 1, minor: 2, major: 3 };
  * declaration reaches the rollup because something exported references it, so
  * `PostGuardBase` (the base class of `PostGuard`) is as public as `PostGuard`
  * even though it is never named in the export clause.
+ *
+ * A name can own more than one statement — an overload set, or a merged
+ * `interface`/`namespace` pair — so `declarations` maps a name to the whole
+ * group rather than to a single statement. Keeping only one would hide the rest
+ * from both the report and the comparison.
  */
 export function buildModel(dts) {
   const source = ts.createSourceFile(VIRTUAL_FILE, dts, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -52,11 +57,57 @@ export function buildModel(dts) {
       continue;
     }
     const entry = buildEntry(statement, source);
-    if (entry) declarations.set(entry.name, entry);
+    if (!entry) continue;
+    const group = declarations.get(entry.name);
+    if (group) mergeEntry(group, entry);
+    else declarations.set(entry.name, startGroup(entry));
   }
 
   exports.sort((a, b) => compareNames(a.name, b.name));
   return { exports, declarations };
+}
+
+function startGroup(entry) {
+  return {
+    name: entry.name,
+    kind: entry.kind,
+    kinds: [entry.kind],
+    texts: [entry.text],
+    headers: [entry.header],
+    members: entry.members,
+    signatures: entry.signatures,
+  };
+}
+
+/**
+ * Fold a second statement for the same name into its group.
+ *
+ * Overload signatures are appended in source order, since overload order
+ * decides which one TypeScript picks. Members of merged declarations union
+ * together, and a member is only additive when every declaration of it is.
+ */
+function mergeEntry(group, entry) {
+  group.kinds.push(entry.kind);
+  group.kind = groupKind(group.kinds);
+  group.texts.push(entry.text);
+  group.headers.push(entry.header);
+  group.signatures.push(...entry.signatures);
+  for (const [key, member] of entry.members) {
+    const existing = group.members.get(key);
+    if (!existing) {
+      group.members.set(key, member);
+      continue;
+    }
+    existing.texts.push(...member.texts);
+    existing.optional = existing.optional && member.optional;
+    existing.signatures.push(...member.signatures);
+  }
+}
+
+/** `function` for an overload set, `function+namespace` for a merged pair. */
+function groupKind(kinds) {
+  const unique = [...new Set(kinds)];
+  return unique.length === 1 ? unique[0] : unique.sort(compareNames).join('+');
 }
 
 function buildEntry(statement, source) {
@@ -261,7 +312,8 @@ export function renderReport(dts) {
   }
 
   for (const name of [...model.declarations.keys()].sort(compareNames)) {
-    blocks.push(model.declarations.get(name).text);
+    // Overloads and merged declarations stay adjacent, in source order.
+    blocks.push(model.declarations.get(name).texts.join('\n'));
   }
 
   return `${REPORT_INTRO.join('\n')}${FENCE}ts\n${blocks.join('\n\n')}\n${FENCE}\n`;
@@ -303,7 +355,7 @@ export function classify(base, head) {
       });
       continue;
     }
-    if (headEntry.text === baseEntry.text) continue;
+    if (sameTexts(baseEntry.texts, headEntry.texts)) continue;
     changes.push(...compareEntry(baseEntry, headEntry));
   }
 
@@ -312,13 +364,7 @@ export function classify(base, head) {
     changes.push({ level: 'minor', name, detail: `${headEntry.kind} \`${name}\` was added` });
   }
 
-  const baseExports = new Set(base.exports.map((e) => e.name));
-  const headExports = new Set(head.exports.map((e) => e.name));
-  for (const name of baseExports) {
-    if (!headExports.has(name)) {
-      changes.push({ level: 'major', name, detail: `\`${name}\` is no longer exported` });
-    }
-  }
+  changes.push(...compareExports(base.exports, head.exports));
 
   const level = changes.some((c) => c.level === 'major')
     ? 'major'
@@ -329,15 +375,63 @@ export function classify(base, head) {
   return { level, changes };
 }
 
+/**
+ * Compare the export clauses in both directions.
+ *
+ * The clause carries more than a set of names: an alias can be re-pointed at a
+ * different declaration, and a value export can be downgraded to `export type`,
+ * which breaks `new C()` at runtime while every declaration stays put. Both are
+ * invisible to a name-only comparison.
+ */
+function compareExports(baseExports, headExports) {
+  const changes = [];
+  const byName = (list) => new Map(list.map((e) => [e.name, e]));
+  const base = byName(baseExports);
+  const head = byName(headExports);
+
+  for (const [name, baseExport] of base) {
+    const headExport = head.get(name);
+    if (!headExport) {
+      changes.push({ level: 'major', name, detail: `\`${name}\` is no longer exported` });
+      continue;
+    }
+    if (headExport.from !== baseExport.from) {
+      changes.push({
+        level: 'major',
+        name,
+        detail: `export \`${name}\` now points at \`${headExport.from}\` instead of \`${baseExport.from}\``,
+      });
+    }
+    if (headExport.isTypeOnly && !baseExport.isTypeOnly) {
+      changes.push({ level: 'major', name, detail: `\`${name}\` is now exported as a type only` });
+    } else if (!headExport.isTypeOnly && baseExport.isTypeOnly) {
+      changes.push({ level: 'minor', name, detail: `\`${name}\` is now exported as a value too` });
+    }
+  }
+
+  for (const name of head.keys()) {
+    if (!base.has(name)) {
+      changes.push({ level: 'minor', name, detail: `\`${name}\` is now exported` });
+    }
+  }
+
+  return changes;
+}
+
 function compareEntry(baseEntry, headEntry) {
   const changes = [];
 
   if (baseEntry.kind === 'class' || baseEntry.kind === 'interface') {
-    if (baseEntry.header !== headEntry.header) {
+    // Deduplicated, so merging two blocks of an interface into one is not a
+    // change by itself — only the heritage clauses and type parameters are.
+    const baseHeaders = [...new Set(baseEntry.headers)];
+    const headHeaders = [...new Set(headEntry.headers)];
+    if (!sameTexts(baseHeaders, headHeaders)) {
+      const shown = headHeaders.map((header) => header.replace(/\s*\{$/, '')).join(', ');
       changes.push({
         level: 'major',
         name: baseEntry.name,
-        detail: `\`${baseEntry.name}\` changed its declaration to \`${headEntry.header.replace(/\s*\{$/, '')}\``,
+        detail: `\`${baseEntry.name}\` changed its declaration to \`${shown}\``,
       });
     }
     for (const [key, baseMember] of baseEntry.members) {
@@ -413,6 +507,23 @@ function isAdditiveSignature(base, head) {
     if (base.parameters[i].text !== head.parameters[i].text) return false;
   }
   return head.parameters.slice(base.parameters.length).every((p) => p.optional);
+}
+
+// --- base ref --------------------------------------------------------------
+
+/**
+ * The commit a branch should be compared against: where it left `baseRef`.
+ *
+ * Deliberately not the tip of `baseRef`. Comparing against the tip attributes
+ * every API change that landed on the base branch after the fork point to this
+ * branch, so a PR that touches no public API starts demanding a major release
+ * as soon as someone else's does.
+ *
+ * `git` runs git with the given arguments and returns stdout; it throws when
+ * there is no common ancestor, which in practice means the clone is too shallow.
+ */
+export function comparisonBase(git, baseRef) {
+  return git('merge-base', baseRef, 'HEAD').trim();
 }
 
 // --- changesets ------------------------------------------------------------

@@ -98,10 +98,12 @@ in a `refactor:` commit.
   Fix it with `pnpm api:update` (in `packages/pg-js`, after a build), read the diff,
   and commit it.
 - `pnpm api:gate [--base <ref>]` does the same check, then classifies the report diff
-  against a base ref and fails when the pending changeset is too small: a removal or
-  a changed signature needs `major`, a new export needs at least `minor`. It reads the
-  base ref from the local object store, so a shallow CI checkout must
-  `git fetch --no-tags --depth=1 origin main` first.
+  and fails when the pending changeset is too small: a removal or a changed signature
+  needs `major`, a new export needs at least `minor`. It compares against the *merge
+  base* of the base ref and HEAD, not the base tip, so an API change that lands on
+  `main` afterwards is not blamed on the branch. That needs enough history in the
+  clone to find a common ancestor: `fetch-depth: 0` in CI. A `--depth=1` fetch of the
+  base branch is not enough, and the script says so rather than guessing.
 - `api:gate` is NOT yet a CI step. The job patch is a comment on
   encryption4all/postguard-js#135 and needs a maintainer to apply it, because the bot
   cannot push `.github/workflows/`. Until then, run it locally on API-changing PRs.

@@ -5,7 +5,8 @@
 //   node scripts/api-report.mjs --gate [--base <ref>]
 //                                               --check, then require the
 //                                               pending changeset to cover the
-//                                               API diff against <ref>
+//                                               API diff against the merge base
+//                                               with <ref>
 //
 // All three need dist/index.d.mts, so run `pnpm build` first. `--check` is
 // wired into `postbuild`, which is how CI gets it for free.
@@ -18,7 +19,14 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-import { BUMP_RANK, classify, parseReport, pendingBump, renderReport } from './lib/api-surface.mjs';
+import {
+  BUMP_RANK,
+  classify,
+  comparisonBase,
+  parseReport,
+  pendingBump,
+  renderReport,
+} from './lib/api-surface.mjs';
 
 const PACKAGE_NAME = '@e4a/pg-js';
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,36 +81,52 @@ function readChangesets() {
     .map((name) => ({ name, content: readFileSync(join(dir, name), 'utf8') }));
 }
 
-function gate(baseRef) {
-  check();
-
+/** Resolve the merge base, turning both git failures into advice. */
+function resolveComparisonBase(baseRef) {
+  const branch = baseRef.replace(/^origin\//, '');
   try {
     git('rev-parse', '--verify', '--quiet', `${baseRef}^{commit}`);
   } catch {
     fail(
       `cannot resolve the base ref \`${baseRef}\`.\n` +
-        `Fetch it first, e.g. \`git fetch --no-tags --depth=1 origin ${baseRef.replace(/^origin\//, '')}\`,\n` +
+        `Fetch it first, e.g. \`git fetch --no-tags origin ${branch}\`,\n` +
         'or pass a different ref with --base.'
     );
   }
+  try {
+    return comparisonBase(git, baseRef);
+  } catch {
+    fail(
+      `\`${baseRef}\` and HEAD have no common ancestor in this clone.\n` +
+        'The checkout is probably too shallow to find one. Deepen it, e.g.\n' +
+        `\`git fetch --no-tags --unshallow origin ${branch}\` (in CI: \`fetch-depth: 0\`).`
+    );
+  }
+}
+
+function gate(baseRef) {
+  check();
+
+  const mergeBase = resolveComparisonBase(baseRef);
+  const against = `${baseRef} (merge base ${mergeBase.slice(0, 7)})`;
 
   const path = reportPathInRepo();
   let baseReport;
   try {
-    baseReport = git('show', `${baseRef}:${path}`);
+    baseReport = git('show', `${mergeBase}:${path}`);
   } catch {
-    console.log(`api-report: ${baseRef} has no ${path} yet, nothing to compare against`);
+    console.log(`api-report: ${against} has no ${path} yet, nothing to compare against`);
     return;
   }
 
   const { level, changes } = classify(parseReport(baseReport), parseReport(readFileSync(REPORT_PATH, 'utf8')));
 
   if (changes.length === 0) {
-    console.log(`api-report: no public API change against ${baseRef}`);
+    console.log(`api-report: no public API change against ${against}`);
     return;
   }
 
-  console.log(`api-report: public API changes against ${baseRef}:`);
+  console.log(`api-report: public API changes against ${against}:`);
   for (const change of changes) console.log(`  ${change.level.padEnd(5)} ${change.detail}`);
 
   const declared = pendingBump(readChangesets(), PACKAGE_NAME);

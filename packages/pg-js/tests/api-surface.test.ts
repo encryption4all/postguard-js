@@ -1,11 +1,15 @@
-import { readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { fileURLToPath } from 'url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   BUMP_RANK,
   buildModel,
   classify,
+  comparisonBase,
   parseReport,
   pendingBump,
   renderReport,
@@ -60,6 +64,25 @@ describe('renderReport', () => {
     `;
     expect([...model(dts).declarations.keys()]).toEqual(['Base', 'Derived']);
   });
+
+  it('keeps every overload of a function', () => {
+    const dts = `
+      declare function go(a: string): void;
+      declare function go(a: number): void;
+      declare function go(a: boolean): void;
+      export { go };
+    `;
+    const report = renderReport(dts);
+    expect(report).toContain('declare function go(a: string): void;');
+    expect(report).toContain('declare function go(a: number): void;');
+    expect(report).toContain('declare function go(a: boolean): void;');
+    expect(model(dts).declarations.get('go').signatures).toHaveLength(3);
+  });
+
+  it('keeps both halves of a merged interface', () => {
+    const dts = `interface A { x: string; }\ninterface A { y: number; }\nexport { type A };`;
+    expect([...model(dts).declarations.get('A').members.keys()].sort()).toEqual(['x', 'y']);
+  });
 });
 
 describe('classify', () => {
@@ -110,7 +133,37 @@ describe('classify', () => {
     const base = `interface A { x: string; }\nexport { type A };`;
     const head = `interface A { x: string; }\ninterface B { y: string; }\nexport { type A, type B };`;
     expect(levelOf(base, head)).toBe('minor');
-    expect(detailsOf(base, head)).toEqual(['interface `B` was added']);
+    expect(detailsOf(base, head)).toEqual(['interface `B` was added', '`B` is now exported']);
+  });
+
+  describe('the export clause', () => {
+    it('treats exporting an already-declared type as minor', () => {
+      const base = `interface A { x: B; }\ninterface B { y: string; }\nexport { type A };`;
+      const head = `interface A { x: B; }\ninterface B { y: string; }\nexport { type A, type B };`;
+      expect(detailsOf(base, head)).toEqual(['`B` is now exported']);
+      expect(levelOf(base, head)).toBe('minor');
+    });
+
+    it('treats downgrading a value export to type-only as major', () => {
+      const base = `declare class C {\n  constructor();\n}\nexport { C };`;
+      const head = `declare class C {\n  constructor();\n}\nexport type { C };`;
+      expect(detailsOf(base, head)).toEqual(['`C` is now exported as a type only']);
+      expect(levelOf(base, head)).toBe('major');
+    });
+
+    it('treats also exporting a type as a value as minor', () => {
+      const base = `declare class C {\n  constructor();\n}\nexport type { C };`;
+      const head = `declare class C {\n  constructor();\n}\nexport { C };`;
+      expect(detailsOf(base, head)).toEqual(['`C` is now exported as a value too']);
+      expect(levelOf(base, head)).toBe('minor');
+    });
+
+    it('treats re-pointing an alias as major', () => {
+      const base = `interface A { x: string; }\ninterface B { y: string; }\nexport { type A as Pub, type A, type B };`;
+      const head = `interface A { x: string; }\ninterface B { y: string; }\nexport { type B as Pub, type A, type B };`;
+      expect(detailsOf(base, head)).toEqual(['export `Pub` now points at `B` instead of `A`']);
+      expect(levelOf(base, head)).toBe('major');
+    });
   });
 
   it('treats a changed base class as major', () => {
@@ -179,6 +232,18 @@ describe('classify', () => {
       const head = `declare function go(a: string): void;\nexport { go };`;
       expect(levelOf(base, head)).toBe('major');
     });
+
+    it('treats a dropped overload as major when it is not the last one', () => {
+      const base = `declare function go(a: string): void;\ndeclare function go(a: number): void;\ndeclare function go(a: boolean): void;\nexport { go };`;
+      const head = `declare function go(a: string): void;\ndeclare function go(a: boolean): void;\nexport { go };`;
+      expect(detailsOf(base, head)).toEqual(['`go` changed signature']);
+    });
+
+    it('applies the same rule to a merged interface', () => {
+      const base = `interface A { x: string; }\ninterface A { y: number; }\nexport { type A };`;
+      const head = `interface A { y: number; }\nexport { type A };`;
+      expect(detailsOf(base, head)).toEqual(['`A.x` was removed']);
+    });
   });
 
   it('reports the highest level when several things changed', () => {
@@ -186,7 +251,84 @@ describe('classify', () => {
     const head = `interface A { y: string; }\ninterface B { z: string; }\nexport { type A, type B };`;
     const { level, changes } = classify(model(base), model(head));
     expect(level).toBe('major');
-    expect(changes).toHaveLength(3);
+    expect(changes.map((c) => c.detail)).toEqual([
+      '`A.x` was removed',
+      '`A.y` was added as a required member',
+      'interface `B` was added',
+      '`B` is now exported',
+    ]);
+  });
+});
+
+describe('comparisonBase', () => {
+  const repos: string[] = [];
+
+  afterAll(() => {
+    for (const dir of repos) rmSync(dir, { recursive: true, force: true });
+  });
+
+  /**
+   * A repo shaped like the case that matters: a branch that changed no public
+   * API, with an unrelated API change landed on `main` afterwards.
+   *
+   *   main    A --- B (interface Beta added)
+   *            \
+   *   branch    C (docs only)
+   */
+  function scratchRepo() {
+    const dir = mkdtempSync(join(tmpdir(), 'pg-api-base-'));
+    repos.push(dir);
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const commit = (message: string) => {
+      git('add', '-A');
+      git('-c', 'user.name=t', '-c', 'user.email=t@e', 'commit', '-q', '-m', message);
+    };
+    const report = (dts: string) => writeFileSync(join(dir, 'api.md'), renderReport(dts));
+
+    const alpha = `interface Alpha { x: string; }\nexport { type Alpha };`;
+    const withBeta = `interface Alpha { x: string; }\ninterface Beta { y: string; }\nexport { type Alpha, type Beta };`;
+
+    git('init', '-q', '-b', 'main');
+    report(alpha);
+    commit('base report');
+    git('checkout', '-q', '-b', 'branch');
+    writeFileSync(join(dir, 'README.md'), 'docs\n');
+    commit('docs only');
+    git('checkout', '-q', 'main');
+    report(withBeta);
+    commit('add interface Beta');
+    git('checkout', '-q', 'branch');
+
+    return { dir, git, alpha, withBeta, report, commit };
+  }
+
+  /** The report as of the commit the gate compares against. */
+  const baseModel = (repo: ReturnType<typeof scratchRepo>) =>
+    parseReport(repo.git('show', `${comparisonBase(repo.git, 'main')}:api.md`));
+
+  const headModel = (repo: ReturnType<typeof scratchRepo>) =>
+    parseReport(readFileSync(join(repo.dir, 'api.md'), 'utf8'));
+
+  it('ignores an API change that landed on the base branch after the fork', () => {
+    const repo = scratchRepo();
+    expect(classify(baseModel(repo), headModel(repo))).toEqual({ level: 'none', changes: [] });
+  });
+
+  it('still reports an API change made on the branch', () => {
+    const repo = scratchRepo();
+    repo.report(`interface Alpha { x: number; }\nexport { type Alpha };`);
+    repo.commit('narrow Alpha.x');
+    const { level, changes } = classify(baseModel(repo), headModel(repo));
+    expect(level).toBe('major');
+    expect(changes.map((c) => c.detail)).toEqual(['`Alpha.x` changed signature']);
+  });
+
+  it('resolves to the base tip once the branch is merged up to date', () => {
+    const repo = scratchRepo();
+    repo.git('-c', 'user.name=t', '-c', 'user.email=t@e', 'merge', '-q', 'main', '-m', 'merge main');
+    expect(comparisonBase(repo.git, 'main')).toBe(repo.git('rev-parse', 'main').trim());
+    expect(classify(baseModel(repo), headModel(repo))).toEqual({ level: 'none', changes: [] });
   });
 });
 
