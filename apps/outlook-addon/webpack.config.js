@@ -35,7 +35,9 @@ function resolveEnv(isProduction) {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables for a production build: ${missing.join(", ")}. ` +
-        "The staging defaults are only applied to development builds; see .env.example."
+        "The staging defaults are only applied to development builds. The production values " +
+        "are the ARG defaults in apps/outlook-addon/Dockerfile, and the release job passes them " +
+        "as build-args from .github/workflows/outlook-addon.yml's env block."
     );
   }
   return resolved;

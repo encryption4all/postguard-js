@@ -27,3 +27,12 @@ apps/website/postguard
 # app-local .dockerignore that went dead when the build context moved to the root.
 apps/outlook-addon/.env
 apps/outlook-addon/.env.*
+
+# Also carried over from that app-local file: docs and READMEs are in the build
+# context otherwise, so `COPY apps/outlook-addon/ apps/outlook-addon/` busts the
+# source layer and forces a full webpack pass on a docs-only edit. Nothing under
+# these is read by the build, and the runtime stage only copies dist/.
+apps/outlook-addon/docs
+apps/outlook-addon/CLAUDE.md
+apps/outlook-addon/README.md
+apps/outlook-addon/*.log
