@@ -1,0 +1,292 @@
+// Inline policy editor used both for "Manage Access" (recipient policies)
+// and "Sign" (sender attribute selection). Mounts directly into a host
+// container in the compose view — no Save/Cancel; onChange fires after every
+// mutation.
+//
+// UI pattern mirrors postguard-website's RecipientSelectionFields: the email
+// is locked at the top, selected attributes are rendered as input rows with
+// a × delete button, and unselected attributes are shown as "+" chips that
+// add a fresh row when clicked.
+
+import { AttributeDescriptor, EMAIL_ATTRIBUTE_TYPE, SUPPORTED_ATTRIBUTES } from "../lib/attributes";
+import { Policy, AttributeRequest } from "../lib/types";
+import { t } from "../lib/i18n";
+
+interface PolicyPanelOptions {
+  emails: string[];
+  initialPolicy: Policy;
+  onChange: (next: Policy) => void;
+  // "manage" (default): recipient-side required disclosure — rows have
+  // value inputs and are filtered out of the result when empty.
+  // "sign": sender-side optional disclosure — selected attributes render
+  // as chips with no value input; result entries are { t, optional: true }.
+  mode?: "manage" | "sign";
+}
+
+export function mountPolicyPanel(container: HTMLElement, opts: PolicyPanelOptions): void {
+  const mode = opts.mode ?? "manage";
+
+  // Working state for this panel — extras only (email is implicit).
+  const working = new Map<string, AttributeRequest[]>();
+  for (const email of opts.emails) {
+    const attrs = opts.initialPolicy[email] ?? [];
+    const extras = attrs
+      .filter((a) => a.t !== EMAIL_ATTRIBUTE_TYPE)
+      .map((a) => (mode === "sign" ? { t: a.t, optional: true } : { t: a.t, v: a.v ?? "" }));
+    working.set(email, extras);
+  }
+
+  const fireChange = () => {
+    const result: Policy = {};
+    for (const [email, extras] of working.entries()) {
+      if (mode === "sign") {
+        result[email] = [
+          { t: EMAIL_ATTRIBUTE_TYPE, v: email },
+          ...extras.map((a) => ({ t: a.t, optional: true })),
+        ];
+      } else {
+        // Keep empty-valued rows in the policy so the compose view can
+        // surface them and block encryption. Previously these were silently
+        // filtered, which made the encrypt-time policy email-only without
+        // the user realising (#57).
+        const kept = extras.map((a) => ({ t: a.t, v: (a.v ?? "").trim() }));
+        result[email] = [{ t: EMAIL_ATTRIBUTE_TYPE, v: email }, ...kept];
+      }
+    }
+    opts.onChange(result);
+  };
+
+  container.innerHTML = "";
+  if (working.size === 0) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "pg-policy-recipients";
+  for (const email of working.keys()) {
+    wrapper.appendChild(renderRecipient(working, email, fireChange, mode));
+  }
+  container.appendChild(wrapper);
+}
+
+function renderRecipient(
+  working: Map<string, AttributeRequest[]>,
+  email: string,
+  fireChange: () => void,
+  mode: "manage" | "sign"
+): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "pg-policy-recipient";
+  section.dataset.email = email;
+  rerenderRecipient(working, section, email, fireChange, mode);
+  return section;
+}
+
+function rerenderRecipient(
+  working: Map<string, AttributeRequest[]>,
+  section: HTMLElement,
+  email: string,
+  fireChange: () => void,
+  mode: "manage" | "sign"
+): void {
+  const extras = working.get(email)!;
+  section.innerHTML = "";
+
+  const heading = document.createElement("div");
+  heading.className = "pg-policy-recipient-email";
+  heading.textContent = email;
+  section.appendChild(heading);
+
+  if (mode === "sign") {
+    // Sign mode: render selected attributes as filled chips; the user
+    // discloses values inside the Yivi app at session time, no value
+    // inputs in the taskpane. Empty list is a valid state (email-only
+    // signing).
+    if (extras.length > 0) {
+      const chipRow = document.createElement("div");
+      chipRow.className = "pg-policy-add-row";
+      for (let i = 0; i < extras.length; i++) {
+        const desc = SUPPORTED_ATTRIBUTES.find((d) => d.type === extras[i].t);
+        if (!desc) continue;
+        chipRow.appendChild(
+          renderSelectedChip(extras, i, desc, () => {
+            rerenderRecipient(working, section, email, fireChange, mode);
+            fireChange();
+          })
+        );
+      }
+      section.appendChild(chipRow);
+    }
+  } else {
+    for (let i = 0; i < extras.length; i++) {
+      const desc = SUPPORTED_ATTRIBUTES.find((d) => d.type === extras[i].t);
+      if (!desc) continue;
+      section.appendChild(
+        renderAttrRow(
+          extras,
+          i,
+          desc,
+          () => {
+            rerenderRecipient(working, section, email, fireChange, mode);
+            fireChange();
+          },
+          fireChange
+        )
+      );
+    }
+  }
+
+  const addable = SUPPORTED_ATTRIBUTES.filter(
+    (d) => d.type !== EMAIL_ATTRIBUTE_TYPE && !extras.some((e) => e.t === d.type)
+  );
+  if (addable.length > 0) {
+    const addRow = document.createElement("div");
+    addRow.className = "pg-policy-add-row";
+    for (const desc of addable) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pg-policy-add-chip";
+      btn.textContent = `+ ${t(desc.type, desc.defaultLabel)}`;
+      btn.addEventListener("click", () => {
+        extras.push(mode === "sign" ? { t: desc.type, optional: true } : { t: desc.type, v: "" });
+        rerenderRecipient(working, section, email, fireChange, mode);
+        fireChange();
+      });
+      addRow.appendChild(btn);
+    }
+    section.appendChild(addRow);
+  }
+}
+
+function renderSelectedChip(
+  extras: AttributeRequest[],
+  index: number,
+  desc: AttributeDescriptor,
+  onDelete: () => void
+): HTMLElement {
+  const chip = document.createElement("span");
+  chip.className = "pg-policy-selected-chip";
+
+  const label = document.createElement("span");
+  label.textContent = t(desc.type, desc.defaultLabel);
+  chip.appendChild(label);
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "pg-policy-selected-chip-remove";
+  remove.setAttribute(
+    "aria-label",
+    `${t("removeRecipient", "Remove")} ${t(desc.type, desc.defaultLabel)}`
+  );
+  remove.textContent = "×";
+  remove.addEventListener("click", () => {
+    extras.splice(index, 1);
+    onDelete();
+  });
+  chip.appendChild(remove);
+
+  return chip;
+}
+
+function renderAttrRow(
+  extras: AttributeRequest[],
+  index: number,
+  desc: AttributeDescriptor,
+  onDelete: () => void,
+  fireChange: () => void
+): HTMLElement {
+  const attr = extras[index];
+
+  const row = document.createElement("div");
+  row.className = "pg-policy-attr";
+
+  const inputId = `pg-attr-${desc.type}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const label = document.createElement("label");
+  label.textContent = t(desc.type, desc.defaultLabel);
+  label.htmlFor = inputId;
+  row.appendChild(label);
+
+  const inputRow = document.createElement("div");
+  inputRow.className = "pg-policy-attr-input";
+
+  const input = document.createElement("input");
+  input.id = inputId;
+  const hint = document.createElement("div");
+  hint.className = "pg-policy-attr-hint";
+  hint.textContent = t(
+    "policyAttrValueMissingHint",
+    "Required attributes need a value. The recipient must disclose this exact value to decrypt."
+  );
+  hint.hidden = true;
+  const markMissing = () => {
+    const missing = (input.value ?? "").trim().length === 0;
+    input.classList.toggle("pg-policy-attr-missing", missing);
+    input.setAttribute("aria-invalid", missing ? "true" : "false");
+    hint.hidden = !missing;
+  };
+
+  if (desc.type === "pbdf.gemeente.personalData.dateofbirth") {
+    // Yivi stores DOB as DD-MM-YYYY but <input type="date"> uses YYYY-MM-DD.
+    // Round-trip through helpers so the IBE identity at encrypt matches what
+    // Yivi discloses at decrypt.
+    input.type = "date";
+    input.value = ddmmyyyyToHtml(attr.v ?? "");
+    input.addEventListener("input", () => {
+      attr.v = htmlToDdmmyyyy(input.value);
+      markMissing();
+      fireChange();
+    });
+  } else if (desc.type === "pbdf.sidn-pbdf.mobilenumber.mobilenumber") {
+    // Yivi stores numbers in E.164. We don't have libphonenumber here yet so
+    // we accept whatever the user types; mismatched-format identities will
+    // simply fail at decrypt — better than silently rewriting input.
+    input.type = "tel";
+    input.placeholder = "+31612345678";
+    input.value = attr.v ?? "";
+    input.addEventListener("input", () => {
+      attr.v = input.value;
+      markMissing();
+      fireChange();
+    });
+  } else {
+    input.type = "text";
+    input.value = attr.v ?? "";
+    input.addEventListener("input", () => {
+      attr.v = input.value;
+      markMissing();
+      fireChange();
+    });
+  }
+  markMissing();
+
+  inputRow.appendChild(input);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "pg-policy-attr-delete";
+  deleteBtn.setAttribute(
+    "aria-label",
+    `${t("removeRecipient", "Remove")} ${t(desc.type, desc.defaultLabel)}`
+  );
+  deleteBtn.textContent = "×";
+  deleteBtn.addEventListener("click", () => {
+    extras.splice(index, 1);
+    onDelete();
+  });
+  inputRow.appendChild(deleteBtn);
+
+  row.appendChild(inputRow);
+  row.appendChild(hint);
+  return row;
+}
+
+function ddmmyyyyToHtml(ddmmyyyy: string): string {
+  if (!ddmmyyyy) return "";
+  const p = ddmmyyyy.split("-");
+  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : "";
+}
+
+function htmlToDdmmyyyy(yyyymmdd: string): string {
+  if (!yyyymmdd) return "";
+  const p = yyyymmdd.split("-");
+  return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : "";
+}

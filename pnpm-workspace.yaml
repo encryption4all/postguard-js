@@ -25,3 +25,18 @@ overrides:
   # (declares ^0.28.0) back to 0.27.7. svelte-i18n is the only path that pulls a
   # pre-fix esbuild (0.19.12 without this).
   'svelte-i18n>esbuild': '>=0.27.2'
+
+  # The apps/outlook-addon import surfaced three advisories, all in dev tooling
+  # (eslint plugins, office-addin-*, webpack-dev-server) and none reachable from
+  # shipped code — brace-expansion appears 0 times in the built taskpane bundle.
+  #
+  # They are deliberately NOT pinned here. Forcing them breaks the toolchain:
+  # `brace-expansion: '>=5.0.8'` pushed every minimatch in the tree onto
+  # brace-expansion 5, whose namespace export minimatch 3 and 9 both fail to
+  # interop with (`TypeError: expand is not a function` on any lint run). A floor
+  # is safe against DOWNGRADES, which is why the esbuild entry above uses one,
+  # but it can still cross a breaking major — the mistake this comment records.
+  #
+  # Tracked in encryption4all/postguard-js#142: the real fix is moving the
+  # office-addin and eslint-plugin chains off the pinned transitive versions,
+  # not overriding them from here.

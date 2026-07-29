@@ -1,0 +1,82 @@
+{
+  "name": "postguard-outlook-addin",
+  "version": "0.4.0",
+  "private": true,
+  "description": "PostGuard end-to-end email encryption for Outlook (new Outlook on Windows + macOS).",
+  "license": "MIT",
+  "config": {
+    "app_to_debug": "outlook",
+    "app_type_to_debug": "desktop",
+    "dev_server_port": 3000
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "dev-server": "webpack serve --mode development",
+    "lint": "office-addin-lint check",
+    "lint:fix": "office-addin-lint fix",
+    "prettier": "office-addin-lint prettier",
+    "signin": "office-addin-dev-settings m365-account login",
+    "signout": "office-addin-dev-settings m365-account logout",
+    "start": "office-addin-debugging start manifest.xml",
+    "stop": "office-addin-debugging stop manifest.xml",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "validate": "office-addin-manifest validate manifest.xml",
+    "watch": "webpack --mode development --watch"
+  },
+  "dependencies": {
+    "@e4a/pg-js": "workspace:*",
+    "@privacybydesign/yivi-css": "^1.0.1",
+    "core-js": "^3.49.0",
+    "regenerator-runtime": "^0.14.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.5",
+    "@babel/preset-typescript": "^7.28.5",
+    "@types/node": "^22.20.1",
+    "@types/office-js": "^1.0.596",
+    "@types/office-runtime": "^1.0.39",
+    "@typescript-eslint/parser": "^8.46.4",
+    "babel-loader": "^10.1.1",
+    "copy-webpack-plugin": "^14.0.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-office-addins": "^4.0.9",
+    "file-loader": "^6.2.0",
+    "globals": "^16.5.0",
+    "html-loader": "^5.1.0",
+    "html-webpack-plugin": "^5.6.7",
+    "lint-staged": "^17.0.5",
+    "office-addin-cli": "^2.0.9",
+    "office-addin-debugging": "^6.1.1",
+    "office-addin-dev-certs": "^2.0.9",
+    "office-addin-lint": "^3.0.9",
+    "office-addin-manifest": "^2.1.5",
+    "office-addin-prettier-config": "^2.0.4",
+    "os-browserify": "^0.3.0",
+    "process": "^0.11.10",
+    "source-map-loader": "^5.0.0",
+    "typescript": "^6.0.3",
+    "webpack": "^5.108.3",
+    "webpack-cli": "^7.1.0",
+    "webpack-dev-server": "^5.2.5"
+  },
+  "prettier": "office-addin-prettier-config",
+  "browserslist": [
+    "last 2 Edge versions",
+    "last 2 Safari versions",
+    "last 2 Chrome versions",
+    "last 2 Firefox versions"
+  ],
+  "lint-staged": {
+    "*.{js,mjs,ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
+  }
+}

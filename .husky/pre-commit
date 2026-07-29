@@ -6,3 +6,6 @@
 # whole app in one commit, which belongs in its own change rather than an import.
 # Tracked as encryption4all/postguard-js#138.
 pnpm --filter postguard-website exec lint-staged
+# apps/outlook-addon ships eslint + prettier config and lint scripts, so unlike
+# apps/tb-addon it is not exempt.
+pnpm --filter postguard-outlook-addin exec lint-staged
