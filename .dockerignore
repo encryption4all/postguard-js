@@ -20,3 +20,5 @@ apps/website/postguard
 **/*.pem
 
 **/.DS_Store
+**/.env
+**/.env.*

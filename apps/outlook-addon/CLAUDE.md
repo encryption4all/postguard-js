@@ -175,5 +175,8 @@ webpack's DefinePlugin bakes `PKG_URL`, `CRYPTIFY_URL` and `POSTGUARD_WEBSITE_UR
 into the bundle, and production mode refuses the staging fallbacks rather than
 silently shipping them. Cryptify is **`storage.postguard.eu`**, not
 `fileshare.*` — the latter no longer resolves, and shipping it broke file sending
-for every Outlook user (postguard-outlook-addon#132). The `Baked URLs resolve` CI
-job asserts every configured host resolves, so that cannot recur silently.
+for every Outlook user (encryption4all/postguard-outlook-addon#132). The `Baked URLs resolve` CI job
+asserts that every `*.postguard.eu` host reachable by the build resolves — the
+workflow's own env plus the hardcoded values in `Dockerfile` and
+`webpack.config.js`, since #132 was a wrong Dockerfile `ARG`. It is a DNS check,
+not a reachability check: a host that resolves but serves nothing still passes.

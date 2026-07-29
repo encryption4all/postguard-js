@@ -25,6 +25,10 @@ on:
 permissions:
     contents: read
 
+# Until encryption4all/postguard-outlook-addon's own release.yml is neutralised,
+# both repos push `:edge` and `:latest` to this package and can overwrite each
+# other with different content. Disabling the old workflow is part of merging
+# this; see the after-merge plan on encryption4all/postguard-js#127.
 env:
     IMAGE: ghcr.io/encryption4all/postguard-outlook-addon
     # Baked into the bundle by webpack's DefinePlugin. `storage.postguard.eu`,
@@ -52,7 +56,7 @@ jobs:
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v6
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
               working-directory: .
@@ -64,6 +68,12 @@ jobs:
             - name: Build
               run: pnpm build
               env:
+                  # ADDIN_PUBLIC_URL too: unset, webpack falls back to the
+                  # production add-in origin, so this would validate a manifest
+                  # pairing the prod origin with staging backends — a combination
+                  # that never ships. It also drives the localhost rewrite that
+                  # `pnpm validate` then checks.
+                  ADDIN_PUBLIC_URL: https://${{ env.EDGE_ADDIN_HOST }}/
                   PKG_URL: ${{ env.EDGE_PKG_URL }}
                   CRYPTIFY_URL: ${{ env.EDGE_CRYPTIFY_URL }}
                   POSTGUARD_WEBSITE_URL: ${{ env.EDGE_WEBSITE_URL }}
@@ -78,16 +88,19 @@ jobs:
             - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v6
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
               working-directory: .
             - run: pnpm test
 
-    # Every URL this app bakes into its bundle must actually resolve. A dead
-    # Cryptify host shipped to production undetected because nothing checked
-    # (postguard-outlook-addon#132): the add-in loaded fine and only failed when
-    # a user sent a file. Cheap to assert, and it fails the PR rather than a user.
+    # Every host this app can bake into its bundle must resolve. A dead Cryptify
+    # host reached production undetected (encryption4all/postguard-outlook-addon#132):
+    # the add-in loaded fine and only failed when a user sent a file.
+    #
+    # It reads the two files that actually carry the values as well as this
+    # workflow's env, because #132 was a wrong `ARG` default in the Dockerfile —
+    # exactly the copy a workflow-only check does not see.
     urls:
         name: Baked URLs resolve
         runs-on: ubuntu-latest
@@ -97,19 +110,41 @@ jobs:
               shell: bash
               run: |
                   set -uo pipefail
+                  # This workflow's env, plus every postguard.eu host hardcoded in
+                  # the two files that feed the build. Collected together so the
+                  # Dockerfile ARG defaults and webpack's envDefaults — the copy
+                  # that broke in #132 — are covered too.
+                  {
+                    printf '%s\n' "$PROD_PKG_URL" "$PROD_CRYPTIFY_URL" "$PROD_WEBSITE_URL" \
+                                   "https://$PROD_ADDIN_HOST" \
+                                   "$EDGE_PKG_URL" "$EDGE_CRYPTIFY_URL" "$EDGE_WEBSITE_URL" \
+                                   "https://$EDGE_ADDIN_HOST"
+                    grep -ohE 'https://[a-z0-9.-]+\.postguard\.eu' \
+                      apps/outlook-addon/Dockerfile \
+                      apps/outlook-addon/webpack.config.js
+                  } | sed -E 's#^https://##; s#/.*$##' | sort -u > /tmp/hosts
+                  if ! command -v getent >/dev/null && ! command -v host >/dev/null \
+                     && ! command -v nslookup >/dev/null; then
+                    echo "::error::no DNS lookup tool available; this check would pass vacuously"
+                    exit 1
+                  fi
+                  echo "checking $(wc -l < /tmp/hosts) distinct hosts:"
                   fail=0
-                  for url in "$PROD_PKG_URL" "$PROD_CRYPTIFY_URL" "$PROD_WEBSITE_URL" \
-                             "https://$PROD_ADDIN_HOST" \
-                             "$EDGE_PKG_URL" "$EDGE_CRYPTIFY_URL" "$EDGE_WEBSITE_URL" \
-                             "https://$EDGE_ADDIN_HOST"; do
-                    host="${url#https://}"; host="${host%%/*}"
-                    if ! getent hosts "$host" >/dev/null 2>&1 && ! host "$host" >/dev/null 2>&1; then
-                      echo "::error::$host does not resolve (from $url)"
+                  while read -r host; do
+                    [ -z "$host" ] && continue
+                    # Fallback chain rather than getent alone: it is glibc-only
+                    # and absent on some images, so a single tool would report
+                    # every host dead and make this check useless-but-green-looking
+                    # the moment the runner image changes.
+                    if getent hosts "$host" >/dev/null 2>&1 \
+                      || host "$host" >/dev/null 2>&1 \
+                      || nslookup "$host" >/dev/null 2>&1; then
+                      echo "  ok   $host"
+                    else
+                      echo "::error::$host does not resolve, but the build can bake it in"
                       fail=1
-                      continue
                     fi
-                    echo "ok  $host"
-                  done
+                  done < /tmp/hosts
                   exit "$fail"
 
     nginx:
@@ -132,6 +167,10 @@ jobs:
     # workspace and build the SDK first (see apps/outlook-addon/Dockerfile).
     image:
         name: Image (${{ github.ref_type == 'tag' && 'release' || 'edge' }})
+        # Gated on every check. Without this the job publishes in parallel with
+        # them, so a red `urls` would not stop the same bundle shipping — which is
+        # precisely the failure this workflow exists to prevent.
+        needs: [check, test, urls, nginx]
         if: github.event_name == 'push'
         runs-on: ubuntu-latest
         permissions:
@@ -184,7 +223,13 @@ jobs:
               with:
                   context: .
                   file: apps/outlook-addon/Dockerfile
-                  platforms: linux/amd64,linux/arm64
+                  # amd64 only, matching what the standalone repo actually
+                  # published. arm64 would be new here and nothing exercises it
+                  # before a tag: there is no setup-qemu-action, and an emulated
+                  # `webpack --mode production` over a WASM-embedding bundle is
+                  # slow and OOM-prone. Worth adding deliberately, with a build
+                  # that runs on PRs, rather than discovering it at release time.
+                  platforms: linux/amd64
                   push: true
                   tags: ${{ steps.target.outputs.tags }}
                   build-args: |
@@ -203,7 +248,7 @@ jobs:
             - uses: actions/setup-node@v6
               if: github.ref_type == 'tag'
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: pnpm
             - name: Build the production manifest
               if: github.ref_type == 'tag'
