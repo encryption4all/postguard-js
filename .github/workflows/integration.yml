@@ -5,6 +5,15 @@ on:
         branches: [main]
     workflow_call:
 
+# apps/tb-addon's build fail-closes when the backend URLs are unset, rather than
+# silently producing an addon pointed at the wrong deployment. That is worth
+# keeping, so every recursive build here supplies the same defaults the addon's
+# own workflow uses — once, rather than per step.
+env:
+    PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+    CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+    POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
+
 jobs:
     node:
         name: Node ${{ matrix.node }}
@@ -34,14 +43,6 @@ jobs:
 
             - name: Build
               run: pnpm -r build
-              # apps/tb-addon's build fail-closes when the backend URLs are
-              # unset, rather than silently producing an addon pointed at the
-              # wrong deployment. That is worth keeping, so this recursive build
-              # supplies the same defaults apps/tb-addon's own workflow uses.
-              env:
-                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
-                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
-                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test
               run: pnpm -r test
@@ -83,13 +84,13 @@ jobs:
                   BASE="${GITHUB_BASE_REF:-main}"
                   git fetch --no-tags origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
 
-            - name: Build
-              run: pnpm -r build
-              # apps/tb-addon's build fail-closes without the backend URLs.
-              env:
-                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
-                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
-                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
+            # Only what the gate reads: api-report.mjs consumes exactly
+            # packages/pg-js/dist/index.d.mts, nothing from apps/*. Filtering keeps
+            # this job out of the class where a new app's build preconditions
+            # become this workflow's, and drops a website + addon build the Node,
+            # Bun and Deno lanes already cover.
+            - name: Build the SDK
+              run: pnpm --filter @e4a/pg-js build
 
             # Fails when the report is stale (also caught by postbuild above) or
             # when the pending changeset is smaller than the API diff needs.
@@ -128,14 +129,6 @@ jobs:
 
             - name: Build
               run: pnpm -r build
-              # apps/tb-addon's build fail-closes when the backend URLs are
-              # unset, rather than silently producing an addon pointed at the
-              # wrong deployment. That is worth keeping, so this recursive build
-              # supplies the same defaults apps/tb-addon's own workflow uses.
-              env:
-                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
-                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
-                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test (vitest on Bun runtime)
               working-directory: packages/pg-js
@@ -175,14 +168,6 @@ jobs:
 
             - name: Build
               run: pnpm -r build
-              # apps/tb-addon's build fail-closes when the backend URLs are
-              # unset, rather than silently producing an addon pointed at the
-              # wrong deployment. That is worth keeping, so this recursive build
-              # supplies the same defaults apps/tb-addon's own workflow uses.
-              env:
-                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
-                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
-                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test (vitest on Deno runtime)
               working-directory: packages/pg-js
