@@ -172,16 +172,20 @@
 	<section>
 		<div class="mode-toggle">
 			<button
+				type="button"
 				class="mode-btn"
 				class:active={deliveryMode === 'send-email'}
+				aria-pressed={deliveryMode === 'send-email'}
 				onclick={() => (deliveryMode = 'send-email')}
 			>
 				<span class="mode-title">Send email</span>
 				<span class="mode-desc">Cryptify emails recipients a download link</span>
 			</button>
 			<button
+				type="button"
 				class="mode-btn"
 				class:active={deliveryMode === 'upload-only'}
+				aria-pressed={deliveryMode === 'upload-only'}
 				onclick={() => (deliveryMode = 'upload-only')}
 			>
 				<span class="mode-title">Upload only</span>
@@ -199,8 +203,14 @@
 		<h2>2. Citizen recipient</h2>
 		<p class="hint">Must prove their exact email address to decrypt.</p>
 		<div class="field-group">
-			<input type="text" bind:value={citizenName} placeholder="Name" />
-			<input type="email" bind:value={citizenEmail} placeholder="citizen@example.com" />
+			<label class="field">
+				<span class="field-label">Name</span>
+				<input type="text" bind:value={citizenName} />
+			</label>
+			<label class="field">
+				<span class="field-label">Email address</span>
+				<input type="email" bind:value={citizenEmail} placeholder="citizen@example.com" />
+			</label>
 		</div>
 	</section>
 
@@ -213,32 +223,43 @@
 			{/if}.
 		</p>
 		<div class="field-group">
-			<input type="text" bind:value={orgName} placeholder="Organisation name" />
-			<input type="email" bind:value={orgEmail} placeholder="info@organisation.nl" />
+			<label class="field">
+				<span class="field-label">Organisation name</span>
+				<input type="text" bind:value={orgName} />
+			</label>
+			<label class="field">
+				<span class="field-label">Email address at the organisation</span>
+				<input type="email" bind:value={orgEmail} placeholder="info@organisation.nl" />
+			</label>
 		</div>
 	</section>
 
 	<section>
 		<h2>4. API key</h2>
 		<p class="hint">PostGuard API key for sender authentication.</p>
-		<input
-			type="password"
-			bind:value={apiKey}
-			placeholder="PG-1a2b3c4d5e6f7g8h"
-			autocomplete="off"
-		/>
+		<label class="field">
+			<span class="field-label">API key</span>
+			<input
+				type="password"
+				bind:value={apiKey}
+				placeholder="PG-1a2b3c4d5e6f7g8h"
+				autocomplete="off"
+			/>
+		</label>
 	</section>
 
 	{#if deliveryMode === 'send-email'}
 		<section>
 			<h2>5. Message (optional)</h2>
-			<textarea bind:value={message} placeholder="Add a message for the recipients..." rows="3"
-			></textarea>
+			<label class="field">
+				<span class="field-label">Message for the recipients</span>
+				<textarea bind:value={message} rows="3"></textarea>
+			</label>
 		</section>
 	{/if}
 
 	{#if sendState === 'error'}
-		<div class="error-box">
+		<div class="error-box" role="alert">
 			<p>Error: {errorMessage}</p>
 		</div>
 	{/if}
@@ -317,13 +338,24 @@
 	}
 
 	/* Form fields */
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		flex: 1;
+	}
+	.field-label {
+		font-size: 0.85rem;
+		color: #444;
+	}
 	.field-group {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
 	}
-	.field-group input,
-	section > input {
+	/* `section > input` before the labels went in; every input now sits inside a
+	   .field label, including the API key one that used to be a direct child. */
+	.field input {
 		padding: 0.5rem;
 		border: 1px solid #ccc;
 		border-radius: 4px;
