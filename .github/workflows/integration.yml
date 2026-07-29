@@ -34,6 +34,14 @@ jobs:
 
             - name: Build
               run: pnpm -r build
+              # apps/tb-addon's build fail-closes when the backend URLs are
+              # unset, rather than silently producing an addon pointed at the
+              # wrong deployment. That is worth keeping, so this recursive build
+              # supplies the same defaults apps/tb-addon's own workflow uses.
+              env:
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test
               run: pnpm -r test
@@ -72,6 +80,14 @@ jobs:
 
             - name: Build
               run: pnpm -r build
+              # apps/tb-addon's build fail-closes when the backend URLs are
+              # unset, rather than silently producing an addon pointed at the
+              # wrong deployment. That is worth keeping, so this recursive build
+              # supplies the same defaults apps/tb-addon's own workflow uses.
+              env:
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test (vitest on Bun runtime)
               working-directory: packages/pg-js
@@ -111,6 +127,14 @@ jobs:
 
             - name: Build
               run: pnpm -r build
+              # apps/tb-addon's build fail-closes when the backend URLs are
+              # unset, rather than silently producing an addon pointed at the
+              # wrong deployment. That is worth keeping, so this recursive build
+              # supplies the same defaults apps/tb-addon's own workflow uses.
+              env:
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             - name: Test (vitest on Deno runtime)
               working-directory: packages/pg-js
