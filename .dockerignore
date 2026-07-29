@@ -20,5 +20,10 @@ apps/website/postguard
 **/*.pem
 
 **/.DS_Store
-**/.env
-**/.env.*
+# Scoped to the add-in, NOT `**/.env`: apps/website commits its .env (it carries
+# the VITE_FILEHOST_URL placeholder its entrypoint substitutes at container
+# start), and excluding it globally fails the website image build with
+# "Missing required environment variable: VITE_FILEHOST_URL". This replaces the
+# app-local .dockerignore that went dead when the build context moved to the root.
+apps/outlook-addon/.env
+apps/outlook-addon/.env.*
