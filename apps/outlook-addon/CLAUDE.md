@@ -96,14 +96,14 @@ Webpack still has `experiments.asyncWebAssembly` + `syncWebAssembly` and a `\.wa
 
 ### Overview
 
-Outlook add-in (Office.js). Lives at `apps/outlook-addon` in the postguard-js monorepo; default branch `main`. Separate from `postguard-tb-addon` (MV3 WebExtension for Thunderbird). Release: changesets from the monorepo root (B4 part two; the image is still published from the old repo until then).
+Outlook add-in (Office.js). Lives at `apps/outlook-addon` in the postguard-js monorepo; default branch `main`. Separate from `postguard-tb-addon` (MV3 WebExtension for Thunderbird). Release: changesets bumps the version from the monorepo root; pushing an `outlook-addin-v<version>` tag then publishes the image and attaches the sideloadable manifest.xml to the release. Never a bare `v*` tag — the namespace is shared with @e4a/pg-js.
 
 ### Build
 
 - `npm install` works cleanly, no `--legacy-peer-deps` needed.
 - `pnpm build` compiles; there's a pre-existing size-limit warning on the `taskpane.js` (~1.03 MiB) and `yivi-dialog.js` (~1 MiB) entrypoint bundles, which embed the bundled WASM (no standalone `.wasm` is emitted to `dist/`). Baseline, not a regression.
 - The workspace lockfile at the repo root is the one that counts; this app has no package-lock.json.
-- CI: the root `Integration` workflow builds and tests this app. No `ci.yml` exists in this repo; lint and manifest validation are not yet wired (see encryption4all/postguard-js#127).
+- CI: `.github/workflows/outlook-addon.yml` runs lint, prettier, typecheck, build, manifest validation, unit tests, nginx validation, and a check that every URL baked into the bundle resolves. The root `Integration` workflow additionally builds and tests this app as part of the workspace.
 
 ### Tests
 
@@ -168,3 +168,12 @@ The runtime image is `nginx:1.27-alpine`; `nginx/default.conf` is copied to `/et
 3. Point `listen`/`root` at a temp dir with a dummy HTML file, set `*_temp_path` under a writable dir, then `curl -D -` with different `Origin:` headers.
 
 Verified fact: nginx's `add_header X $var always;` omits the header entirely when `$var` resolves to empty (a non-allowlisted origin gets no `Access-Control-Allow-Origin`; an allowlisted origin gets it echoed back). This is the mechanism behind the map-based CORS allowlist pattern here.
+
+## Baked URLs
+
+webpack's DefinePlugin bakes `PKG_URL`, `CRYPTIFY_URL` and `POSTGUARD_WEBSITE_URL`
+into the bundle, and production mode refuses the staging fallbacks rather than
+silently shipping them. Cryptify is **`storage.postguard.eu`**, not
+`fileshare.*` — the latter no longer resolves, and shipping it broke file sending
+for every Outlook user (postguard-outlook-addon#132). The `Baked URLs resolve` CI
+job asserts every configured host resolves, so that cannot recur silently.

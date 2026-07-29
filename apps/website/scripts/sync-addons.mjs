@@ -37,7 +37,11 @@ const TARGETS = [
     },
     {
         name: 'outlook',
-        repo: 'encryption4all/postguard-outlook-addon',
+        // Same reasoning as the thunderbird target: the add-in now releases from
+        // the monorepo, and `tagPattern` is required rather than cosmetic because
+        // this repo's releases are shared with @e4a/pg-js's.
+        repo: 'encryption4all/postguard-js',
+        tagPattern: /^outlook-addin-v/,
         assetPattern: /^manifest\.xml$/i,
         outputFile: 'postguard-outlook-manifest.xml',
         metaFile: 'postguard-outlook-manifest.json',
