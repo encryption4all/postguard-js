@@ -127,8 +127,13 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Build
-              run: pnpm -r build
+            # Only the SDK: this lane exercises pg-js on the Bun runtime and
+            # reads nothing from apps/* or examples/*. Same reasoning as
+            # api-surface below — filtering keeps the job out of the class where
+            # another package's build preconditions become this workflow's, which
+            # the examples import would otherwise extend to two more builds.
+            - name: Build the SDK
+              run: pnpm --filter @e4a/pg-js build
 
             - name: Test (vitest on Bun runtime)
               working-directory: packages/pg-js
@@ -166,8 +171,9 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Build
-              run: pnpm -r build
+            # Only the SDK, as in the Bun lane above.
+            - name: Build the SDK
+              run: pnpm --filter @e4a/pg-js build
 
             - name: Test (vitest on Deno runtime)
               working-directory: packages/pg-js

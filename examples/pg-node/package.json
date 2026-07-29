@@ -1,0 +1,21 @@
+{
+  "name": "pg-node",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "PostGuard Node.js example \u2014 encrypt + upload from a server",
+  "license": "MIT",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env index.mjs",
+    "send": "node --env-file-if-exists=.env index.mjs",
+    "upload": "node --env-file-if-exists=.env index.mjs --upload-only",
+    "check": "node --check index.mjs && node --input-type=module -e \"await import('./src/encryption.mjs')\"",
+    "typecheck": "pnpm check"
+  },
+  "dependencies": {
+    "@e4a/pg-js": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

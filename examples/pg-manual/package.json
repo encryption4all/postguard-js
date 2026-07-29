@@ -1,0 +1,36 @@
+{
+  "name": "@e4a/pg-example",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "devDependencies": {
+    "@privacybydesign/yivi-client": "^1.0.0",
+    "@privacybydesign/yivi-core": "^1.0.0",
+    "@privacybydesign/yivi-css": "^1.0.1",
+    "@privacybydesign/yivi-popup": "^1.0.2",
+    "clean-webpack-plugin": "^4.0.0",
+    "css-loader": "^7.1.4",
+    "html-webpack-plugin": "^5.6.7",
+    "https-browserify": "^1.0.0",
+    "process": "^0.11.10",
+    "stream-http": "^3.2.0",
+    "streamsaver": "^2.0.6",
+    "style-loader": "^4.0.0",
+    "url": "^0.11.4",
+    "web-streams-polyfill": "^4.3.0",
+    "webpack": "^5.108.3",
+    "webpack-cli": "^7.1.0",
+    "webpack-dev-server": "^5.2.5"
+  },
+  "dependencies": {
+    "@e4a/pg-wasm": "^0.6.1",
+    "buffer": "^6.0.3",
+    "util": "^0.12.5"
+  },
+  "scripts": {
+    "build": "webpack --fail-on-warnings",
+    "check": "webpack --config check/webpack.config.js --fail-on-warnings",
+    "dev": "npx webpack serve",
+    "typecheck": "pnpm check"
+  }
+}
