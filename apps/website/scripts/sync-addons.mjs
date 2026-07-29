@@ -45,26 +45,10 @@ const TARGETS = [
         assetPattern: /^manifest\.xml$/i,
         outputFile: 'postguard-outlook-manifest.xml',
         metaFile: 'postguard-outlook-manifest.json',
-        // Set until the first `outlook-addin-v*` release exists. While set, no
-        // matching release is an expected state rather than a failure.
-        //
-        // Deliberately a flag in committed code, not something inferred from the
-        // cached metadata: `DOWNLOADS_DIR` is image content, not a volume
-        // (docker/Dockerfile populates it from the build, and sync-addons-loop.sh
-        // points at it), so every fresh container restarts from the committed
-        // `v0.1.5` meta. Inferring the window from that file would have re-armed
-        // the permissive path on every website deploy, leaving the loud
-        // regression check live only between a successful sync and the next
-        // deploy — durable-looking, and not durable.
-        //
-        // Every run that observes the flag says so, in both directions: while a
-        // matching release exists it is reported as stale and asks to be removed,
-        // and while none does the skip names this flag as what is suppressing the
-        // failure. The second half matters because the two states are not mutually
-        // exclusive over time — a forgotten flag plus a pattern that later stops
-        // matching lands back in the permissive branch, and that log has to say
-        // why it is permissive rather than just what it did not find.
-        bootstrap: true,
+        // No `bootstrap` flag: outlook-addin-v1.0.0 is published, so a run that
+        // finds nothing matching this pattern is a regression rather than a
+        // window, and must fail loudly. The flag existed only between the repoint
+        // and that first release.
     },
 ]
 
