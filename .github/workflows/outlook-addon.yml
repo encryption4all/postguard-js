@@ -69,16 +69,21 @@ jobs:
               run: pnpm build
               env:
                   # ADDIN_PUBLIC_URL too: unset, webpack falls back to the
-                  # production add-in origin, so this would validate a manifest
+                  # production add-in origin, so this would build a manifest
                   # pairing the prod origin with staging backends — a combination
-                  # that never ships. It also drives the localhost rewrite that
-                  # `pnpm validate` then checks.
+                  # that never ships. It also selects which add-in origin the
+                  # built manifest allowlists, so the edge value is the one this
+                  # job would otherwise never exercise.
                   ADDIN_PUBLIC_URL: https://${{ env.EDGE_ADDIN_HOST }}/
                   PKG_URL: ${{ env.EDGE_PKG_URL }}
                   CRYPTIFY_URL: ${{ env.EDGE_CRYPTIFY_URL }}
                   POSTGUARD_WEBSITE_URL: ${{ env.EDGE_WEBSITE_URL }}
-            - name: Validate manifest
-              run: pnpm validate
+            # dist/manifest.xml, not the source: the source still carries the
+            # localhost URLs, and the file admins sideload — the one the release
+            # job attaches — is the rewritten copy webpack emits. Validating the
+            # source left the shipped artifact ungated.
+            - name: Validate the built manifest
+              run: pnpm validate:dist
 
     test:
         name: Unit tests
@@ -114,6 +119,16 @@ jobs:
               working-directory: .
               run: |
                   set -uo pipefail
+                  # `set -e` is deliberately absent — a correctly-pathed grep
+                  # that legitimately matches nothing exits 1 — which also means
+                  # grep's exit 2 on a missing file would not abort. Without this
+                  # guard a rename silently degrades the job to an env-only check
+                  # that still passes, and with no visible change: the two files
+                  # currently duplicate the env values exactly, so even the host
+                  # count stays the same.
+                  for f in apps/outlook-addon/Dockerfile apps/outlook-addon/webpack.config.js; do
+                    [ -f "$f" ] || { echo "::error::$f is missing; this check would silently stop covering it"; exit 1; }
+                  done
                   # This workflow's env, plus every postguard.eu host hardcoded in
                   # the two files that feed the build. Collected together so the
                   # Dockerfile ARG defaults and webpack's envDefaults — the copy

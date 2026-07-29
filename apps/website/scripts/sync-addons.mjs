@@ -90,7 +90,11 @@ function parseSha256(digest) {
 // published releases found matching /^tb-addon-v/" rather than a stale mirror.
 const RELEASE_LOOKBACK = 50
 
-async function findReleaseWithAsset(target) {
+function matchesPattern(target, tag) {
+    return Boolean(tag) && (!target.tagPattern || target.tagPattern.test(tag))
+}
+
+async function findReleaseWithAsset(target, cached) {
     const releases = await fetchJson(
         `https://api.github.com/repos/${target.repo}/releases?per_page=${RELEASE_LOOKBACK}`
     )
@@ -98,10 +102,25 @@ async function findReleaseWithAsset(target) {
         .filter((r) => !r.draft && !r.prerelease)
         .filter((r) => !target.tagPattern || target.tagPattern.test(r.tag_name))
     if (eligible.length === 0) {
-        throw new Error(
-            `[${target.name}] no published releases found` +
-                (target.tagPattern ? ` matching ${target.tagPattern}` : '')
+        // Distinguish "not released from here yet" from "stopped finding what it
+        // used to find". If the cached tag matches the pattern, this target has
+        // mirrored such a release before and its disappearance is a regression —
+        // a wrong pattern, a wrong repo, an unpublished release — which has to be
+        // loud. Before the first matching release exists there is nothing to be
+        // wrong about: the committed pre-migration artifact keeps serving the
+        // download page, and failing here would only log a dead iteration every
+        // 6h until the first tag is pushed.
+        if (matchesPattern(target, cached?.tag)) {
+            throw new Error(
+                `[${target.name}] no published releases found matching ${target.tagPattern}, ` +
+                    `but ${cached.tag} was mirrored previously — the tag pattern or repo is wrong`
+            )
+        }
+        console.warn(
+            `[${target.name}] no release matching ${target.tagPattern} yet; ` +
+                `keeping ${cached?.tag ?? 'the committed artifact'} until the first one is published`
         )
+        return null
     }
     for (let i = 0; i < eligible.length; i++) {
         const release = eligible[i]
@@ -154,7 +173,12 @@ async function syncTarget(target) {
     const outputPath = resolve(downloadsDir, target.outputFile)
     const metaPath = resolve(downloadsDir, target.metaFile)
 
-    const { release, asset } = await findReleaseWithAsset(target)
+    const cached = await readCached(metaPath)
+
+    const found = await findReleaseWithAsset(target, cached)
+    if (!found) return
+    const { release, asset } = found
+
     const remoteSha = parseSha256(asset.digest)
     if (!remoteSha) {
         throw new Error(
@@ -162,7 +186,6 @@ async function syncTarget(target) {
         )
     }
 
-    const cached = await readCached(metaPath)
     if (cached?.sha256 === remoteSha) {
         if (cached.tag === release.tag_name) {
             console.log(
