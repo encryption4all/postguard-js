@@ -61,6 +61,7 @@ function scopeAppDomains(xml, addinOrigin, websiteOrigin) {
   const allowed = [addinOrigin, websiteOrigin, "https://yivi.app"];
   const kept = new Set();
   const dropped = [];
+  const deduplicated = [];
   const scoped = xml.replace(APP_DOMAIN, (line, indent, value) => {
     let origin;
     try {
@@ -70,11 +71,17 @@ function scopeAppDomains(xml, addinOrigin, websiteOrigin) {
       // written rather than silently dropping what the author meant.
       return line;
     }
+    if (!allowed.includes(origin)) {
+      dropped.push(value.trim());
+      return "";
+    }
     // Office matches an AppDomain by domain, so a second spelling of an origin
     // already listed (the rewritten localhost entry keeps its trailing slash)
-    // allowlists nothing further.
-    if (!allowed.includes(origin) || kept.has(origin)) {
-      dropped.push(value.trim());
+    // allowlists nothing further. Reported separately from `dropped`: this
+    // origin IS used by the build, and logging it as dropped told anyone
+    // debugging a send-time dialog failure the opposite.
+    if (kept.has(origin)) {
+      deduplicated.push(value.trim());
       return "";
     }
     kept.add(origin);
@@ -91,6 +98,11 @@ function scopeAppDomains(xml, addinOrigin, websiteOrigin) {
   }
   if (dropped.length > 0) {
     console.log(`manifest.xml: dropped AppDomains not used by this build: ${dropped.join(", ")}`);
+  }
+  if (deduplicated.length > 0) {
+    console.log(
+      `manifest.xml: collapsed duplicate spellings of origins this build DOES use: ${deduplicated.join(", ")}`
+    );
   }
   return scoped;
 }

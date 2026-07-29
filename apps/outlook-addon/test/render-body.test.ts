@@ -79,9 +79,7 @@ test("escapeHtml escapes the unsafe characters", () => {
 // the email markup asks for. Without it, opening a message leaks the reader's
 // IP/activity to arbitrary origins.
 function csp(out: string): string {
-  const m = out.match(
-    /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/i
-  );
+  const m = out.match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/i);
   assert.ok(m, "CSP meta tag must be present");
   return m![1];
 }

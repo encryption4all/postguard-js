@@ -60,10 +60,18 @@ jobs:
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
               working-directory: .
+            # Not just src/**: .husky/pre-commit runs lint-staged over
+            # *.{js,mjs,ts} for this package, so a CI glob narrower than the hook
+            # is strictly weaker than the thing it exists to complement — and it
+            # excluded exactly the build-critical files, webpack.config.js (which
+            # carries the manifest AppDomain transform) and scripts/. Widening it
+            # required formatting two test files that had drifted, which is the
+            # cost of the gap: the hook would have rewritten them under whoever
+            # next touched them, turning a one-line change into a formatting diff.
             - name: Lint (no errors, no warnings)
-              run: pnpm exec eslint -c eslint.config.mjs --max-warnings=0 "src/**/*.{ts,js}"
+              run: pnpm exec eslint -c eslint.config.mjs --max-warnings=0 "src/**/*.{ts,js}" "test/**/*.ts" "scripts/*.mjs" webpack.config.js
             - name: Prettier (format check)
-              run: pnpm exec prettier --check "src/**/*.{ts,js}"
+              run: pnpm exec prettier --check "src/**/*.{ts,js}" "test/**/*.ts" "scripts/*.mjs" webpack.config.js
             - run: pnpm typecheck
             # Outlook keys sideloaded and centrally-deployed updates on the
             # manifest's <Version>, which changesets does not touch. `version-packages`
@@ -315,31 +323,20 @@ jobs:
                     } >> "$GITHUB_OUTPUT"
                   fi
 
-            - name: Build and push
-              uses: docker/build-push-action@v7
-              with:
-                  context: .
-                  file: apps/outlook-addon/Dockerfile
-                  # amd64 only, matching what the standalone repo actually
-                  # published. arm64 would be new here and nothing exercises it
-                  # before a tag: there is no setup-qemu-action, and an emulated
-                  # `webpack --mode production` over a WASM-embedding bundle is
-                  # slow and OOM-prone. Worth adding deliberately, with a build
-                  # that runs on PRs, rather than discovering it at release time.
-                  platforms: linux/amd64
-                  push: true
-                  tags: ${{ steps.target.outputs.tags }}
-                  build-args: |
-                      ADDIN_PUBLIC_URL=https://${{ steps.target.outputs.addin_host }}/
-                      PKG_URL=${{ steps.target.outputs.pkg }}
-                      CRYPTIFY_URL=${{ steps.target.outputs.cryptify }}
-                      POSTGUARD_WEBSITE_URL=${{ steps.target.outputs.website }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
-
             # The production manifest is what admins sideload from, so it is
             # attached to the release with a stable versioned URL rather than
             # taken from whatever the addin host currently serves.
+            #
+            # Built and validated BEFORE the image is pushed. These four steps need
+            # nothing from the pushed image, and validation can genuinely fail:
+            # `office-addin-manifest validate` is a network call to Microsoft's
+            # acceptance-test service, so their outage is enough. With the push
+            # first, that left `:<version>` and `:latest` live with no release and
+            # no manifest attached — admins sideloading the old manifest against a
+            # new bundle, while sync-addons.mjs found nothing matching
+            # `outlook-addin-v*` and took its keep-serving path, so the website went
+            # on mirroring the pre-migration artifact with nothing recording the
+            # mismatch. Ordering costs no wall clock and makes the gate real.
             - uses: pnpm/action-setup@v4
               if: github.ref_type == 'tag'
             - uses: actions/setup-node@v6
@@ -364,6 +361,28 @@ jobs:
             - name: Validate the manifest being released
               if: github.ref_type == 'tag'
               run: pnpm --filter postguard-outlook-addin validate:dist
+
+            - name: Build and push
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: apps/outlook-addon/Dockerfile
+                  # amd64 only, matching what the standalone repo actually
+                  # published. arm64 would be new here and nothing exercises it
+                  # before a tag: there is no setup-qemu-action, and an emulated
+                  # `webpack --mode production` over a WASM-embedding bundle is
+                  # slow and OOM-prone. Worth adding deliberately, with a build
+                  # that runs on PRs, rather than discovering it at release time.
+                  platforms: linux/amd64
+                  push: true
+                  tags: ${{ steps.target.outputs.tags }}
+                  build-args: |
+                      ADDIN_PUBLIC_URL=https://${{ steps.target.outputs.addin_host }}/
+                      PKG_URL=${{ steps.target.outputs.pkg }}
+                      CRYPTIFY_URL=${{ steps.target.outputs.cryptify }}
+                      POSTGUARD_WEBSITE_URL=${{ steps.target.outputs.website }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
             - name: Create the release with the manifest attached
               if: github.ref_type == 'tag'
               env:
