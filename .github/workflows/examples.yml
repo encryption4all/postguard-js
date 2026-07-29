@@ -1,0 +1,135 @@
+name: Examples
+
+# Builds every example in examples/* against the WORKSPACE copy of the SDK.
+#
+# Deliberately NOT path-filtered, and that is the whole point of the import: the
+# examples are what docs.postguard.eu teaches from, and they used to pin a
+# published @e4a/pg-js (v1, while the workspace was on v2), so a breaking SDK
+# change could ship and leave the documented snippets describing a dead API. The
+# two pg-js examples now resolve it as `workspace:*`, so an SDK change that
+# breaks them fails in the same PR that makes it.
+#
+# Two consumers are NOT on the workspace SDK and cannot be:
+#   examples/pg-manual  -> @e4a/pg-wasm, a dependency OF packages/pg-js, published
+#   examples/pg-dotnet  -> E4A.PostGuard, published from encryption4all/postguard-dotnet
+# Those two are still built here, against their pinned published versions, which
+# catches a broken example but not a broken SDK release. The weekly SDK canary is
+# what covers them; see encryption4all/postguard-js#128.
+
+on:
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: examples-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    node:
+        name: Node examples
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  # 24, matching the workspace, rather than the 22 the standalone
+                  # repo used.
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+
+            # `pnpm --filter <pattern> run <script>` SKIPS a package that lacks the
+            # script, silently and with a zero exit — that is how the website and
+            # the Outlook add-in both shipped without a typecheck. `typecheck` is
+            # the one script every example must therefore declare, and this asserts
+            # it rather than trusting it. `build` and `lint` are genuinely absent in
+            # some examples (pg-node runs, it does not build), so they stay
+            # best-effort below.
+            - name: Every example declares typecheck
+              shell: bash
+              run: |
+                  set -uo pipefail
+                  missing=0 count=0
+                  for pkg in examples/*/package.json; do
+                    [ -f "$pkg" ] || continue
+                    count=$((count + 1))
+                    if ! jq -e '.scripts.typecheck' "$pkg" >/dev/null 2>&1; then
+                      echo "::error::$pkg declares no \"typecheck\" script; pnpm would skip it without a word"
+                      missing=1
+                    fi
+                  done
+                  # A glob that matched nothing would otherwise report success
+                  # while checking zero examples. In bash an unmatched glob stays
+                  # literal, so the `-f` test above skips it and count stays 0.
+                  if [ "$count" -eq 0 ]; then
+                    echo "::error::found no examples/*/package.json; this job would pass vacuously"
+                    exit 1
+                  fi
+                  if [ "$missing" -ne 0 ]; then
+                    exit 1
+                  fi
+                  echo "$count example packages, each declaring typecheck"
+
+            # Asserted present above, so this cannot skip silently.
+            - name: Typecheck
+              run: pnpm --filter './examples/*' run typecheck
+
+            - name: Build
+              run: pnpm --filter './examples/*' run build
+
+            - name: Lint
+              run: pnpm --filter './examples/*' run lint
+
+            # The point of the import, stated as a check rather than a comment: if
+            # a future edit repins an example to a published @e4a/pg-js, it goes
+            # back to being able to teach a dead API, and nothing else here would
+            # notice.
+            - name: pg-js consumers resolve the workspace copy
+              shell: bash
+              run: |
+                  set -uo pipefail
+                  fail=0 found=0
+                  for pkg in examples/*/package.json; do
+                    [ -f "$pkg" ] || continue
+                    spec=$(jq -r '.dependencies["@e4a/pg-js"] // empty' "$pkg")
+                    [ -n "$spec" ] || continue
+                    found=$((found + 1))
+                    if [ "$spec" = "workspace:*" ]; then
+                      echo "  ok   $pkg -> $spec"
+                    else
+                      echo "::error::$pkg depends on @e4a/pg-js as '$spec', not 'workspace:*'"
+                      fail=1
+                    fi
+                  done
+                  if [ "$found" -eq 0 ]; then
+                    echo "::error::no example depends on @e4a/pg-js; this check covers nothing"
+                    exit 1
+                  fi
+                  exit "$fail"
+
+    dotnet:
+        name: pg-dotnet
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: examples/pg-dotnet
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-dotnet@v6
+              with:
+                  dotnet-version: |
+                      8.0.x
+                      10.0.x
+            # --locked-mode: packages.lock.json is committed, so a restore that
+            # would change it fails instead of silently resolving something else.
+            - name: Restore from lockfile
+              run: dotnet restore --locked-mode
+            - name: Build
+              run: dotnet build --no-restore

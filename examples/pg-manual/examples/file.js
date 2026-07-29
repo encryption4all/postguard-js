@@ -1,0 +1,122 @@
+import { KeySorts, fetchKey, PKG_URL } from './utils'
+import { WritableStream as PolyfilledWritableStream } from 'web-streams-polyfill'
+import { createWriteStream } from 'streamsaver'
+
+if (window.WritableStream == undefined) {
+    window.WritableStream = PolyfilledWritableStream
+}
+
+// This example uses a demo credential.
+// Anyone can retrieve an instance with custom data at the following URL:
+// https://privacybydesign.foundation/attribute-index/en/irma-demo.gemeente.personalData.html
+
+const modPromise = import('@e4a/pg-wasm')
+
+async function encryptFile(readable, writable) {
+    try {
+        const { sealStream } = await modPromise
+
+        const resp = await fetch(`${PKG_URL}/v2/parameters`)
+        const mpk = await resp.json().then((r) => r.publicKey)
+
+        const policy = {
+            Bob: {
+                ts: Math.round(Date.now() / 1000),
+                con: [{ t: 'irma-demo.sidn-pbdf.email.email', v: 'bob@example.com' }],
+            },
+        }
+
+
+        // We provide the policies which we want to sign with.
+
+        // This policy is visible to everyone.
+        const pubSignId = [{ t: 'irma-demo.gemeente.personalData.fullname', v: 'Alice' }]
+
+        // This policy is only visible to recipients.
+        const privSignId = [{ t: 'irma-demo.gemeente.personalData.bsn', v: '1234' }]
+
+        // We retrieve keys for these policies.
+        let { pubSignKey, privSignKey } = await fetchKey(
+            KeySorts.Signing,
+            { con: [...pubSignId, ...privSignId] },
+            undefined,
+            { pubSignId, privSignId }
+        )
+        console.log('got public signing key for Alice: ', pubSignKey)
+        console.log('got private signing key for Alice: ', privSignKey)
+
+        const sealOptions = {
+            policy,
+            pubSignKey,
+            privSignKey,
+        }
+
+        await sealStream(mpk, sealOptions, readable, writable)
+    } catch (e) {
+        showError('error during encryption: ', e)
+    }
+}
+
+async function decryptFile(readable, writable) {
+    try {
+        const { StreamUnsealer } = await modPromise
+
+        const vk = await fetch(`${PKG_URL}/v2/sign/parameters`)
+            .then((r) => r.json())
+            .then((j) => j.publicKey)
+
+        console.log('retrieved verification key: ', vk)
+
+        const unsealer = await StreamUnsealer.new(readable, vk)
+        const recipients = unsealer.inspect_header()
+        console.log('header contains the following recipients', recipients)
+
+        const keyRequest = {
+            con: [{ t: 'irma-demo.sidn-pbdf.email.email', v: 'bob@example.com' }],
+            validity: 600, // 10 minutes
+        }
+
+        const timestamp = recipients.get('Bob').ts
+        const usk = await fetchKey(KeySorts.Encryption, keyRequest, timestamp)
+
+        const pol = await unsealer.unseal('Bob', usk, writable)
+        console.log('pol: ', pol)
+    } catch (e) {
+        showError('error during decryption: ', e)
+    }
+}
+
+function showError(label, e) {
+    console.log(label, e)
+    const el = document.getElementById('status')
+    if (el) el.textContent = `${label}${e && e.message ? e.message : e}`
+}
+
+const listener = async (event) => {
+    const statusEl = document.getElementById('status')
+    if (statusEl) statusEl.textContent = ''
+
+    const decrypt = event.srcElement.classList.contains('decrypt')
+    const [inFile] = event.srcElement.files
+
+    const outFileName = decrypt ? inFile.name.replace('.enc', '') : `${inFile.name}.enc`
+    const fileWritable = createWriteStream(outFileName)
+
+    const readable = inFile.stream()
+    const writable = fileWritable
+
+    const t0 = performance.now()
+
+    if (decrypt) await decryptFile(readable, writable)
+    else await encryptFile(readable, writable)
+
+    const t = performance.now() - t0
+
+    console.log(`operation took ${t} ms`)
+    console.log(`average MB/s: ${inFile.size / (1000 * t)}`)
+}
+
+window.onload = async () => {
+    const buttons = document.querySelectorAll('input')
+    buttons.forEach((btn) => btn.addEventListener('change', listener))
+}

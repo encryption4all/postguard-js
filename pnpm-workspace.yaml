@@ -1,6 +1,9 @@
 packages:
   - packages/*
   - apps/*
+  # examples/pg-dotnet has no package.json, so pnpm ignores it; it is built by the
+  # dotnet job in examples.yml instead.
+  - examples/*
 
 # Security overrides for transitive deps. This is the only place pnpm reads them:
 # an `overrides` block in a workspace member is ignored outright (that is how
