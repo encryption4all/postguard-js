@@ -20,7 +20,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@e4a/pg-js": "^2.1.0",
+    "@e4a/pg-js": "workspace:*",
     "libphonenumber-js": "^1.13.7"
   }
 }
