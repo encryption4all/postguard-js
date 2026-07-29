@@ -46,7 +46,10 @@ test("no verified sender means nothing is treated as verified", () => {
 });
 
 test("meta line shows the verified sender, not the claimed header", () => {
-  const line = senderMetaLine(reconcileSender("Mallory <alice@example.com>", "bob@example.com"), echo);
+  const line = senderMetaLine(
+    reconcileSender("Mallory <alice@example.com>", "bob@example.com"),
+    echo
+  );
   assert.match(line.from, /metaFromVerified/);
   assert.match(line.from, /bob@example\.com/);
   assert.doesNotMatch(line.from, /alice@example\.com/);

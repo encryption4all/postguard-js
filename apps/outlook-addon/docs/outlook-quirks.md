@@ -80,7 +80,7 @@ taskpane" plumbing yourself.
 
 ## Cross-runtime state: launchevent ↔ taskpane
 
-### The launchevent runtime is a *separate* WebView2 from the taskpane
+### The launchevent runtime is a _separate_ WebView2 from the taskpane
 
 It has its own JS context, its own `window`, its own DevTools target. Anything
 the taskpane writes to module-local state, `Office.context.roamingSettings`
@@ -103,7 +103,7 @@ mode is reliably visible to `item.internetHeaders.getAsync(...)` in the
 OnMessageSend handler. Note the `x-` prefix is enforced by Office.js for
 custom headers.
 
-### `sessionData` is compose-only — *not* visible in launch events
+### `sessionData` is compose-only — _not_ visible in launch events
 
 Despite docs implying it's a general per-session state mechanism, `sessionData`
 methods are not available in launch event handlers. Don't reach for it for
@@ -112,7 +112,7 @@ taskpane↔send-handler communication.
 ### `displayDialogAsync` from the launchevent runtime needs the add-in domain in `<AppDomains>`
 
 A dialog opened from the regular taskpane is allowed without an `<AppDomains>`
-entry as long as it's same-origin with `<SourceLocation>`. From the *launchevent*
+entry as long as it's same-origin with `<SourceLocation>`. From the _launchevent_
 runtime that rule does not apply: the runtime is hosted inside an
 `outlook.office.com` iframe, so from its point of view the dialog URL is
 cross-origin and Office checks the manifest's `<AppDomains>`. Symptoms:
@@ -148,7 +148,7 @@ the same dialog API but from the taskpane runtime where it works. The
 branch is in `src/launchevent/launchevent.ts`; remove it once #6677
 ships a fix.
 
-### `window.location.href` in the launchevent runtime is *not* the add-in origin on every host
+### `window.location.href` in the launchevent runtime is _not_ the add-in origin on every host
 
 On Outlook on Web and new Outlook on Windows, the launchevent runtime loads
 `launchevent.html` from your `<bt:Url id="WebViewRuntime.Url">`, so
@@ -172,21 +172,21 @@ property only exists in compose). `itemId` is undefined for new drafts, so
 anything that needs a server-side identity (custom-property persistence,
 internet-header server flush) requires a `saveAsync` first.
 
-### `addFileAttachmentFromBase64Async` returns when the attachment is *queued*, not committed
+### `addFileAttachmentFromBase64Async` returns when the attachment is _queued_, not committed
 
 The callback fires when Office has accepted the attachment locally, before the
 server upload completes. If the user clicks Send right away, Outlook can race
 the upload and surface that as a Smart-Alerts-style "PostGuard timed out"
 dialog. Call `item.saveAsync` after attaching to force a server flush.
 
-### Internet header writes need a *trailing* `saveAsync` to flush
+### Internet header writes need a _trailing_ `saveAsync` to flush
 
 Same pattern as attachments. Our `persistEncryptOnSend` does
 `saveAsync → internetHeaders.setAsync → saveAsync`. The first save guarantees
 an `itemId` so the header has somewhere to attach; the second pushes the
 header change to the server so the OnMessageSend handler reads it.
 
-### `RecipientsChanged` *does* exist (Mailbox 1.7+)
+### `RecipientsChanged` _does_ exist (Mailbox 1.7+)
 
 The original code had a comment claiming Outlook has no recipient-changed
 event — that was true for old Outlook but obsolete since Mailbox 1.7. Subscribe
@@ -216,7 +216,7 @@ rename the offending file to get it past the policy.
 Office.js can save a draft programmatically but cannot send it. This is the
 specific reason the one-click encrypt-on-Send flow is hard: the OnMessageSend
 handler can encrypt and `event.completed({ allowEvent: true })` to release the
-send Outlook had pending, but it can't *initiate* a send from a "regular"
+send Outlook had pending, but it can't _initiate_ a send from a "regular"
 taskpane button. (See option 1 vs option 2 in our design notes.)
 
 ### Body size affects Send latency
@@ -318,7 +318,7 @@ launch via `Start-Process -ArgumentList "--devtools"` or a shortcut.
 
 ### The launchevent runtime needs its own DevTools target
 
-The right-click→Inspect on the taskpane only attaches to *that* WebView. To see
+The right-click→Inspect on the taskpane only attaches to _that_ WebView. To see
 the OnMessageSend handler's console, set
 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222"` before
 launching Outlook, then attach via `edge://inspect/#devices` with `localhost:9222`
@@ -362,7 +362,7 @@ confirmation before the popup. Default in this add-in is `true`, because:
   attach a real gesture, surfacing a confusing security error to the user.
 
 Power users who have already granted permanent popup permission to the add-in's
-origin can flip *Skip the "open a dialog" confirmation* in the taskpane's
+origin can flip _Skip the "open a dialog" confirmation_ in the taskpane's
 Settings view (roaming-setting key `pg.allowOptimisticDialog`). That switches
 to `promptBeforeOpen: false`; on the rare host where it's still blocked we
 recover with a single prompted retry so the send isn't lost.

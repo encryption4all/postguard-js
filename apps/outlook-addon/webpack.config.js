@@ -11,7 +11,7 @@ const urlProd = process.env.ADDIN_PUBLIC_URL || "https://addin.postguard.eu/";
 const requiredEnv = ["PKG_URL", "CRYPTIFY_URL", "POSTGUARD_WEBSITE_URL"];
 const envDefaults = {
   PKG_URL: "https://staging.postguard.eu/pkg",
-  CRYPTIFY_URL: "https://fileshare.staging.postguard.eu",
+  CRYPTIFY_URL: "https://storage.staging.postguard.eu",
   POSTGUARD_WEBSITE_URL: "https://staging.postguard.eu",
 };
 // `requiredEnv` used to require nothing: it fell through to `envDefaults`, which
@@ -35,10 +35,78 @@ function resolveEnv(isProduction) {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables for a production build: ${missing.join(", ")}. ` +
-        "The staging defaults are only applied to development builds; see .env.example."
+        "The staging defaults are only applied to development builds. The production values " +
+        "are the ARG defaults in apps/outlook-addon/Dockerfile, and the release job passes them " +
+        "as build-args from .github/workflows/outlook-addon.yml's env block."
     );
   }
   return resolved;
+}
+
+const APP_DOMAIN = /^([ \t]*)<AppDomain>([^<]*)<\/AppDomain>[ \t]*\r?\n/gm;
+
+// Scope the shipped manifest's AppDomains to the origins this build actually
+// uses, and fail if one it needs is missing.
+//
+// The source manifest lists the production *and* staging origins so either can
+// be built from it, and the `https://localhost:3000/` entry is rewritten to this
+// build's own origin by the transform below. Together that meant the production
+// manifest allowlisted `addin.staging.postguard.eu` and `staging.postguard.eu`,
+// plus two spellings of its own origin. Admins sideload this file, so the
+// allowlist should name only what the build serves and navigates to.
+//
+// The `missing` check is the point of doing this here rather than by hand:
+// removing a required AppDomain breaks `displayDialogAsync` at send time, which
+// no CI job can observe (nothing exercises Office.js), so the production build
+// refuses instead.
+function scopeAppDomains(xml, addinOrigin, websiteOrigin) {
+  const allowed = [addinOrigin, websiteOrigin, "https://yivi.app"];
+  const kept = new Set();
+  const dropped = [];
+  const deduplicated = [];
+  const scoped = xml.replace(APP_DOMAIN, (line, indent, value) => {
+    let origin;
+    try {
+      origin = new URL(value.trim()).origin;
+    } catch {
+      // Not something we can reason about as an origin — leave it exactly as
+      // written rather than silently dropping what the author meant.
+      return line;
+    }
+    if (!allowed.includes(origin)) {
+      dropped.push(value.trim());
+      return "";
+    }
+    // Office matches an AppDomain by domain, so a second spelling of an origin
+    // already listed (the rewritten localhost entry keeps its trailing slash)
+    // allowlists nothing further. Reported separately from `dropped`: this
+    // origin IS used by the build, and logging it as dropped told anyone
+    // debugging a send-time dialog failure the opposite.
+    if (kept.has(origin)) {
+      deduplicated.push(value.trim());
+      return "";
+    }
+    kept.add(origin);
+    return `${indent}<AppDomain>${origin}</AppDomain>\n`;
+  });
+
+  const missing = allowed.filter((origin) => !kept.has(origin));
+  if (missing.length > 0) {
+    throw new Error(
+      `manifest.xml is missing an <AppDomain> this build requires: ${missing.join(", ")}. ` +
+        "The OnMessageSend runtime opens the Yivi dialog cross-origin, so an absent " +
+        "origin fails only at send time, in Outlook."
+    );
+  }
+  if (dropped.length > 0) {
+    console.log(`manifest.xml: dropped AppDomains not used by this build: ${dropped.join(", ")}`);
+  }
+  if (deduplicated.length > 0) {
+    console.log(
+      `manifest.xml: collapsed duplicate spellings of origins this build DOES use: ${deduplicated.join(", ")}`
+    );
+  }
+  return scoped;
 }
 
 async function getHttpsOptions() {
@@ -157,7 +225,12 @@ module.exports = async (env, options) => {
             to: "[name][ext]",
             transform(content) {
               if (dev) return content;
-              return content.toString().replace(new RegExp(urlDev, "g"), urlProd);
+              const rewritten = content.toString().replace(new RegExp(urlDev, "g"), urlProd);
+              return scopeAppDomains(
+                rewritten,
+                new URL(urlProd).origin,
+                new URL(resolvedEnv.POSTGUARD_WEBSITE_URL).origin
+              );
             },
           },
         ],
