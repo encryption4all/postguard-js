@@ -85,6 +85,11 @@ jobs:
 
             - name: Build
               run: pnpm -r build
+              # apps/tb-addon's build fail-closes without the backend URLs.
+              env:
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
             # Fails when the report is stale (also caught by postbuild above) or
             # when the pending changeset is smaller than the API diff needs.
