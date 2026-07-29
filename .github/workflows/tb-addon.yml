@@ -1,0 +1,121 @@
+name: TB addon
+
+# Checks and release for apps/tb-addon.
+#
+# Deliberately NOT path-filtered: the point of the monorepo is that an SDK change
+# in packages/pg-js is tested against its consumers in the same PR, which a
+# filter would hide.
+#
+# Release tags are app-scoped (`tb-addon-v0.9.4`), not `v*`. This repo's tag
+# namespace is shared: changesets tags @e4a/pg-js releases, and the pre-monorepo
+# `v2.3.3`-style pg-js tags are still here, so a bare `v*` trigger would fire on
+# somebody else's release.
+
+on:
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
+        tags: ['tb-addon-v*']
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: apps/tb-addon
+
+jobs:
+    build:
+        name: Build & test
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.version.outputs.value }}
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+
+            # changesets bumps package.json only; Thunderbird reads manifest.json
+            # and the update channel reads updates.json. The release job below
+            # refuses a mismatched tag, so catch the drift on the PR instead.
+            - name: Check version consistency
+              run: pnpm check-version
+
+            - run: pnpm typecheck
+            - run: pnpm test
+            - name: Build extension
+              run: pnpm build
+              env:
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
+
+            - name: Read the version
+              id: version
+              run: |
+                  version="$(jq -r '.version' manifest.json)"
+                  echo "value=$version" >> "$GITHUB_OUTPUT"
+
+            - name: Package .xpi
+              run: cd dist && zip -qr "../postguard-tb-addon-${{ steps.version.outputs.value }}.xpi" .
+
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v7
+              with:
+                  name: postguard-tb-addon-${{ steps.version.outputs.value }}
+                  path: |
+                      apps/tb-addon/postguard-tb-addon-${{ steps.version.outputs.value }}.xpi
+                      apps/tb-addon/updates.json
+                  retention-days: 90
+
+    release:
+        name: Release
+        needs: build
+        if: startsWith(github.ref, 'refs/tags/tb-addon-v')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6
+
+            # The tag is the release's identity, so it has to agree with what the
+            # build produced; a mismatch means the version bump and the tag came
+            # apart.
+            - name: Check the tag against the built version
+              run: |
+                  tag_version="${GITHUB_REF_NAME#tb-addon-v}"
+                  built="${{ needs.build.outputs.version }}"
+                  if [ "$tag_version" != "$built" ]; then
+                    echo "::error::tag says $tag_version, apps/tb-addon says $built" >&2
+                    exit 1
+                  fi
+                  echo "tag and package agree on $built"
+
+            - name: Download artifact
+              uses: actions/download-artifact@v8
+              with:
+                  name: postguard-tb-addon-${{ needs.build.outputs.version }}
+                  path: apps/tb-addon
+
+            # updates.json is committed (sync-version writes it alongside the
+            # version bump) and served from raw.githubusercontent.com on main,
+            # which is what manifest.json's update_url points at. It is attached
+            # here too so a release is self-describing, but the channel does not
+            # depend on this asset — `releases/latest` in a shared repo is
+            # whichever app released last, which is exactly why the URL moved.
+            - name: Create the release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release create "$GITHUB_REF_NAME" \
+                    --title "Thunderbird add-on ${{ needs.build.outputs.version }}" \
+                    --notes "Install: download the .xpi below, or let an existing install update itself." \
+                    "postguard-tb-addon-${{ needs.build.outputs.version }}.xpi" \
+                    updates.json

@@ -1,0 +1,28 @@
+{
+  "name": "postguard-tb-addon",
+  "version": "0.9.3",
+  "private": true,
+  "description": "PostGuard encryption extension for Thunderbird",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:dev": "node build.mjs --dev",
+    "watch": "node build.mjs --dev --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "package": "npm run build && cd dist && zip -r ../postguard-tb-addon-$(node -p \"require('../package.json').version\").xpi .",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check"
+  },
+  "devDependencies": {
+    "dotenv": "^17.4.2",
+    "esbuild": "^0.28.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "@e4a/pg-js": "workspace:*",
+    "libphonenumber-js": "^1.13.7"
+  }
+}

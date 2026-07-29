@@ -1,2 +1,8 @@
 # lint-staged runs per workspace package; add a line here when an app joins.
+#
+# apps/tb-addon is deliberately absent: it ships no prettier/eslint config and no
+# lint or format script (it never had them as a standalone repo), so there is
+# nothing for lint-staged to run. Adding formatting tooling would reformat the
+# whole app in one commit, which belongs in its own change rather than an import.
+# Tracked as encryption4all/postguard-js#138.
 pnpm --filter postguard-website exec lint-staged
