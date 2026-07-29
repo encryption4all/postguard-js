@@ -65,24 +65,44 @@ jobs:
             - name: Prettier (format check)
               run: pnpm exec prettier --check "src/**/*.{ts,js}"
             - run: pnpm typecheck
-            - name: Build
+            # Outlook keys sideloaded and centrally-deployed updates on the
+            # manifest's <Version>, which changesets does not touch. `version-packages`
+            # syncs it; this refuses a commit where the two disagree.
+            - name: Manifest version matches package.json
+              run: pnpm check-version
+
+            # Both origin sets are built, not just edge. The manifest transform
+            # fails per target — it refuses to emit a manifest missing an
+            # <AppDomain> for an origin that build needs — and the *production*
+            # set is the one that ships. Building only edge left that failure to
+            # surface inside the tag-time image build, which is late for the one
+            # thing the transform exists to catch early. The extra webpack pass
+            # costs a few seconds.
+            #
+            # Each is validated against dist/manifest.xml rather than the source:
+            # the source still carries the localhost URLs, and the copy admins
+            # sideload — the one the release job attaches — is what webpack emits.
+            - name: Build (edge configuration)
               run: pnpm build
               env:
                   # ADDIN_PUBLIC_URL too: unset, webpack falls back to the
                   # production add-in origin, so this would build a manifest
                   # pairing the prod origin with staging backends — a combination
-                  # that never ships. It also selects which add-in origin the
-                  # built manifest allowlists, so the edge value is the one this
-                  # job would otherwise never exercise.
+                  # that never ships.
                   ADDIN_PUBLIC_URL: https://${{ env.EDGE_ADDIN_HOST }}/
                   PKG_URL: ${{ env.EDGE_PKG_URL }}
                   CRYPTIFY_URL: ${{ env.EDGE_CRYPTIFY_URL }}
                   POSTGUARD_WEBSITE_URL: ${{ env.EDGE_WEBSITE_URL }}
-            # dist/manifest.xml, not the source: the source still carries the
-            # localhost URLs, and the file admins sideload — the one the release
-            # job attaches — is the rewritten copy webpack emits. Validating the
-            # source left the shipped artifact ungated.
-            - name: Validate the built manifest
+            - name: Validate the built manifest (edge)
+              run: pnpm validate:dist
+            - name: Build (production configuration)
+              run: pnpm build
+              env:
+                  ADDIN_PUBLIC_URL: https://${{ env.PROD_ADDIN_HOST }}/
+                  PKG_URL: ${{ env.PROD_PKG_URL }}
+                  CRYPTIFY_URL: ${{ env.PROD_CRYPTIFY_URL }}
+                  POSTGUARD_WEBSITE_URL: ${{ env.PROD_WEBSITE_URL }}
+            - name: Validate the built manifest (production)
               run: pnpm validate:dist
 
     test:
@@ -99,9 +119,13 @@ jobs:
               working-directory: .
             - run: pnpm test
 
-    # Every host this app can bake into its bundle must resolve. A dead Cryptify
+    # Every host this app can bake into its bundle must resolve, plus yivi.app,
+    # which the build now refuses to produce a manifest without. A dead Cryptify
     # host reached production undetected (encryption4all/postguard-outlook-addon#132):
     # the add-in loaded fine and only failed when a user sent a file.
+    #
+    # This is a DNS check, not a reachability check — it says a name resolves, not
+    # that anything answers on it.
     #
     # It reads the two files that actually carry the values as well as this
     # workflow's env, because #132 was a wrong `ARG` default in the Dockerfile —
@@ -138,10 +162,29 @@ jobs:
                                    "https://$PROD_ADDIN_HOST" \
                                    "$EDGE_PKG_URL" "$EDGE_CRYPTIFY_URL" "$EDGE_WEBSITE_URL" \
                                    "https://$EDGE_ADDIN_HOST"
-                    grep -ohE 'https://[a-z0-9.-]+\.postguard\.eu' \
+                    # Every https host in the two files, not just *.postguard.eu
+                    # ones. The narrower pattern required a subdomain label, so it
+                    # matched neither file's bare-apex defaults
+                    # (`ARG POSTGUARD_WEBSITE_URL=https://postguard.eu`,
+                    # `ARG PKG_URL=https://postguard.eu/pkg`) — postguard.eu was
+                    # checked only because PROD_WEBSITE_URL happens to hold the
+                    # same string, the coincidence this job exists to stop
+                    # depending on. It also could not see a default that drifted
+                    # out of the family entirely, and missed yivi.app, which
+                    # webpack now refuses to build a manifest without. Deriving
+                    # the list from the files covers all three and leaves no
+                    # second list to keep in step.
+                    grep -ohE 'https://[A-Za-z0-9.:-]+' \
                       apps/outlook-addon/Dockerfile \
                       apps/outlook-addon/webpack.config.js
-                  } | sed -E 's#^https://##; s#/.*$##' | sort -u > /tmp/hosts
+                  } | sed -E 's#^https://##; s#[:/].*$##' | sort -u \
+                    | grep -v '^localhost$' > /tmp/hosts
+                  # `grep -v` exits 1 when it filters everything, and without
+                  # `set -e` that would leave an empty host list and a green job.
+                  if [ ! -s /tmp/hosts ]; then
+                    echo "::error::collected no hosts to check; this would pass vacuously"
+                    exit 1
+                  fi
                   if ! command -v getent >/dev/null && ! command -v host >/dev/null \
                      && ! command -v nslookup >/dev/null; then
                     echo "::error::no DNS lookup tool available; this check would pass vacuously"
@@ -179,6 +222,41 @@ jobs:
                   docker run --rm \
                     -v "${{ github.workspace }}/apps/outlook-addon/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
                     nginx:1.27-alpine nginx -t
+
+    # The `image` job below only runs on a push, so without this the Dockerfile is
+    # never built before merge — and this workflow's most invasive change is the
+    # Dockerfile: repo-root context, new COPY paths, and ARGs deliberately placed
+    # below `pnpm install`. Building without pushing gates that, needs no package
+    # write grant, and makes the ARG-placement cache win observable in CI rather
+    # than only on a laptop. `website.yml` does the same thing for the same reason.
+    docker:
+        name: Image builds (PR, no push)
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: .
+        steps:
+            - uses: actions/checkout@v6
+            - uses: docker/setup-buildx-action@v4
+            - name: Build (validate only, no push)
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: apps/outlook-addon/Dockerfile
+                  platforms: linux/amd64
+                  push: false
+                  # Production values: the build refuses staging fallbacks in
+                  # production mode, and the manifest transform fails when an
+                  # <AppDomain> the target needs is absent, so these are the values
+                  # worth exercising.
+                  build-args: |
+                      ADDIN_PUBLIC_URL=https://${{ env.PROD_ADDIN_HOST }}/
+                      PKG_URL=${{ env.PROD_PKG_URL }}
+                      CRYPTIFY_URL=${{ env.PROD_CRYPTIFY_URL }}
+                      POSTGUARD_WEBSITE_URL=${{ env.PROD_WEBSITE_URL }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
 
     # Edge image on every push to main; the versioned image and the sideloadable
     # manifest on an `outlook-addin-v*` tag. Context is the repo root: the app
@@ -277,6 +355,15 @@ jobs:
                   PKG_URL: ${{ steps.target.outputs.pkg }}
                   CRYPTIFY_URL: ${{ steps.target.outputs.cryptify }}
                   POSTGUARD_WEBSITE_URL: ${{ steps.target.outputs.website }}
+            # The `check` job validates the edge- and production-configured
+            # manifests it builds itself, not this one. This is the actual release
+            # asset, and it differs from the edge copy in exactly what validation
+            # inspects: the SourceLocation and icon origins, and the scoped
+            # AppDomains. Validating it here is what makes "the file admins
+            # sideload is validated" true of the released artifact.
+            - name: Validate the manifest being released
+              if: github.ref_type == 'tag'
+              run: pnpm --filter postguard-outlook-addin validate:dist
             - name: Create the release with the manifest attached
               if: github.ref_type == 'tag'
               env:

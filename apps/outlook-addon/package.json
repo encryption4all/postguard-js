@@ -1,6 +1,6 @@
 {
   "name": "postguard-outlook-addin",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "description": "PostGuard end-to-end email encryption for Outlook (new Outlook on Windows + macOS).",
   "license": "MIT",
@@ -22,6 +22,8 @@
     "stop": "office-addin-debugging stop manifest.xml",
     "test": "node --test --experimental-strip-types \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check",
     "validate": "office-addin-manifest validate manifest.xml",
     "validate:dist": "office-addin-manifest validate dist/manifest.xml",
     "watch": "webpack --mode development --watch"
