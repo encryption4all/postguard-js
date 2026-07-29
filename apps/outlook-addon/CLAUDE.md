@@ -12,7 +12,7 @@ PostGuard end-to-end email encryption as an Office Add-in for the new Outlook on
 - `pnpm watch` — webpack in watch mode.
 - `pnpm dev-server` — webpack-dev-server on `https://localhost:3000` with the dev cert from `office-addin-dev-certs`.
 - `npm start` — `office-addin-debugging start manifest.xml`. Sideloads the manifest and launches the configured Outlook host. Use `npm stop` to unload.
-- `pnpm validate` — validates `manifest.xml` against the Office Add-in schema. Run after manifest edits.
+- `pnpm validate` / `pnpm validate:dist` — validates the source `manifest.xml` / the built `dist/manifest.xml` against the Office Add-in schema. Run `validate` after manifest edits, `validate:dist` after a build. CI and the release job use `validate:dist`, because the source still carries the `localhost:3000` URLs that webpack rewrites, so it is the built copy that admins actually sideload. Two things about it are easy to be caught by: it is a **network call** to Microsoft's acceptance-test service (an outage there fails the command with nothing wrong locally, so keep it off any step whose failure would leave something half-published), and it **rejects a `<Version>` below 1.0** with "Manifest Version Too Low", which is why this app is versioned from `1.0.0` instead of continuing the pre-monorepo `0.y.z` line.
 - `pnpm lint` / `pnpm lint:fix` / `pnpm prettier` — `office-addin-lint` wrappers (ESLint + Prettier with the office-addins config).
 - `pnpm signin` / `pnpm signout` — manage the M365 dev account used by the debugging tools.
 - `npm test` — the `node:test` suites under `test/`. Needs Node >= 22.6 for `--experimental-strip-types`.
@@ -103,11 +103,11 @@ Outlook add-in (Office.js). Lives at `apps/outlook-addon` in the postguard-js mo
 - `npm install` works cleanly, no `--legacy-peer-deps` needed.
 - `pnpm build` compiles; there's a pre-existing size-limit warning on the `taskpane.js` (~1.03 MiB) and `yivi-dialog.js` (~1 MiB) entrypoint bundles, which embed the bundled WASM (no standalone `.wasm` is emitted to `dist/`). Baseline, not a regression.
 - The workspace lockfile at the repo root is the one that counts; this app has no package-lock.json.
-- CI: `.github/workflows/outlook-addon.yml` runs lint, prettier, typecheck, build, manifest validation, unit tests, nginx validation, and a check that every URL baked into the bundle resolves. The root `Integration` workflow additionally builds and tests this app as part of the workspace.
+- CI: `.github/workflows/outlook-addon.yml` runs lint, prettier, typecheck, a build and manifest validation for both the edge and production origin sets, unit tests, nginx validation, a no-push image build, and a check that every URL baked into the bundle resolves. The root `Integration` workflow additionally builds and tests this app as part of the workspace.
 
 ### Tests
 
-Node's built-in test runner, zero extra deps: `npm test` runs `node --test --experimental-strip-types "test/**/*.test.ts"`. Tests live under `test/` and are covered by `tsc --noEmit` (still outside the src-scoped eslint/prettier CI globs). Do NOT introduce Jest, the repo has already migrated a Jest-based test back to `node:test` + `node:assert/strict` once. Pattern file: `test/render-body.test.ts`.
+Node's built-in test runner, zero extra deps: `npm test` runs `node --test --experimental-strip-types "test/**/*.test.ts"`. Tests live under `test/` and are covered by `tsc --noEmit`, and — since the CI globs were widened past `src/**` — by eslint and prettier as well, so a formatting slip in a test now fails `check`. Do NOT introduce Jest, the repo has already migrated a Jest-based test back to `node:test` + `node:assert/strict` once. Pattern file: `test/render-body.test.ts`.
 
 Gotchas under `--experimental-strip-types`: imports of source modules must use the explicit `.ts` extension (`from "../src/lib/foo.ts"`), and type-only imports must use `import type { ... }`, a plain `import { SomeInterface }` makes Node try to resolve a non-existent runtime export and the whole file errors.
 
