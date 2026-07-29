@@ -1,0 +1,188 @@
+name: SDK canary
+
+# Builds the examples that consume PUBLISHED PostGuard SDKs against the LATEST
+# published versions, so a breaking SDK release surfaces here before a reader of
+# docs.postguard.eu hits it.
+#
+# Ported from encryption4all/postguard-examples' sdk-canary.yml (see
+# encryption4all/postguard-js#128). That repository is the only thing running this
+# check today, and archiving it without this in place would leave the two examples
+# below with no drift cover at all.
+#
+# Scoped to two of the four examples, deliberately:
+#
+#   examples/pg-node       @e4a/pg-js as `workspace:*`  -> covered by examples.yml
+#   examples/pg-sveltekit  @e4a/pg-js as `workspace:*`  -> covered by examples.yml
+#   examples/pg-manual     @e4a/pg-wasm, published      -> COVERED HERE
+#   examples/pg-dotnet     E4A.PostGuard, published      -> COVERED HERE
+#
+# The first two resolve the SDK from the workspace, so examples.yml already builds
+# them against it as it currently stands and a canary would add nothing. The other
+# two cannot be covered that way: @e4a/pg-wasm is a dependency *of*
+# packages/pg-js rather than a workspace package, and E4A.PostGuard is published
+# from encryption4all/postguard-dotnet.
+#
+# The `scope` job asserts that split rather than trusting this comment.
+
+on:
+    schedule:
+        # Mondays 06:00 UTC, as in the source repo.
+        - cron: '0 6 * * 1'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: sdk-canary
+    cancel-in-progress: false
+
+jobs:
+    # A new example consuming a published SDK, added without a job here, would get
+    # no drift cover and nothing would say so — the same silent-skip class
+    # examples.yml guards for `typecheck`. This fails instead.
+    scope:
+        name: Canary scope is complete
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - name: Every published-SDK consumer is covered by a job below
+              shell: bash
+              run: |
+                  set -uo pipefail
+                  # Keep in step with the jobs in this file.
+                  covered="pg-dotnet pg-manual"
+
+                  needs=""
+                  for pkg in examples/*/package.json; do
+                    [ -f "$pkg" ] || continue
+                    # Any @e4a/* dependency whose specifier is NOT workspace: means
+                    # this example tracks a published release rather than the
+                    # in-repo SDK.
+                    if jq -e '
+                        ((.dependencies // {}) + (.devDependencies // {}))
+                        | to_entries
+                        | map(select(.key | startswith("@e4a/")))
+                        | map(select(.value | startswith("workspace:") | not))
+                        | length > 0
+                      ' "$pkg" >/dev/null 2>&1; then
+                      needs="$needs $(basename "$(dirname "$pkg")")"
+                    fi
+                  done
+                  # pg-dotnet has no package.json; its SDK is a NuGet PackageReference.
+                  for proj in examples/*/*.csproj; do
+                    [ -f "$proj" ] || continue
+                    if grep -q 'Include="E4A\.' "$proj"; then
+                      needs="$needs $(basename "$(dirname "$proj")")"
+                    fi
+                  done
+
+                  needs=$(echo "$needs" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//')
+                  covered=$(echo "$covered" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//')
+
+                  # An empty result would mean the globs matched nothing rather
+                  # than that everything is on the workspace SDK.
+                  if [ -z "$needs" ]; then
+                    echo "::error::found no example consuming a published PostGuard SDK; the globs above matched nothing, so this check covers nothing"
+                    exit 1
+                  fi
+                  echo "consume a published SDK: $needs"
+                  echo "covered by this workflow: $covered"
+                  if [ "$needs" != "$covered" ]; then
+                    echo "::error::canary scope is out of date — consumers of a published SDK are [$needs] but this workflow covers [$covered]. Add or remove a job, and update the \`covered\` list."
+                    exit 1
+                  fi
+
+    pg-manual:
+        name: pg-manual vs latest @e4a/pg-wasm
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+
+            # Not --frozen-lockfile past this point: the whole job is about
+            # resolving something the lockfile deliberately pins away from.
+            - name: Install the latest @e4a/pg-wasm
+              run: pnpm --filter @e4a/pg-example add @e4a/pg-wasm@latest
+
+            - name: Report the resolved version
+              run: |
+                  node -p "require('./examples/pg-manual/node_modules/@e4a/pg-wasm/package.json').version"
+
+            # `build` is the bundle; `typecheck` is the static-import probe in
+            # check/sdk-exports.js, which is the half that catches a removed export
+            # across the examples' dynamic import(). Both matter here.
+            - name: Build
+              run: pnpm --filter @e4a/pg-example build
+            - name: Check the SDK export surface
+              run: pnpm --filter @e4a/pg-example typecheck
+
+    pg-dotnet:
+        name: pg-dotnet vs latest E4A.PostGuard
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: examples/pg-dotnet
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-dotnet@v6
+              with:
+                  dotnet-version: |
+                      8.0.x
+                      10.0.x
+            # `dotnet add package` with no version takes the latest stable and
+            # rewrites both the csproj and packages.lock.json, so --locked-mode is
+            # deliberately absent here — unlike examples.yml, which asserts the
+            # pinned resolution.
+            - name: Install the latest E4A.PostGuard
+              run: dotnet add package E4A.PostGuard
+            - name: Report the resolved version
+              run: |
+                  grep -o 'Include="E4A.PostGuard" Version="[^"]*"' PostGuard.Example.csproj || true
+            - name: Build
+              run: dotnet build
+
+    report:
+        name: Report failure
+        runs-on: ubuntu-latest
+        needs: [scope, pg-manual, pg-dotnet]
+        if: failure()
+        permissions:
+            contents: read
+            issues: write
+        steps:
+            - name: Open or update the canary issue
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GH_REPO: ${{ github.repository }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  set -euo pipefail
+
+                  gh label create sdk-canary \
+                    --description 'Opened by the weekly SDK canary' \
+                    --color D93F0B --force
+
+                  title='SDK canary failed against the latest published SDKs'
+                  body=$(cat <<EOF
+                  The weekly canary built the examples that track a **published** PostGuard SDK against the latest release of it, and at least one failed. Per-job results are in the run log:
+
+                  $RUN_URL
+
+                  This does not affect \`main\`: those examples build from pinned versions there, and the two examples on \`workspace:*\` are covered by \`examples.yml\` instead. It means a published SDK has moved ahead of what an example uses.
+
+                  Either update the affected example, or pin it deliberately and record why. If the \`scope\` job is what failed, an example consuming a published SDK has no job in \`sdk-canary.yml\` and is getting no drift cover.
+                  EOF
+                  )
+
+                  existing=$(gh issue list --state open --label sdk-canary --json number --jq '.[0].number // empty')
+                  if [ -n "$existing" ]; then
+                    gh issue comment "$existing" --body "$body"
+                  else
+                    gh issue create --title "$title" --body "$body" --label sdk-canary
+                  fi
