@@ -13,7 +13,7 @@ A single-page app with two delivery modes:
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22+
 - A PostGuard API key
 
 ## Setup
@@ -27,7 +27,7 @@ A single-page app with two delivery modes:
 2. **Configure environment variables**:
 
    ```bash
-   cp .env.example .env
+   cp examples/pg-sveltekit/.env.example examples/pg-sveltekit/.env
    ```
 
    Available variables (see `.env.example`):

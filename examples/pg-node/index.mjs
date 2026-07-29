@@ -1,7 +1,7 @@
-// CLI entry point. Run with one of:
-//   npm run send     # encrypts and asks Cryptify to mail recipients
-//   npm run upload   # encrypts and uploads silently
-//   npm start        # same as `npm run send`
+// CLI entry point. Run from the repository root with one of:
+//   pnpm --filter pg-node send     # encrypts and asks Cryptify to mail recipients
+//   pnpm --filter pg-node upload   # encrypts and uploads silently
+//   pnpm --filter pg-node start    # same as `send`
 //
 // Configuration via .env or environment variables — see .env.example.
 

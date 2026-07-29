@@ -1,6 +1,6 @@
 # pg-manual: PostGuard low-level WASM example
 
-> Part of the `postguard-js` pnpm workspace. Run `pnpm install` **once from the repository root** — `npm install` here will not work, because this package depends on `@e4a/pg-js` as `workspace:*` and npm cannot resolve that protocol. The commands below are written to run from the repo root.
+> Part of the `postguard-js` pnpm workspace. Run `pnpm install` **once from the repository root** — `npm install` here will not work, because the per-project `package-lock.json` is gone and this example relies on pnpm's layout rather than npm's flat hoisting (see the `resolve.modules` note in `examples/CLAUDE.md`). Unlike `pg-node` and `pg-sveltekit`, this example consumes `@e4a/pg-wasm` from the registry, not the workspace `@e4a/pg-js`. The commands below are written to run from the repo root.
 
 
 Browser example that drives PostGuard encryption and decryption directly through the low-level [`@e4a/pg-wasm`](https://www.npmjs.com/package/@e4a/pg-wasm) library. Where [pg-sveltekit](../pg-sveltekit) and [pg-node](../pg-node) use the high-level [`@e4a/pg-js`](https://www.npmjs.com/package/@e4a/pg-js) SDK, pg-manual calls `seal`, `Unsealer`, `sealStream`, and `StreamUnsealer` itself and builds the policies, signing requests, and key fetches by hand. It is the only sub-project that talks to the WASM module and the PKG directly, so it is the one to read when you need policy-level control that the SDK does not expose.
@@ -55,7 +55,7 @@ Webpack Dev Server serves the example at http://localhost:9000. The landing page
 
 ## Configuration
 
-`PKG_URL` in [examples/utils.js](./examples/utils.js) selects the PKG deployment. It currently points at the legacy Radboud iHub deployment (`https://main.postguard.ihub.ru.nl/pkg`) rather than the modern staging host used by the other sub-projects (see encryption4all/postguard-examples#54). Change that one constant to target a different PKG; the encryption, signing, and key-fetch calls all derive from it.
+`PKG_URL` in [examples/utils.js](./examples/utils.js) selects the PKG deployment, and points at the staging host (`https://pkg.staging.postguard.eu`) like the other sub-projects. Change that one constant to target a different PKG; the encryption, signing, and key-fetch calls all derive from it.
 
 ## When to use pg-manual
 

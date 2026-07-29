@@ -3,10 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/encryption4all/postguard-examples.git"
-  },
   "devDependencies": {
     "@privacybydesign/yivi-client": "^1.0.0",
     "@privacybydesign/yivi-core": "^1.0.0",

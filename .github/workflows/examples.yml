@@ -60,7 +60,11 @@ jobs:
                   for pkg in examples/*/package.json; do
                     [ -f "$pkg" ] || continue
                     count=$((count + 1))
-                    if ! jq -e '.scripts.typecheck' "$pkg" >/dev/null 2>&1; then
+                    # `// "" | length > 0`, not a bare `-e`: jq treats an empty
+                    # string as truthy and pnpm runs an empty script as exit 0, so
+                    # `"typecheck": ""` would have satisfied the bare test while
+                    # checking nothing.
+                    if ! jq -e '.scripts.typecheck // "" | length > 0' "$pkg" >/dev/null 2>&1; then
                       echo "::error::$pkg declares no \"typecheck\" script; pnpm would skip it without a word"
                       missing=1
                     fi
@@ -98,7 +102,12 @@ jobs:
                   fail=0 found=0
                   for pkg in examples/*/package.json; do
                     [ -f "$pkg" ] || continue
-                    spec=$(jq -r '.dependencies["@e4a/pg-js"] // empty' "$pkg")
+                    # Both maps: reading only .dependencies let the regression
+                    # this guard exists to block slip through as a devDependency,
+                    # because the package would then be skipped entirely rather
+                    # than checked. jq treats a missing key as null, which is the
+                    # identity for `+`, so this is safe when either is absent.
+                    spec=$(jq -r '(.dependencies + .devDependencies)["@e4a/pg-js"] // empty' "$pkg")
                     [ -n "$spec" ] || continue
                     found=$((found + 1))
                     if [ "$spec" = "workspace:*" ]; then

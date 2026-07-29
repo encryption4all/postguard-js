@@ -60,7 +60,10 @@ export async function encryptAndUpload(options: EncryptOptions): Promise<string>
 		signal: abortController?.signal
 	});
 
-	const result = await sealed.upload();
+	// notify is passed explicitly even though silence is the default: the SDK
+	// logs a notice when it is left undefined, because "I meant to send mail"
+	// and "I meant not to" are indistinguishable otherwise.
+	const result = await sealed.upload({ notify: { recipients: false } });
 
 	return result.uuid;
 }
