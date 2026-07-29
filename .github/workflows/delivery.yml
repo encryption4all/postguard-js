@@ -54,3 +54,11 @@ jobs:
                   # pnpm ignores publishConfig.provenance; the npm-config key
                   # is what `pnpm publish` (via changeset publish) reads.
                   NPM_CONFIG_PROVENANCE: 'true'
+                  # `pnpm release` is `pnpm -r build && changeset publish`, so the
+                  # recursive build reaches apps/tb-addon, whose build fail-closes
+                  # without these. Missing them fails the build BEFORE
+                  # `changeset publish` runs — i.e. it breaks the npm release of
+                  # pg-js, not just the addon.
+                  PKG_URL: ${{ vars.PKG_URL || 'https://pkg.postguard.eu' }}
+                  CRYPTIFY_URL: ${{ vars.CRYPTIFY_URL || 'https://storage.postguard.eu' }}
+                  POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}

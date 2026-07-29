@@ -25,11 +25,13 @@ const problems = [];
 if (manifest.version !== version) {
   problems.push(`manifest.json says ${manifest.version}, package.json says ${version}`);
 }
-const lastBefore = updates.addons[ADDON_ID].updates.at(-1);
-if (lastBefore?.version !== version) {
-  problems.push(
-    `updates.json's last entry is ${lastBefore?.version ?? 'missing'}, package.json says ${version}`,
-  );
+// Membership, not position: Thunderbird does not care about entry order, and
+// asserting on the last element made --check fail unfixably when an entry existed
+// but was not last (a re-release, or a hotfix after a higher version landed) —
+// the remedy it printed, `sync-version`, takes the existing-entry branch and
+// exits without writing.
+if (!updates.addons[ADDON_ID].updates.some((u) => u.version === version)) {
+  problems.push(`updates.json has no entry for ${version} (package.json says ${version})`);
 }
 
 if (check) {

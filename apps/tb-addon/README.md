@@ -14,38 +14,41 @@ End-to-end email encryption extension for Thunderbird. Uses identity-based encry
 ### Setup
 
 ```bash
-npm install
+pnpm install           # from the monorepo root; @e4a/pg-js is a workspace link
 cp .env.example .env   # adjust if needed
 ```
 
 ### Build and run
 
+From this directory (or with `pnpm --filter postguard-tb-addon <script>` from the
+root):
+
 ```bash
-npm run build          # production build -> dist/
-npm run build:dev      # development build (no minification, keeps console.log)
-npm run watch          # dev build with file watching
+pnpm build             # production build -> dist/
+pnpm build:dev         # development build (no minification, keeps console.log)
+pnpm watch             # dev build with file watching
 ```
 
 To load the extension in Thunderbird: open Add-ons Manager, click the gear icon, select Debug Add-ons, then Load Temporary Add-on and pick any file inside the `dist/` folder.
 
 ## Releasing
 
-Update the version in three files:
+Versions are managed by [changesets](https://github.com/changesets/changesets)
+from the monorepo root — do **not** hand-edit them:
 
-1. `package.json` (`"version"`)
-2. `manifest.json` (`"version"`)
-3. `updates.json` (add a new entry with the new version)
+1. Add a changeset in the PR that should ship: `pnpm changeset`.
+2. Merge it. A "Version Packages" PR appears.
+3. Merge that. It bumps `package.json` and runs `sync-version`, which mirrors the
+   version into `manifest.json` and appends an `updates.json` entry.
+4. Tag the result **`tb-addon-v<version>`** and push it. That builds the `.xpi`
+   and creates the GitHub release.
 
-Then commit and tag:
+The tag prefix is required. This repo's tag namespace is shared with
+`@e4a/pg-js`'s changesets releases, so a bare `v<version>` matches no trigger in
+`.github/workflows/tb-addon.yml` and would be a silent no-op.
 
-```bash
-git add package.json manifest.json updates.json
-git commit -m "Bump version to X.Y.Z"
-git push origin main
-git tag vX.Y.Z && git push origin vX.Y.Z
-```
-
-Pushing the `v*` tag triggers CI, which builds the `.xpi` file and creates a GitHub release.
+`check-version` fails any PR where `package.json`, `manifest.json` and
+`updates.json` disagree, which is what hand-editing a version causes.
 
 ## Build reproducibility
 

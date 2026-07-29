@@ -24,7 +24,13 @@ const downloadsDir = process.env.DOWNLOADS_DIR
 const TARGETS = [
     {
         name: 'thunderbird',
-        repo: 'encryption4all/postguard-tb-addon',
+        // The addon now releases from the monorepo. `tagPattern` is required, not
+        // cosmetic: this repo's releases are shared with @e4a/pg-js's, so without
+        // it every pg-js release is scanned as a candidate — asset-matched away,
+        // but noisily, and any future release carrying an .xpi would be mirrored
+        // as if it were the addon.
+        repo: 'encryption4all/postguard-js',
+        tagPattern: /^tb-addon-v/,
         assetPattern: /\.xpi$/i,
         outputFile: 'postguard-tb-addon.xpi',
         metaFile: 'postguard-tb-addon.json',
@@ -73,15 +79,25 @@ function parseSha256(digest) {
 // release that's tagged before its asset finishes uploading (or one that's
 // genuinely missing the asset) doesn't break the sync — we fall back to the
 // most recent release that does have it and warn loudly.
-const RELEASE_LOOKBACK = 10
+// Sized for a SHARED release namespace: this window now holds @e4a/pg-js's
+// changesets releases too, and pg-js releases far more often than the addon
+// (three times in one week while the addon sat on 0.9.3). At 10 the addon's
+// release could fall outside the window entirely, which surfaces as "no
+// published releases found matching /^tb-addon-v/" rather than a stale mirror.
+const RELEASE_LOOKBACK = 50
 
 async function findReleaseWithAsset(target) {
     const releases = await fetchJson(
         `https://api.github.com/repos/${target.repo}/releases?per_page=${RELEASE_LOOKBACK}`
     )
-    const eligible = releases.filter((r) => !r.draft && !r.prerelease)
+    const eligible = releases
+        .filter((r) => !r.draft && !r.prerelease)
+        .filter((r) => !target.tagPattern || target.tagPattern.test(r.tag_name))
     if (eligible.length === 0) {
-        throw new Error(`[${target.name}] no published releases found`)
+        throw new Error(
+            `[${target.name}] no published releases found` +
+                (target.tagPattern ? ` matching ${target.tagPattern}` : '')
+        )
     }
     for (let i = 0; i < eligible.length; i++) {
         const release = eligible[i]

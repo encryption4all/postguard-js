@@ -19,8 +19,10 @@ build time.
 The WASM module is the published
 [`@e4a/pg-wasm`](https://www.npmjs.com/package/@e4a/pg-wasm) npm package.
 It is consumed transitively via `@e4a/pg-js` (see
-[`package.json`](../package.json) and
-[`package-lock.json`](../package-lock.json)).
+[`package.json`](../package.json)). This add-on lives in the
+`encryption4all/postguard-js` monorepo, so the dependency is pinned by the
+workspace lockfile at the repo root (`pnpm-lock.yaml`), not by a lockfile in this
+directory.
 
 The npm package is produced by the `publish-wasm` job in
 [`encryption4all/postguard`'s
@@ -43,16 +45,21 @@ under `[package.metadata.wasm-pack.profile.release]`).
 ## Reproducing the bundled JavaScript
 
 ```bash
-git clone https://github.com/encryption4all/postguard-tb-addon
-cd postguard-tb-addon
-git checkout v<X.Y.Z>          # the published add-on version
-npm ci                          # respects package-lock.json byte-for-byte
-cp .env.example .env            # PKG_URL / CRYPTIFY_URL / POSTGUARD_WEBSITE_URL
-npm run build
+git clone https://github.com/encryption4all/postguard-js
+cd postguard-js
+git checkout tb-addon-v<X.Y.Z>       # the published add-on version's tag
+pnpm install --frozen-lockfile       # respects pnpm-lock.yaml byte-for-byte
+cd apps/tb-addon
+cp .env.example .env                 # PKG_URL / CRYPTIFY_URL / POSTGUARD_WEBSITE_URL
+pnpm build
 ```
 
-`package-lock.json` pins `@e4a/pg-wasm` to a specific version with an
-integrity hash, so `npm ci` will refuse to install a tampered tarball.
+The tag carries the `tb-addon-v` prefix because the monorepo's tag namespace is
+shared with `@e4a/pg-js`'s releases.
+
+The root `pnpm-lock.yaml` pins `@e4a/pg-wasm` to a specific version with an
+integrity hash, so `pnpm install --frozen-lockfile` will refuse to install a
+tampered tarball.
 At the time of writing this is:
 
 ```text
@@ -60,12 +67,14 @@ At the time of writing this is:
 sha512-/K2oDkBVy3pHg4HhWu/UXbnr68ID+MUMsqtO0KwFvfmlQ4EE/sOzRxZgGr2lXCS1zGEwq8c/y2AlsqAP9sd4zg==
 ```
 
-After `npm ci`, the actual WASM bytes that get inlined are at
-`node_modules/@e4a/pg-wasm/bundler/index_bg.wasm`. Compare its
-SHA-256 against the version on npm:
+After installing, the actual WASM bytes that get inlined live in pnpm's content
+store rather than under this directory — `apps/tb-addon/node_modules/@e4a/pg-js`
+is a symlink to `packages/pg-js`, and pg-wasm resolves from the workspace root.
+Locate it from the repo root and compare its SHA-256 against npm:
 
 ```bash
-sha256sum node_modules/@e4a/pg-wasm/bundler/index_bg.wasm
+wasm=$(find node_modules/.pnpm -path '*@e4a+pg-wasm*/bundler/index_bg.wasm' | head -1)
+sha256sum "$wasm"
 # Should match the upstream tarball's bundler/index_bg.wasm.
 # To pull the upstream tarball directly:
 npm pack @e4a/pg-wasm@<version> --pack-destination /tmp
@@ -122,8 +131,8 @@ following into the *Notes for reviewers* field, with the relevant tag
 and hashes filled in:
 
 ```text
-Source: https://github.com/encryption4all/postguard-tb-addon (tag v<X.Y.Z>)
-Build: npm ci && cp .env.example .env && npm run build && npm run package
+Source: https://github.com/encryption4all/postguard-js (tag tb-addon-v<X.Y.Z>)
+Build: pnpm install --frozen-lockfile && cd apps/tb-addon && cp .env.example .env && pnpm build && pnpm package
 
 Embedded WebAssembly:
   Source:  https://github.com/encryption4all/postguard (tag <pg-core release>)

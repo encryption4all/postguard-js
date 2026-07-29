@@ -15,7 +15,11 @@ packages:
 # 0.27.7 by the old `^0.27.2`). A floor keeps the advisory closed without
 # deciding which newer major a package may use.
 overrides:
-  cookie: '>=1.1.1'
+  # Scoped, and load-bearing: @sveltejs/kit declares cookie ^0.6.0, so this is
+  # the only reason the tree resolves 1.1.1 rather than a pre-CVE-2024-47764
+  # copy. Do not remove it; scoping just stops it replacing a specifier some
+  # other package legitimately chose.
+  '@sveltejs/kit>cookie': '>=1.1.1'
   # Scoped to the vulnerable transitive path only. A bare `esbuild` override
   # REPLACES each package's own specifier, which silently pinned apps/tb-addon
   # (declares ^0.28.0) back to 0.27.7. svelte-i18n is the only path that pulls a

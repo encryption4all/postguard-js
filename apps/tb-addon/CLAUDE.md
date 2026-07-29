@@ -1,7 +1,7 @@
 # Agent notes (migrated from the dobby memory repo)
 
 ## Overview
-Thunderbird MV3 extension (manifest v3, `type: "module"`). Release: tag-triggered (`vX.Y.Z` tag pushes trigger CI to build and release the .xpi).
+Thunderbird MV3 extension (manifest v3, `type: "module"`), living at `apps/tb-addon` in the postguard-js monorepo. Release: changesets for the version, then a `tb-addon-v<version>` tag to build and publish the .xpi. See "Release (monorepo)" below — that section is authoritative.
 
 ## Architecture
 - Background script: `src/background/background.ts` (ESM, event-driven).
@@ -24,11 +24,6 @@ Two failure modes to keep in mind when touching `composeTabs`:
 1. An async `windows.onCreated` handler must not unconditionally overwrite `composeTabs` state, if the user toggles encryption before the handler completes, an unconditional write can clobber `encrypt: true` back to `false`. Guard writes with `has()`.
 2. The in-memory `composeTabs` Map is lost if the MV3 background is suspended/restarted. Persist encrypt state to `storage.local` so manual toggles survive a suspension.
 
-## Release process
-- Push a `vX.Y.Z` tag; CI validates the version matches across `manifest.json`, `package.json`, and `updates.json`, then builds the `.xpi` and creates a GitHub release, regenerating `updates.json` with the release download URL.
-- Version bump pattern: branch `release/vX.Y.Z`, update the version in all 3 files, merge, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
-- `pnpm install --frozen-lockfile (from the repo root)` may fail locally if the lockfile is out of sync; use `npm install` as a fallback in the workspace (CI uses `pnpm install --frozen-lockfile (from the repo root)` in its own environment).
-
 ## x-postguard header
 Outgoing encrypted mail sets a `customHeaders` entry `{ name: "x-postguard", value: X_POSTGUARD_VERSION }` on the `onBeforeSend` return. This matches the header cryptify's notification email and the Outlook compose flow set, so a single Outlook `OnMessageRead` matcher on `HeaderName="x-postguard"` works across all three senders. `src/types/thunderbird.d.ts` extends `ComposeDetails.customHeaders?: ComposeCustomHeader[]` for this.
 
@@ -42,8 +37,8 @@ The unit-test surface is built around small pure helpers extracted from `backgro
 
 When extracting new listener logic for testability, follow this same pattern: pull the pure logic into its own file, keep only orchestration in the listener body. Tests: vitest.
 
-## Tests not gated in CI
-`.github/workflows/build.yml` runs `typecheck` and `build` but NOT `pnpm test` (tracked, unfixed). Also, `tsconfig.json`'s `include` is only `src/**/*.ts(x)`, so `pnpm typecheck` does not cover `tests/`. A type error in a test (e.g. wrong constructor arity) is caught by neither `typecheck` (tests excluded) nor vitest (esbuild strips types without checking). Match constructor signatures by hand when writing tests, CI will not flag test type errors.
+## Tests run in CI, but are not typechecked
+`.github/workflows/tb-addon.yml` runs `check-version`, `typecheck`, `test` and `build` on every PR. What remains true is the narrower point: `tsconfig.json`'s `include` is only `src/**/*.ts(x)`, so `pnpm typecheck` does not cover `tests/`. A type error in a test (e.g. wrong constructor arity) is caught by neither `typecheck` (tests excluded) nor vitest (esbuild strips types without checking). Match constructor signatures by hand when writing tests, CI will not flag test type errors.
 
 ## Icons / branding
 All extension icons live in `public/icons/`: `icon-16/32/64.svg` (manifest icons), `icon-enabled.svg` / `icon-disabled.svg` (compose-action toolbar toggle in `background.ts`'s `updateComposeActionIcon`). The three popups (compose-action, yivi-popup, policy-editor) render the header logo via `icon-64.svg`, so it doubles as the in-UI logo. The build only copies `public/` and `manifest.json` into `dist/`, assets under `img/` (the full brand lockup) are NOT bundled.
