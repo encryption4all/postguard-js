@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "version": "0.9.3",
+  "name": "__MSG_appName__",
+  "description": "End-to-end email encryption using identity-based encryption and Yivi",
+  "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "pg4tb@e4a.org",
+      "strict_min_version": "128.0",
+      "update_url": "https://github.com/encryption4all/postguard-tb-addon/releases/latest/download/updates.json"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "permissions": [
+    "compose",
+    "messagesRead",
+    "messagesModify",
+    "messagesMove",
+    "messagesDelete",
+    "messagesImport",
+    "accountsRead",
+    "accountsFolders",
+    "storage",
+    "scripting",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://postguard.eu/*",
+    "https://*.postguard.eu/*",
+    "https://*.yivi.app/*"
+  ],
+  "icons": {
+    "64": "icons/icon-64.svg",
+    "32": "icons/icon-32.svg",
+    "16": "icons/icon-16.svg"
+  },
+  "compose_action": {
+    "default_title": "__MSG_composeActionTitle__",
+    "default_icon": "icons/icon-disabled.svg",
+    "default_popup": "pages/compose-action/compose-action.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

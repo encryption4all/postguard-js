@@ -1,0 +1,359 @@
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  composeTabs,
+  decryptedMessages,
+  pendingCryptoPopups,
+  pendingPolicyEditors,
+  persistEncryptState,
+  restoreEncryptState,
+  toggleEncrypt,
+  cleanupComposeTab,
+  cleanupDecryptedMessage,
+  getSignPrefill,
+  setSignPrefill,
+} from "../src/background/state";
+import type { Policy } from "../src/lib/types";
+import { EMAIL_ATTRIBUTE_TYPE } from "../src/lib/utils";
+import { installBrowserMock, type BrowserMock } from "./helpers/browser-mock";
+
+let mock: BrowserMock;
+
+beforeEach(() => {
+  mock = installBrowserMock();
+  composeTabs.clear();
+  decryptedMessages.clear();
+  pendingCryptoPopups.clear();
+  pendingPolicyEditors.clear();
+});
+
+// `state.ts` exposes the data store + helpers; the actual
+// `windows.onCreated` / `tabs.onRemoved` wiring lives in `background.ts`.
+// These tests exercise the helpers in the same order the listeners call
+// them, which is what we want to regression-protect: the state transitions,
+// not the listener glue.
+describe("compose tab state lifecycle", () => {
+  it("should initialize state when compose window is created", () => {
+    composeTabs.set(42, { encrypt: false });
+    expect(composeTabs.get(42)).toEqual({ encrypt: false });
+  });
+
+  it("should auto-enable encryption when replying to encrypted message", () => {
+    composeTabs.set(42, { encrypt: true });
+    expect(composeTabs.get(42)?.encrypt).toBe(true);
+  });
+
+  it("should auto-enable encryption when replying to previously encrypted message", () => {
+    composeTabs.set(42, { encrypt: true });
+    expect(composeTabs.get(42)?.encrypt).toBe(true);
+  });
+
+  it("should not auto-enable encryption for non-encrypted replies", () => {
+    composeTabs.set(42, { encrypt: false });
+    expect(composeTabs.get(42)?.encrypt).toBe(false);
+  });
+
+  it("should not auto-enable encryption for new messages", () => {
+    composeTabs.set(42, { encrypt: false });
+    expect(composeTabs.get(42)?.encrypt).toBe(false);
+  });
+
+  it("should clean up state when compose tab is closed", () => {
+    composeTabs.set(42, { encrypt: true });
+    cleanupComposeTab(42);
+    expect(composeTabs.has(42)).toBe(false);
+  });
+});
+
+describe("encryption toggle", () => {
+  it("should toggle encrypt state and update icon", async () => {
+    mock.composeDetails.set(7, { to: ["a@b.c"], cc: [], deliveryFormat: "auto" });
+    expect(composeTabs.get(7)?.encrypt ?? false).toBe(false);
+
+    const r1 = await toggleEncrypt(7);
+    expect(r1.encrypt).toBe(true);
+    expect(composeTabs.get(7)?.encrypt).toBe(true);
+
+    const r2 = await toggleEncrypt(7);
+    expect(r2.encrypt).toBe(false);
+    expect(composeTabs.get(7)?.encrypt).toBe(false);
+  });
+
+  it("should set deliveryFormat to 'both' when enabling encryption", async () => {
+    mock.composeDetails.set(7, { to: [], cc: [], deliveryFormat: "auto" });
+    await toggleEncrypt(7);
+    const last = mock.setComposeDetailsCalls.at(-1);
+    expect(last?.details).toMatchObject({ deliveryFormat: "both" });
+  });
+
+  it("should set deliveryFormat to 'auto' when disabling encryption", async () => {
+    mock.composeDetails.set(7, { to: [], cc: [], deliveryFormat: "both" });
+    composeTabs.set(7, { encrypt: true });
+    await toggleEncrypt(7);
+    const last = mock.setComposeDetailsCalls.at(-1);
+    expect(last?.details).toMatchObject({ deliveryFormat: "auto" });
+  });
+
+  it("should return hasRecipients status with toggle result", async () => {
+    mock.composeDetails.set(1, { to: ["a@b.c"], cc: [], deliveryFormat: "auto" });
+    const withTo = await toggleEncrypt(1);
+    expect(withTo.hasRecipients).toBe(true);
+
+    mock.composeDetails.set(2, { to: [], cc: ["c@d.e"], deliveryFormat: "auto" });
+    const withCc = await toggleEncrypt(2);
+    expect(withCc.hasRecipients).toBe(true);
+
+    mock.composeDetails.set(3, { to: [], cc: [], deliveryFormat: "auto" });
+    const noRecipients = await toggleEncrypt(3);
+    expect(noRecipients.hasRecipients).toBe(false);
+  });
+});
+
+describe("decryptedMessages cleanup", () => {
+  it("should remove entry when message is deleted", () => {
+    decryptedMessages.set(99, { badges: [{ value: "alice@example.com" }] });
+    expect(decryptedMessages.has(99)).toBe(true);
+    cleanupDecryptedMessage(99);
+    expect(decryptedMessages.has(99)).toBe(false);
+  });
+
+  it("should not crash when deleting unknown message ID", () => {
+    expect(() => cleanupDecryptedMessage(12345)).not.toThrow();
+  });
+});
+
+describe("pending popup maps", () => {
+  it("should reject pending crypto popup when window is closed", async () => {
+    const { promise, resolve, reject } = Promise.withResolvers<any>();
+    pendingCryptoPopups.set(500, { data: {} as any, resolve, reject });
+
+    const pending = pendingCryptoPopups.get(500);
+    pending?.reject(new Error("Popup closed"));
+    pendingCryptoPopups.delete(500);
+
+    await expect(promise).rejects.toThrow("Popup closed");
+    expect(pendingCryptoPopups.has(500)).toBe(false);
+  });
+
+  it("should reject pending policy editor when window is closed", async () => {
+    const { promise, resolve, reject } = Promise.withResolvers<Policy>();
+    const policy: Policy = { "alice@example.com": [{ t: "pbdf.sidn-pbdf.email.email", v: "" }] };
+    pendingPolicyEditors.set(600, {
+      composeTabId: 1,
+      initialPolicy: policy,
+      sign: false,
+      resolve,
+      reject,
+    });
+
+    const pending = pendingPolicyEditors.get(600);
+    pending?.reject(new Error("window closed"));
+    pendingPolicyEditors.delete(600);
+
+    await expect(promise).rejects.toThrow("window closed");
+    expect(pendingPolicyEditors.has(600)).toBe(false);
+  });
+
+  it("should not leave stale entries after popup completes", async () => {
+    const { promise, resolve, reject } = Promise.withResolvers<any>();
+    pendingCryptoPopups.set(700, { data: {} as any, resolve, reject });
+    pendingCryptoPopups.get(700)?.resolve({ ok: true } as any);
+    pendingCryptoPopups.delete(700);
+    await expect(promise).resolves.toEqual({ ok: true });
+    expect(pendingCryptoPopups.has(700)).toBe(false);
+  });
+
+  it("should not leave stale entries after popup errors", async () => {
+    const { promise, resolve, reject } = Promise.withResolvers<any>();
+    pendingCryptoPopups.set(800, { data: {} as any, resolve, reject });
+    pendingCryptoPopups.get(800)?.reject(new Error("crypto error"));
+    pendingCryptoPopups.delete(800);
+    await expect(promise).rejects.toThrow("crypto error");
+    expect(pendingCryptoPopups.has(800)).toBe(false);
+  });
+
+  it("should not allow two policy editors for the same compose tab", () => {
+    composeTabs.set(1, { encrypt: true, configWindowId: 900 });
+    pendingPolicyEditors.set(900, {
+      composeTabId: 1,
+      initialPolicy: {},
+      sign: false,
+      resolve: () => {},
+      reject: () => {},
+    });
+
+    // handleOpenPolicyEditor's guard: if configWindowId is set, skip.
+    const state = composeTabs.get(1)!;
+    const shouldOpenAnother = !state.configWindowId;
+    expect(shouldOpenAnother).toBe(false);
+    expect(pendingPolicyEditors.size).toBe(1);
+  });
+
+  it("should not allow two sign editors for the same compose tab", () => {
+    composeTabs.set(1, { encrypt: true, signWindowId: 901 });
+    pendingPolicyEditors.set(901, {
+      composeTabId: 1,
+      initialPolicy: {},
+      sign: true,
+      resolve: () => {},
+      reject: () => {},
+    });
+
+    const state = composeTabs.get(1)!;
+    const shouldOpenAnother = !state.signWindowId;
+    expect(shouldOpenAnother).toBe(false);
+    expect(pendingPolicyEditors.size).toBe(1);
+  });
+});
+
+// The persistence layer is the PR #68 fix for
+// "encrypt toggle lost after background suspension". Pin its invariants
+// directly so a future refactor of state.ts can't regress them.
+describe("encryption state persistence (PR #68)", () => {
+  it("should persist only tabs where encrypt is true", async () => {
+    composeTabs.set(1, { encrypt: true });
+    composeTabs.set(2, { encrypt: false });
+    await persistEncryptState();
+    const saved = mock.storage.local["composeTabEncryptState"] as Record<string, unknown>;
+    expect(Object.keys(saved)).toEqual(["1"]);
+  });
+
+  it("should restore persisted encrypt state for existing compose tabs", async () => {
+    mock.storage.local["composeTabEncryptState"] = { "5": { encrypt: true } };
+    mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
+
+    await restoreEncryptState();
+
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
+  });
+
+  it("should not restore state for tabs that no longer exist", async () => {
+    mock.storage.local["composeTabEncryptState"] = { "999": { encrypt: true } };
+    mock.tabs = [];
+
+    await restoreEncryptState();
+
+    expect(composeTabs.has(999)).toBe(false);
+  });
+
+  it("should not downgrade an already-set encrypt:true to persisted value", async () => {
+    // PR #68 race fix: if the user already toggled encrypt:true, restore
+    // must NOT clobber it.
+    composeTabs.set(5, { encrypt: true });
+    mock.storage.local["composeTabEncryptState"] = { "5": { encrypt: true } };
+    mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
+
+    await restoreEncryptState();
+
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
+  });
+
+  it("should rewrite the persisted blob with current state after restore", async () => {
+    mock.storage.local["composeTabEncryptState"] = {
+      "5": { encrypt: true },
+      "999": { encrypt: true },
+    };
+    mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
+
+    await restoreEncryptState();
+
+    const saved = mock.storage.local["composeTabEncryptState"] as Record<string, unknown>;
+    expect(saved).toBeDefined();
+    expect(Object.keys(saved)).toEqual(["5"]);
+  });
+
+  it("should survive two consecutive restores without any intervening toggle (issue #128)", async () => {
+    mock.storage.local["composeTabEncryptState"] = { "5": { encrypt: true } };
+    mock.tabs = [{ id: 5, windowId: 50, type: "messageCompose" }];
+
+    await restoreEncryptState();
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
+
+    composeTabs.clear();
+
+    await restoreEncryptState();
+    expect(composeTabs.get(5)?.encrypt).toBe(true);
+  });
+});
+
+// Per-account sign-attribute prefills (issue #77). A user fills in their sign
+// attributes once; the next compose for that account pre-fills them. Storage is
+// keyed by the account's from-address so different accounts stay separate.
+describe("per-account sign prefills (issue #77)", () => {
+  const SURNAME = "pbdf.gemeente.personalData.surname";
+  const DOB = "pbdf.gemeente.personalData.dateofbirth";
+
+  it("returns an empty list when nothing is stored for the account", async () => {
+    expect(await getSignPrefill("alice@example.com")).toEqual([]);
+  });
+
+  it("round-trips saved attributes for an account", async () => {
+    await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([
+      { t: SURNAME, v: "Smith" },
+    ]);
+  });
+
+  it("keeps different accounts' attributes separate", async () => {
+    await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
+    await setSignPrefill("bob@example.com", [{ t: DOB, v: "01-01-1990" }]);
+
+    expect(await getSignPrefill("alice@example.com")).toEqual([
+      { t: SURNAME, v: "Smith" },
+    ]);
+    expect(await getSignPrefill("bob@example.com")).toEqual([
+      { t: DOB, v: "01-01-1990" },
+    ]);
+  });
+
+  it("matches the account key case-insensitively", async () => {
+    await setSignPrefill("Alice@Example.com", [{ t: SURNAME, v: "Smith" }]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([
+      { t: SURNAME, v: "Smith" },
+    ]);
+  });
+
+  it("drops the locked email attribute and blank values before storing", async () => {
+    await setSignPrefill("alice@example.com", [
+      { t: EMAIL_ATTRIBUTE_TYPE, v: "alice@example.com" },
+      { t: SURNAME, v: "Smith" },
+      { t: DOB, v: "   " },
+    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([
+      { t: SURNAME, v: "Smith" },
+    ]);
+  });
+
+  it("overwrites the previously stored attributes for the account", async () => {
+    await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
+    await setSignPrefill("alice@example.com", [{ t: DOB, v: "01-01-1990" }]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([
+      { t: DOB, v: "01-01-1990" },
+    ]);
+  });
+
+  it("clears a stored prefill when an empty/effectively-empty set is saved", async () => {
+    await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
+    await setSignPrefill("alice@example.com", [
+      { t: EMAIL_ATTRIBUTE_TYPE, v: "alice@example.com" },
+    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([]);
+
+    // The account's entry is removed from the blob; others are untouched.
+    await setSignPrefill("bob@example.com", [{ t: DOB, v: "01-01-1990" }]);
+    await setSignPrefill("bob@example.com", []);
+    const saved = mock.storage.local["signPrefills"] as Record<string, unknown>;
+    expect(saved).toEqual({});
+  });
+
+  it("persists under the dedicated storage key without touching encrypt state", async () => {
+    composeTabs.set(1, { encrypt: true });
+    await persistEncryptState();
+    await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
+
+    expect(mock.storage.local["signPrefills"]).toEqual({
+      "alice@example.com": [{ t: SURNAME, v: "Smith" }],
+    });
+    // The encrypt-state blob is independent.
+    expect(mock.storage.local["composeTabEncryptState"]).toBeDefined();
+  });
+});
