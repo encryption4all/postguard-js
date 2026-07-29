@@ -60,18 +60,22 @@ jobs:
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
               working-directory: .
-            # Not just src/**: .husky/pre-commit runs lint-staged over
-            # *.{js,mjs,ts} for this package, so a CI glob narrower than the hook
-            # is strictly weaker than the thing it exists to complement — and it
-            # excluded exactly the build-critical files, webpack.config.js (which
-            # carries the manifest AppDomain transform) and scripts/. Widening it
-            # required formatting two test files that had drifted, which is the
-            # cost of the gap: the hook would have rewritten them under whoever
-            # next touched them, turning a one-line change into a formatting diff.
+            # These globs match what `.husky/pre-commit` already enforces via
+            # lint-staged: `*.{js,mjs,ts}` and `*.{json,md,yml,yaml,css,html}`,
+            # package-wide. A CI gate narrower than the hook it complements is
+            # strictly weaker than it looks, and the src-only version excluded
+            # exactly the build-critical files — webpack.config.js, which carries
+            # the manifest AppDomain transform, and scripts/.
+            #
+            # Reaching parity cost two reformats, which is the argument for closing
+            # the gap rather than against it: nine tracked files were unformatted,
+            # and the hook would have rewritten them under whoever next touched a
+            # taskpane template, turning a one-line change into a formatting diff.
+            # `scripts/**`, not `scripts/*`, so a subdirectory cannot slip out.
             - name: Lint (no errors, no warnings)
-              run: pnpm exec eslint -c eslint.config.mjs --max-warnings=0 "src/**/*.{ts,js}" "test/**/*.ts" "scripts/*.mjs" webpack.config.js
+              run: pnpm exec eslint -c eslint.config.mjs --max-warnings=0 "src/**/*.{ts,js}" "test/**/*.ts" "scripts/**/*.mjs" webpack.config.js eslint.config.mjs
             - name: Prettier (format check)
-              run: pnpm exec prettier --check "src/**/*.{ts,js}" "test/**/*.ts" "scripts/*.mjs" webpack.config.js
+              run: pnpm exec prettier --check "src/**/*.{ts,js}" "test/**/*.ts" "scripts/**/*.mjs" webpack.config.js eslint.config.mjs "**/*.{json,md,yml,yaml,css,html}"
             - run: pnpm typecheck
             # Outlook keys sideloaded and centrally-deployed updates on the
             # manifest's <Version>, which changesets does not touch. `version-packages`

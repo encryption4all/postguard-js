@@ -45,6 +45,21 @@ const TARGETS = [
         assetPattern: /^manifest\.xml$/i,
         outputFile: 'postguard-outlook-manifest.xml',
         metaFile: 'postguard-outlook-manifest.json',
+        // Set until the first `outlook-addin-v*` release exists. While set, no
+        // matching release is an expected state rather than a failure.
+        //
+        // Deliberately a flag in committed code, not something inferred from the
+        // cached metadata: `DOWNLOADS_DIR` is image content, not a volume
+        // (docker/Dockerfile populates it from the build, and sync-addons-loop.sh
+        // points at it), so every fresh container restarts from the committed
+        // `v0.1.5` meta. Inferring the window from that file would have re-armed
+        // the permissive path on every website deploy, leaving the loud
+        // regression check live only between a successful sync and the next
+        // deploy — durable-looking, and not durable.
+        //
+        // It cannot outlive its window either: once a matching release exists,
+        // the flag is reported as stale on every run until it is removed.
+        bootstrap: true,
     },
 ]
 
@@ -90,10 +105,6 @@ function parseSha256(digest) {
 // published releases found matching /^tb-addon-v/" rather than a stale mirror.
 const RELEASE_LOOKBACK = 50
 
-function matchesPattern(target, tag) {
-    return Boolean(tag) && (!target.tagPattern || target.tagPattern.test(tag))
-}
-
 async function findReleaseWithAsset(target, cached) {
     const releases = await fetchJson(
         `https://api.github.com/repos/${target.repo}/releases?per_page=${RELEASE_LOOKBACK}`
@@ -103,17 +114,19 @@ async function findReleaseWithAsset(target, cached) {
         .filter((r) => !target.tagPattern || target.tagPattern.test(r.tag_name))
     if (eligible.length === 0) {
         // Distinguish "not released from here yet" from "stopped finding what it
-        // used to find". If the cached tag matches the pattern, this target has
-        // mirrored such a release before and its disappearance is a regression —
-        // a wrong pattern, a wrong repo, an unpublished release — which has to be
-        // loud. Before the first matching release exists there is nothing to be
-        // wrong about: the committed pre-migration artifact keeps serving the
-        // download page, and failing here would only log a dead iteration every
-        // 6h until the first tag is pushed.
-        if (matchesPattern(target, cached?.tag)) {
+        // used to find". Only a target still inside its declared bootstrap window
+        // may treat the absence as expected; for anything else it is a regression
+        // — a wrong pattern, a wrong repo, an unpublished release — and has to be
+        // loud. During the window the committed pre-migration artifact keeps
+        // serving the download page, and failing would only log a dead iteration
+        // every 6h until the first tag is pushed.
+        if (!target.bootstrap) {
             throw new Error(
-                `[${target.name}] no published releases found matching ${target.tagPattern}, ` +
-                    `but ${cached.tag} was mirrored previously — the tag pattern or repo is wrong`
+                `[${target.name}] no published releases found matching ${target.tagPattern}` +
+                    (cached?.tag
+                        ? `, but ${cached.tag} was mirrored previously`
+                        : '') +
+                    ' — the tag pattern or repo is wrong'
             )
         }
         console.warn(
@@ -121,6 +134,19 @@ async function findReleaseWithAsset(target, cached) {
                 `keeping ${cached?.tag ?? 'the committed artifact'} until the first one is published`
         )
         return null
+    }
+
+    // The flag describes a window that has now closed, so say so on every run
+    // until it is removed. Reported rather than thrown: the sync itself is
+    // working and the download page should keep updating — but leaving this
+    // quiet is what would turn a one-release bootstrap allowance into a
+    // permanent hole in the regression check above.
+    if (target.bootstrap) {
+        console.warn(
+            `[${target.name}] WARNING: bootstrap is still set, but ${eligible[0].tag_name} ` +
+                `matches ${target.tagPattern} — remove \`bootstrap: true\` from this target in ` +
+                'sync-addons.mjs so a pattern that stops matching fails loudly again'
+        )
     }
     for (let i = 0; i < eligible.length; i++) {
         const release = eligible[i]
