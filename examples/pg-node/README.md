@@ -74,4 +74,9 @@ const sealed = pg.encrypt({
 const { uuid } = await sealed.upload({ notify: { recipients: true, message, language: 'EN' } });
 ```
 
-`notify` must be nested under an object. The SDK validates the shape and throws a clear `TypeError` if you pass `{ notify: true }` or forget to nest. See the [SDK README](https://github.com/encryption4all/postguard-js#server-side-usage-node-bun-deno) for the full server-side surface.
+`notify` must be nested under an object, and **nothing checks that for you** — `{ notify: true }` fails silently and is worse than omitting `notify` altogether:
+
+- `delivery?.recipients` on `true` is `undefined`, so `false` goes on the wire and no mail is sent;
+- and because `notify` *is* defined, the SDK's silent-upload notice does not fire either, so there is no warning.
+
+There was once a runtime validator, but it hand-maintained an allowlist of upload keys and rejected valid options when the types moved ahead of it; `packages/pg-js/tests/postguard.test.ts` pins its removal. Passing `{ notify: { recipients: false } }` when you mean silence is the way to be explicit. See the [SDK README](https://github.com/encryption4all/postguard-js#server-side-usage-node-bun-deno) for the full server-side surface.

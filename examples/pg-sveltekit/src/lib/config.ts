@@ -24,6 +24,3 @@ export const IS_CRYPTIFY_STAGING = detectStagingCryptify(CRYPTIFY_URL);
 export const DOWNLOAD_URL =
 	env.PUBLIC_DOWNLOAD_URL ||
 	(IS_CRYPTIFY_STAGING ? 'https://staging.postguard.eu' : 'https://postguard.eu');
-
-export const UPLOAD_CHUNK_SIZE = 1024 * 1024; // 1MB
-export const FILEREAD_CHUNK_SIZE = 1024 * 1024; // 1MB
