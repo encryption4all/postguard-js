@@ -5,7 +5,11 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [],
+  "ignore": [
+    "@e4a/pg-example",
+    "pg-node",
+    "pg-sveltekit"
+  ],
   "privatePackages": {
     "version": true,
     "tag": false
