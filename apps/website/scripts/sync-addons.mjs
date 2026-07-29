@@ -45,10 +45,14 @@ const TARGETS = [
         assetPattern: /^manifest\.xml$/i,
         outputFile: 'postguard-outlook-manifest.xml',
         metaFile: 'postguard-outlook-manifest.json',
-        // No `bootstrap` flag: outlook-addin-v1.0.0 is published, so a run that
-        // finds nothing matching this pattern is a regression rather than a
-        // window, and must fail loudly. The flag existed only between the repoint
-        // and that first release.
+        // There was briefly a `bootstrap` flag here, suppressing the "no matching
+        // release" failure between repointing this target at the monorepo and the
+        // first `outlook-addin-v*` release. outlook-addin-v1.0.0 is published, so
+        // the window has closed and the flag — along with the branch it guarded —
+        // is gone rather than left dormant: an unreachable path advertising
+        // behaviour nothing reaches is what this workspace keeps deleting. If a
+        // future target ever needs such a window, it wants its own change, with a
+        // test.
     },
 ]
 
@@ -90,8 +94,9 @@ function parseSha256(digest) {
 // Sized for a SHARED release namespace: this window now holds @e4a/pg-js's
 // changesets releases too, and pg-js releases far more often than the addon
 // (three times in one week while the addon sat on 0.9.3). At 10 the addon's
-// release could fall outside the window entirely, which surfaces as "no
-// published releases found matching /^tb-addon-v/" rather than a stale mirror.
+// release could fall outside the window entirely, which fails the sync rather
+// than silently leaving a stale mirror — and the error below names this window
+// as one of the two causes, because widening it is the fix in that case.
 const RELEASE_LOOKBACK = 50
 
 async function findReleaseWithAsset(target, cached) {
@@ -102,47 +107,25 @@ async function findReleaseWithAsset(target, cached) {
         .filter((r) => !r.draft && !r.prerelease)
         .filter((r) => !target.tagPattern || target.tagPattern.test(r.tag_name))
     if (eligible.length === 0) {
-        // Distinguish "not released from here yet" from "stopped finding what it
-        // used to find". Only a target still inside its declared bootstrap window
-        // may treat the absence as expected; for anything else it is a regression
-        // — a wrong pattern, a wrong repo, an unpublished release — and has to be
-        // loud. During the window the committed pre-migration artifact keeps
-        // serving the download page, and failing would only log a dead iteration
-        // every 6h until the first tag is pushed.
-        if (!target.bootstrap) {
-            throw new Error(
-                `[${target.name}] no published releases found matching ${target.tagPattern}` +
-                    (cached?.tag
-                        ? `, but ${cached.tag} was mirrored previously`
-                        : '') +
-                    ' — the tag pattern or repo is wrong'
-            )
-        }
-        // Names the flag, not just the absence. Reaching this branch after the
-        // first release has shipped means `bootstrap` was left set AND the pattern
-        // stopped matching — the regression this guard exists for, arriving as a
-        // reassuring "not published yet" unless the log says what is suppressing
-        // the failure.
-        console.warn(
-            `[${target.name}] no release matching ${target.tagPattern} yet; ` +
-                `keeping ${cached?.tag ?? 'the committed artifact'} until the first one is published. ` +
-                'Not treated as a failure because `bootstrap: true` is set on this target in ' +
-                'sync-addons.mjs; if the first release has already been mirrored, that flag is ' +
-                'stale and is hiding a real regression.'
-        )
-        return null
-    }
-
-    // The flag describes a window that has now closed, so say so on every run
-    // until it is removed. Reported rather than thrown: the sync itself is
-    // working and the download page should keep updating — but leaving this
-    // quiet is what would turn a one-release bootstrap allowance into a
-    // permanent hole in the regression check above.
-    if (target.bootstrap) {
-        console.warn(
-            `[${target.name}] WARNING: bootstrap is still set, but ${eligible[0].tag_name} ` +
-                `matches ${target.tagPattern} — remove \`bootstrap: true\` from this target in ` +
-                'sync-addons.mjs so a pattern that stops matching fails loudly again'
+        // Both targets have released from this repo, so finding nothing is a
+        // regression rather than a state to wait out, and it fails loudly.
+        //
+        // The message names both plausible causes because they call for opposite
+        // fixes, and an earlier version asserted only the second. The addon's
+        // release scrolling out of RELEASE_LOOKBACK is the one that will happen
+        // eventually with nothing wrong: the tag namespace is shared with
+        // @e4a/pg-js's changesets releases, which are far more frequent, so the
+        // window fills up with them (see the note on RELEASE_LOOKBACK above).
+        // That wants the window widened, not the pattern touched. Draft and
+        // prerelease releases filter out here the same way.
+        throw new Error(
+            `[${target.name}] no published release matching ${target.tagPattern} in the last ` +
+                `${RELEASE_LOOKBACK}` +
+                (cached?.tag
+                    ? `, but ${cached.tag} was mirrored previously`
+                    : '') +
+                ` — either it has scrolled out of the ${RELEASE_LOOKBACK}-release lookback, ` +
+                "or the tag pattern, the repo, or the release's published state is wrong"
         )
     }
     for (let i = 0; i < eligible.length; i++) {

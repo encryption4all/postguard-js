@@ -72,6 +72,15 @@ jobs:
             # and the hook would have rewritten them under whoever next touched a
             # taskpane template, turning a one-line change into a formatting diff.
             # `scripts/**`, not `scripts/*`, so a subdirectory cannot slip out.
+            #
+            # The `{json,md,yml,yaml,css,html}` glob would also match webpack's
+            # output. What keeps it out is `dist/` in apps/outlook-addon/.gitignore,
+            # which prettier 3 honours as a default ignore path: with an unformatted
+            # file planted in dist/, the gate stays clean, and moving that .gitignore
+            # aside makes it fail. So that entry is load-bearing here, not just a
+            # build-artifact listing. (These steps run with the workflow's
+            # apps/outlook-addon working directory, which is the .gitignore prettier
+            # picks up.)
             - name: Lint (no errors, no warnings)
               run: pnpm exec eslint -c eslint.config.mjs --max-warnings=0 "src/**/*.{ts,js}" "test/**/*.ts" "scripts/**/*.mjs" webpack.config.js eslint.config.mjs
             - name: Prettier (format check)
