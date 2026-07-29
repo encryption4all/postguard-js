@@ -25,3 +25,17 @@ overrides:
   # (declares ^0.28.0) back to 0.27.7. svelte-i18n is the only path that pulls a
   # pre-fix esbuild (0.19.12 without this).
   'svelte-i18n>esbuild': '>=0.27.2'
+
+  # Introduced by the apps/outlook-addon import: its own package-lock.json had
+  # clean resolutions ("fix audit CVEs" in its history) and its `overrides` block
+  # is inert in a workspace member, so a fresh resolve reintroduced all three.
+  # `pnpm audit` was clean on main before the import and is clean again with
+  # these. Floors, not `^` ranges — a floor cannot downgrade a package that
+  # legitimately wants something newer, which is how the esbuild pin silently
+  # pinned tb-addon back to 0.27.7.
+  #   uuid <14.0.0:            missing buffer bounds check in v3/v5/v6
+  #   adm-zip <0.6.0:          crafted ZIP triggers a 4 GB allocation
+  #   brace-expansion <=5.0.7: DoS via unbounded expansion length
+  uuid: '>=14.0.0'
+  adm-zip: '>=0.6.0'
+  brace-expansion: '>=5.0.8'
