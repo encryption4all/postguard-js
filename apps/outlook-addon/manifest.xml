@@ -20,7 +20,7 @@
          even though it is the same domain as <SourceLocation>. -->
     <AppDomain>https://addin.postguard.eu</AppDomain>
     <AppDomain>https://addin.staging.postguard.eu</AppDomain>
-    <AppDomain>https://localhost:3000</AppDomain>
+    <AppDomain>https://localhost:3000/</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Mailbox"/>

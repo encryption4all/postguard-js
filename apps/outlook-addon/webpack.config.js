@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 const devCerts = require("office-addin-dev-certs");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
@@ -16,9 +14,31 @@ const envDefaults = {
   CRYPTIFY_URL: "https://fileshare.staging.postguard.eu",
   POSTGUARD_WEBSITE_URL: "https://staging.postguard.eu",
 };
-const resolvedEnv = {};
-for (const key of requiredEnv) {
-  resolvedEnv[key] = process.env[key] || envDefaults[key];
+// `requiredEnv` used to require nothing: it fell through to `envDefaults`, which
+// point at staging, so `webpack --mode production` with no env emitted a
+// production add-in wired to the staging PKG — i.e. real users' key requests
+// going to a staging deployment. The defaults are genuinely useful for a dev
+// build, so they are kept there and refused in production.
+function resolveEnv(isProduction) {
+  const resolved = {};
+  const missing = [];
+  for (const key of requiredEnv) {
+    const value = process.env[key];
+    if (value) {
+      resolved[key] = value;
+    } else if (isProduction) {
+      missing.push(key);
+    } else {
+      resolved[key] = envDefaults[key];
+    }
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables for a production build: ${missing.join(", ")}. ` +
+        "The staging defaults are only applied to development builds; see .env.example."
+    );
+  }
+  return resolved;
 }
 
 async function getHttpsOptions() {
@@ -28,6 +48,7 @@ async function getHttpsOptions() {
 
 module.exports = async (env, options) => {
   const dev = options.mode === "development";
+  const resolvedEnv = resolveEnv(!dev);
   const config = {
     devtool: dev ? "source-map" : false,
     entry: {

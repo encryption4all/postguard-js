@@ -1,3 +1,9 @@
+# NOT USABLE FROM THIS REPO YET. This file still expects a per-app build context
+# with its own package-lock.json, and `@e4a/pg-js` is now `workspace:*`, which is
+# unresolvable outside the workspace. The image is still built and published from
+# encryption4all/postguard-outlook-addon until B4 part two reworks this the way
+# apps/website/docker/Dockerfile was: repo-root context, pnpm workspace install,
+# SDK built before the app. See encryption4all/postguard-js#127.
 ## Build stage ##############################################################
 FROM node:20-alpine AS build
 

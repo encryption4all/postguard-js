@@ -11,20 +11,23 @@ Targets the new Outlook on Windows and Outlook for Mac as a taskpane mail add-in
 Requires Node.js 20 or later.
 
 ```bash
-npm install
-npm run dev-server     # https://localhost:3000 with the dev cert
+pnpm install
+pnpm dev-server     # https://localhost:3000 with the dev cert
 npm start              # sideload manifest.xml into Outlook
 ```
 
 Build, validate and lint:
 
 ```bash
-npm run build          # production webpack bundle into dist/
-npm run validate       # check manifest.xml against the Office Add-in schema
-npm run lint           # ESLint (flat config) + Prettier
+pnpm build          # production webpack bundle into dist/
+pnpm validate       # check manifest.xml against the Office Add-in schema
+pnpm lint           # ESLint (flat config) + Prettier
 ```
 
-CI on every PR runs lint (`--max-warnings=0`), `tsc --noEmit`, the production build, and `npm run validate`.
+CI on every PR runs the production build and the workspace test suite via the
+root `Integration` workflow. Lint and `office-addin-manifest validate` are not
+yet wired here — they ran in the standalone repo's `ci.yml`, which this app's
+import deliberately left behind; B4 part two ports them (encryption4all/postguard-js#127).
 
 ## Releasing
 

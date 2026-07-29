@@ -26,16 +26,17 @@ overrides:
   # pre-fix esbuild (0.19.12 without this).
   'svelte-i18n>esbuild': '>=0.27.2'
 
-  # Introduced by the apps/outlook-addon import: its own package-lock.json had
-  # clean resolutions ("fix audit CVEs" in its history) and its `overrides` block
-  # is inert in a workspace member, so a fresh resolve reintroduced all three.
-  # `pnpm audit` was clean on main before the import and is clean again with
-  # these. Floors, not `^` ranges — a floor cannot downgrade a package that
-  # legitimately wants something newer, which is how the esbuild pin silently
-  # pinned tb-addon back to 0.27.7.
-  #   uuid <14.0.0:            missing buffer bounds check in v3/v5/v6
-  #   adm-zip <0.6.0:          crafted ZIP triggers a 4 GB allocation
-  #   brace-expansion <=5.0.7: DoS via unbounded expansion length
-  uuid: '>=14.0.0'
-  adm-zip: '>=0.6.0'
-  brace-expansion: '>=5.0.8'
+  # The apps/outlook-addon import surfaced three advisories, all in dev tooling
+  # (eslint plugins, office-addin-*, webpack-dev-server) and none reachable from
+  # shipped code — brace-expansion appears 0 times in the built taskpane bundle.
+  #
+  # They are deliberately NOT pinned here. Forcing them breaks the toolchain:
+  # `brace-expansion: '>=5.0.8'` pushed every minimatch in the tree onto
+  # brace-expansion 5, whose namespace export minimatch 3 and 9 both fail to
+  # interop with (`TypeError: expand is not a function` on any lint run). A floor
+  # is safe against DOWNGRADES, which is why the esbuild entry above uses one,
+  # but it can still cross a breaking major — the mistake this comment records.
+  #
+  # Tracked in encryption4all/postguard-js#142: the real fix is moving the
+  # office-addin and eslint-plugin chains off the pinned transitive versions,
+  # not overriding them from here.
