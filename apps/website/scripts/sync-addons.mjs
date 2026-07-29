@@ -57,8 +57,13 @@ const TARGETS = [
         // regression check live only between a successful sync and the next
         // deploy — durable-looking, and not durable.
         //
-        // It cannot outlive its window either: once a matching release exists,
-        // the flag is reported as stale on every run until it is removed.
+        // Every run that observes the flag says so, in both directions: while a
+        // matching release exists it is reported as stale and asks to be removed,
+        // and while none does the skip names this flag as what is suppressing the
+        // failure. The second half matters because the two states are not mutually
+        // exclusive over time — a forgotten flag plus a pattern that later stops
+        // matching lands back in the permissive branch, and that log has to say
+        // why it is permissive rather than just what it did not find.
         bootstrap: true,
     },
 ]
@@ -129,9 +134,17 @@ async function findReleaseWithAsset(target, cached) {
                     ' — the tag pattern or repo is wrong'
             )
         }
+        // Names the flag, not just the absence. Reaching this branch after the
+        // first release has shipped means `bootstrap` was left set AND the pattern
+        // stopped matching — the regression this guard exists for, arriving as a
+        // reassuring "not published yet" unless the log says what is suppressing
+        // the failure.
         console.warn(
             `[${target.name}] no release matching ${target.tagPattern} yet; ` +
-                `keeping ${cached?.tag ?? 'the committed artifact'} until the first one is published`
+                `keeping ${cached?.tag ?? 'the committed artifact'} until the first one is published. ` +
+                'Not treated as a failure because `bootstrap: true` is set on this target in ' +
+                'sync-addons.mjs; if the first release has already been mirrored, that flag is ' +
+                'stale and is hiding a real regression.'
         )
         return null
     }
