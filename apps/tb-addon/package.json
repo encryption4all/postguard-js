@@ -10,7 +10,9 @@
     "watch": "node build.mjs --dev --watch",
     "test": "vitest run",
     "clean": "rm -rf dist",
-    "package": "npm run build && cd dist && zip -r ../postguard-tb-addon-$(node -p \"require('../package.json').version\").xpi ."
+    "package": "npm run build && cd dist && zip -r ../postguard-tb-addon-$(node -p \"require('../package.json').version\").xpi .",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check-version": "node scripts/sync-version.mjs --check"
   },
   "devDependencies": {
     "dotenv": "^17.4.2",

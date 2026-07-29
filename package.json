@@ -11,7 +11,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && pnpm --filter postguard-tb-addon sync-version",
     "release": "pnpm -r build && changeset publish",
     "prepare": "husky"
   },

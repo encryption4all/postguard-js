@@ -27,7 +27,7 @@ Two failure modes to keep in mind when touching `composeTabs`:
 ## Release process
 - Push a `vX.Y.Z` tag; CI validates the version matches across `manifest.json`, `package.json`, and `updates.json`, then builds the `.xpi` and creates a GitHub release, regenerating `updates.json` with the release download URL.
 - Version bump pattern: branch `release/vX.Y.Z`, update the version in all 3 files, merge, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
-- `npm ci` may fail locally if the lockfile is out of sync; use `npm install` as a fallback in the workspace (CI uses `npm ci` in its own environment).
+- `pnpm install --frozen-lockfile (from the repo root)` may fail locally if the lockfile is out of sync; use `npm install` as a fallback in the workspace (CI uses `pnpm install --frozen-lockfile (from the repo root)` in its own environment).
 
 ## x-postguard header
 Outgoing encrypted mail sets a `customHeaders` entry `{ name: "x-postguard", value: X_POSTGUARD_VERSION }` on the `onBeforeSend` return. This matches the header cryptify's notification email and the Outlook compose flow set, so a single Outlook `OnMessageRead` matcher on `HeaderName="x-postguard"` works across all three senders. `src/types/thunderbird.d.ts` extends `ComposeDetails.customHeaders?: ComposeCustomHeader[]` for this.
@@ -43,7 +43,7 @@ The unit-test surface is built around small pure helpers extracted from `backgro
 When extracting new listener logic for testability, follow this same pattern: pull the pure logic into its own file, keep only orchestration in the listener body. Tests: vitest.
 
 ## Tests not gated in CI
-`.github/workflows/build.yml` runs `typecheck` and `build` but NOT `npm test` (tracked, unfixed). Also, `tsconfig.json`'s `include` is only `src/**/*.ts(x)`, so `npm run typecheck` does not cover `tests/`. A type error in a test (e.g. wrong constructor arity) is caught by neither `typecheck` (tests excluded) nor vitest (esbuild strips types without checking). Match constructor signatures by hand when writing tests, CI will not flag test type errors.
+`.github/workflows/build.yml` runs `typecheck` and `build` but NOT `pnpm test` (tracked, unfixed). Also, `tsconfig.json`'s `include` is only `src/**/*.ts(x)`, so `pnpm typecheck` does not cover `tests/`. A type error in a test (e.g. wrong constructor arity) is caught by neither `typecheck` (tests excluded) nor vitest (esbuild strips types without checking). Match constructor signatures by hand when writing tests, CI will not flag test type errors.
 
 ## Icons / branding
 All extension icons live in `public/icons/`: `icon-16/32/64.svg` (manifest icons), `icon-enabled.svg` / `icon-disabled.svg` (compose-action toolbar toggle in `background.ts`'s `updateComposeActionIcon`). The three popups (compose-action, yivi-popup, policy-editor) render the header logo via `icon-64.svg`, so it doubles as the in-UI logo. The build only copies `public/` and `manifest.json` into `dist/`, assets under `img/` (the full brand lockup) are NOT bundled.
@@ -56,3 +56,20 @@ Sign attributes are persisted per Thunderbird account so users don't re-enter th
 
 ## Compose encryption-status panel
 The compose-window counterpart of the decrypt banner lives in the compose-action popup, NOT injected into the compose editor DOM: a WebExtension can only inject into the compose editor document, and any DOM added there becomes part of the sent message. The popup is the only body-safe surface for compose chrome. `getComposeState` returns `recipients`, `policy`, `signId`, `from`, `hasBcc`, all normalized via `toEmail` so keys match the policy/signId maps. Pure logic (`buildComposeStatusSummary`) is split from DOM rendering (`renderComposeStatusPanel`, jsdom-tested) in `src/pages/compose-action/status-summary.ts`, the same pure-logic/DOM-step split used elsewhere in this repo (e.g. `manage-access.ts`).
+
+## Release (monorepo)
+
+Versions come from changesets: add a changeset, merge, then merging the "Version
+Packages" PR bumps `package.json` **and** runs `sync-version`, which mirrors the
+version into `manifest.json` and appends an `updates.json` entry. `check-version`
+gates that agreement on every PR.
+
+Tags are app-scoped: **`tb-addon-v<version>`**, never `v<version>`. This repo's
+tag namespace is shared with `@e4a/pg-js`'s changesets releases (and still holds
+the pre-monorepo `v2.3.3`-style pg-js tags), so a bare `v*` would collide.
+
+`manifest.json`'s `update_url` points at
+`raw.githubusercontent.com/.../main/apps/tb-addon/updates.json`, **not** a
+`releases/latest` asset: in a shared repo `latest` is whichever app released most
+recently, so the old URL would have resolved to a pg-js release with no
+`updates.json` and broken auto-update for every installed addon.
