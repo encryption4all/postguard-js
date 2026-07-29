@@ -50,6 +50,49 @@ jobs:
               working-directory: packages/pg-js
               run: node scripts/smoke.mjs
 
+    api-surface:
+        name: API surface
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+              with:
+                  # api:gate compares against the merge base of the base branch
+                  # and HEAD. A shallow clone has no common ancestor to find, and
+                  # the script fails with that message rather than guessing.
+                  fetch-depth: 0
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '22'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            # actions/checkout leaves the base branch out of the local refs. On
+            # the workflow_call from delivery.yml there is no base ref, so main is
+            # the fallback and the comparison comes out empty.
+            - name: Fetch the base branch
+              shell: bash
+              run: |
+                  BASE="${GITHUB_BASE_REF:-main}"
+                  git fetch --no-tags origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+
+            - name: Build
+              run: pnpm -r build
+
+            # Fails when the report is stale (also caught by postbuild above) or
+            # when the pending changeset is smaller than the API diff needs.
+            - name: Public API surface gate
+              working-directory: packages/pg-js
+              shell: bash
+              run: pnpm api:gate
+
     bun:
         name: Bun ${{ matrix.bun }}
         runs-on: ubuntu-latest

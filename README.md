@@ -23,6 +23,8 @@ pnpm test
 
 Releases are managed by [changesets](https://github.com/changesets/changesets): a PR that should ship adds a changeset (`pnpm changeset`); merging to `main` opens or updates a "Version Packages" PR; merging that publishes to npm with provenance.
 
+The public type surface of `@e4a/pg-js` is tracked in [`packages/pg-js/etc/pg-js.api.md`](packages/pg-js/etc/pg-js.api.md). `pnpm build` fails when that file no longer matches the build, so a change to the compatibility contract always lands as a reviewable diff. Refresh it with `pnpm api:update` from `packages/pg-js`.
+
 ## License
 
 MIT.
