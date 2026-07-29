@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "0.9.3",
+  "version": "0.9.4",
   "name": "__MSG_appName__",
   "description": "End-to-end email encryption using identity-based encryption and Yivi",
   "default_locale": "en",
@@ -12,7 +12,9 @@
     }
   },
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "background.js"
+    ],
     "type": "module"
   },
   "content_security_policy": {
@@ -38,9 +40,9 @@
     "https://*.yivi.app/*"
   ],
   "icons": {
-    "64": "icons/icon-64.svg",
+    "16": "icons/icon-16.svg",
     "32": "icons/icon-32.svg",
-    "16": "icons/icon-16.svg"
+    "64": "icons/icon-64.svg"
   },
   "compose_action": {
     "default_title": "__MSG_composeActionTitle__",
@@ -49,8 +51,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
