@@ -146,6 +146,10 @@ Org-wide lesson: any repo combining gitignored generated sources with build-time
 - `src/email/envelope.ts`: HTML template for the PostGuard encrypted email; sender pill styles in `buildAttributePills`.
 - CI split: `delivery.yml` (release on push to main), `integration.yml` (PR checks: typecheck + build + test + smoke across Node 22/24, Bun, Deno).
 
+## Examples (`examples/*`)
+- `examples/pg-dotnet` multi-targets `net8.0;net10.0`, so a bare `dotnet run` fails with "Your project targets multiple frameworks" — every documented invocation needs `-f net10.0`. Building needs the .NET 10 SDK: it ships only its own targeting pack and `dotnet restore` fetches the `net8.0` one (`microsoft.netcore.app.ref`) from NuGet, which a cold cache turns into a network dependency. `--locked-mode` cannot block that fetch, because a targeting pack is not a `PackageReference` and never lands in `packages.lock.json`. Checked on SDK `10.0.100-rc.2`.
+- `UploadOptions.notify` is object-only in the types but unvalidated at runtime (`packages/pg-js/tests/postguard.test.ts` pins the old validator's removal). TypeScript callers get `TS2559` on `{ notify: true }`; the plain-JS examples get a silent no-mail upload with the silent-upload notice suppressed, since `notify` is defined. Keep example READMEs explicit that the check is compile-time only.
+
 ## Package scripts
 - `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run all three generators.
 - `build`: tsdown.
