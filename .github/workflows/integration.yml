@@ -251,3 +251,50 @@ jobs:
             - name: Smoke (dry run on Deno)
               working-directory: packages/pg-js
               run: deno run -A scripts/smoke.mjs
+
+    # The single required status check for this workflow.
+    #
+    # Every lane above is matrix-named — `Node 22`, `Bun 1.3.14`, `Deno 2.8.0` —
+    # so the version IS the check name. Requiring those directly would couple
+    # branch protection to a version string: bump the matrix and the required
+    # check never reports again, leaving main blocked with nothing red to point
+    # at and no failing job to fix. This name never changes, so a runtime bump
+    # is a one-line matrix edit and nothing else.
+    #
+    # Adding a lane above? Add it to `needs` here too, or it is not covered by
+    # the required check no matter how loudly it fails.
+    integration-complete:
+        name: Integration complete
+        needs: [node, envelope-compat, api-surface, bun, deno]
+        # `always()` is load-bearing. Without it this job is SKIPPED when any
+        # lane fails, and GitHub counts a skipped check as PASSING for branch
+        # protection — the gate would report green on a red build, which is the
+        # exact failure mode it exists to prevent.
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Assert every lane succeeded
+              shell: bash
+              # Through env rather than interpolated into the script body: the
+              # values are a controlled enum today, but `run:` interpolation is
+              # how a workflow grows an injection later.
+              env:
+                  RESULTS: ${{ join(needs.*.result, ' ') }}
+              run: |
+                  echo "lane results: ${RESULTS}"
+                  # Without this the loop below runs zero times and the step exits
+                  # 0 having checked nothing — a required gate that cannot fail.
+                  if [ -z "${RESULTS// /}" ]; then
+                      echo "::error::no lane results; the needs list resolved to nothing"
+                      exit 1
+                  fi
+                  # Only `success` passes. A lane that starts reporting `skipped`
+                  # — because someone gave it an `if:` — fails here on purpose,
+                  # rather than quietly dropping out of the required check.
+                  for result in ${RESULTS}; do
+                      if [ "${result}" != success ]; then
+                          echo "::error::an integration lane did not succeed (${RESULTS})"
+                          exit 1
+                      fi
+                  done
+                  echo "all lanes succeeded"
