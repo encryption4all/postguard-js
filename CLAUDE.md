@@ -86,6 +86,22 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
 - Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
 
+### Workflow guard steps
+
+Several workflows assert an invariant in an inline `run:` block rather than trusting a
+comment — `examples.yml`'s "Every example declares typecheck", `sdk-canary.yml`'s
+"Every example consuming a published SDK is covered". Two things about editing those:
+
+- `shell: bash` makes Actions run the script as `bash --noprofile --norc -eo pipefail`,
+  so `-e` and `pipefail` arrive on the command line and `set +e` is the only way off
+  them. A pipeline on the right of an assignment therefore aborts the step at that
+  line — `grep -v` exits 1 when it filters everything, which is how one of these
+  guards shipped with its own error annotation unreachable. Append `|| true` to every
+  such assignment.
+- Verify one by extracting its `run:` block out of the YAML and running it under that
+  exact shell, in a throwaway tree holding only the files it reads. A hand-written
+  replica under plain `bash` does not reproduce the point above.
+
 ### Public API surface report
 
 `packages/pg-js/etc/pg-js.api.md` is a committed snapshot of the package's public

@@ -41,7 +41,12 @@ permissions:
     contents: read
 
 concurrency:
-    group: sdk-canary
+    # Ref-scoped, as in examples.yml. Now that pull requests trigger this
+    # workflow, an unscoped group would put every PR run and the Monday schedule
+    # in one queue — and GitHub cancels the previously *pending* run in a group
+    # when another queues, so a PR's `scope` check could vanish with no
+    # diagnostic while the multi-minute scheduled run held the group.
+    group: sdk-canary-${{ github.ref }}
     cancel-in-progress: false
 
 jobs:
@@ -53,7 +58,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
-            - name: Every published-SDK consumer is covered by a job below
+            # Named for what it asserts: both globs below are `examples/*` only.
+            # packages/pg-js itself depends on published @e4a/pg-wasm and gets no
+            # canary cover either, which this step does not claim to fix.
+            - name: Every example consuming a published SDK is covered
               shell: bash
               run: |
                   # `shell: bash` already runs with -e (Actions passes
@@ -64,11 +72,30 @@ jobs:
                   # that line, before the emptiness check could report anything.
                   set -uo pipefail
 
-                  # Derived from the job ids in this file, not hand-listed:
-                  # a literal would still match after the job it names is
-                  # deleted, leaving that example uncovered and this check green.
-                  covered=$(grep -oE '^    pg-[a-z0-9-]+:' .github/workflows/sdk-canary.yml \
-                    | tr -d ' :' | sort -u | tr '\n' ' ' | sed 's/ $//') || true
+                  # Derived from the job ids in this file, not hand-listed: a
+                  # literal would still match after the job it names is deleted,
+                  # leaving that example uncovered and this check green.
+                  #
+                  # Every job except the two that are not per-example, NOT only
+                  # the pg-* ones. Matching a prefix no rule anywhere mandates
+                  # made the two sides range over different domains: `needs`
+                  # below takes whatever examples/* directories exist, so an
+                  # example not named pg-* could never reach the covered side and
+                  # the step was permanently red with no fix the error names.
+                  # Both sides are now an example directory name, which also
+                  # pins each job's id to the directory it covers.
+                  #
+                  # awk over the `jobs:` block rather than yq: no dependency on
+                  # what the runner image ships, and job ids are the only keys at
+                  # four spaces in there. If this file's indentation ever changes,
+                  # `covered` comes out empty and the guard below fails the step
+                  # rather than passing over nothing.
+                  covered=$(awk '
+                      /^jobs:$/ { in_jobs = 1; next }
+                      in_jobs && /^[^ ]/ { in_jobs = 0 }
+                      in_jobs && /^    [a-zA-Z0-9_-]+:$/ { sub(/^ +/, ""); sub(/:$/, ""); print }
+                    ' .github/workflows/sdk-canary.yml \
+                    | grep -Ev '^(scope|report)$' | sort -u | tr '\n' ' ' | sed 's/ $//') || true
 
                   needs=""
                   for pkg in examples/*/package.json; do
@@ -82,8 +109,18 @@ jobs:
                         | map(select(.key | startswith("@e4a/")))
                         | map(select(.value | startswith("workspace:") | not))
                         | length > 0
-                      ' "$pkg" >/dev/null 2>&1; then
+                      ' "$pkg" >/dev/null; then
                       needs="$needs $(basename "$(dirname "$pkg")")"
+                    else
+                      # jq exits 1 for a false result and >1 for a real failure
+                      # (5 = parse error). Blanketing stderr and treating both
+                      # the same classified an unparseable manifest as "not a
+                      # consumer" — the silent skip this step exists to close.
+                      rc=$?
+                      if [ "$rc" -gt 1 ]; then
+                        echo "::error file=$pkg::jq could not read $pkg (exit $rc), so whether it consumes a published SDK is unknown"
+                        exit 1
+                      fi
                     fi
                   done
                   # pg-dotnet has no package.json; its SDK is a NuGet PackageReference.
@@ -103,13 +140,13 @@ jobs:
                     exit 1
                   fi
                   if [ -z "$covered" ]; then
-                    echo "::error::found no pg-* jobs in this workflow; the covered set was derived from nothing"
+                    echo "::error::found no per-example jobs in this workflow; the covered set was derived from nothing"
                     exit 1
                   fi
                   echo "consume a published SDK: $needs"
                   echo "covered by this workflow: $covered"
                   if [ "$needs" != "$covered" ]; then
-                    echo "::error::canary scope is out of date — examples consuming a published SDK are [$needs] but this workflow has jobs for [$covered]. Add a job for each missing example, or drop the job for one that moved onto workspace:*."
+                    echo "::error::canary scope is out of date — examples consuming a published SDK are [$needs] but this workflow has jobs for [$covered]. Add a job named after each missing example directory, or drop the job for one that moved onto workspace:*."
                     exit 1
                   fi
 
@@ -194,7 +231,14 @@ jobs:
         name: Report failure
         runs-on: ubuntu-latest
         needs: [scope, pg-manual, pg-dotnet]
-        if: failure()
+        # `failure()` replaces the default "all needs succeeded" gate, and a
+        # skipped ancestor is not a failure — so on a pull request, where the two
+        # registry jobs are skipped, a failing `scope` would have opened an issue
+        # saying the canary "built the examples against the latest release" when
+        # nothing was built and no registry was contacted, plus another comment on
+        # every push. On a fork PR it would also go red on `gh label create`,
+        # since GITHUB_TOKEN is read-only there whatever `permissions:` asks for.
+        if: failure() && github.event_name != 'pull_request'
         permissions:
             contents: read
             issues: write
