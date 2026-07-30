@@ -10,7 +10,6 @@ import {
 import { buildEncryptionPolicy } from '../src/recipients/builders.js';
 import { buildKeyRequest } from '../src/util/policy.js';
 import { buildStartRequestBody } from '../src/signing/yivi.js';
-import type { AttrReq } from '../src/types.js';
 import { RecipientBuilder } from '../src/recipients/builder.js';
 
 const TEST_ATTRS = {
@@ -103,7 +102,7 @@ describe('email attribute configuration (postguard#236)', () => {
     // types.ts documents, and it makes the assertion stronger than the old
     // property access: this entry must be a single attribute, not a discon.
     const first = body.con[0];
-    expect(Array.isArray(first)).toBe(false);
-    expect((first as AttrReq).t).toBe('pbdf.sidn-pbdf.email.email');
+    if (Array.isArray(first)) throw new Error('expected a single attribute, not a discon');
+    expect(first.t).toBe('pbdf.sidn-pbdf.email.email');
   });
 });

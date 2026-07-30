@@ -7,6 +7,19 @@
 // `ArrayBuffer`. `pnpm typecheck` was green throughout, because it never looked
 // at the file. Anything a test hands to a public API is part of the contract the
 // package claims, so it gets checked here.
+//
+// This config is the SECOND of the two passes `pnpm typecheck` runs, and it does
+// not replace the first. Two of the settings below are program-wide, so running
+// only this one would silently drop coverage `src` had before:
+//
+//   - `types: ["node"]` legalizes `Buffer` and `process` everywhere, including in
+//     `src`. This is a browser SDK that reaches `process` through an explicit
+//     `globalThis` cast (src/util/client-version.ts), so `src` must still be
+//     checked without Node globals in scope.
+//   - `declaration: false` turns off declaration emit, and TS4023 / TS4094 /
+//     TS2742 are only reported while it is on. This package publishes `.d.mts`
+//     and tsdown does not typecheck, so tsconfig.json's `declaration: true` pass
+//     is the only thing guarding what consumers import.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
