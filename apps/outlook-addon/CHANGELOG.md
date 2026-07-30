@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [5fd30b7]
+  - @e4a/pg-js@2.4.0
+
 ## 1.0.0
 
 Built and released from the `postguard-js` monorepo, against the workspace copy of `@e4a/pg-js`. Releases are tagged `outlook-addin-v*` and managed by changesets; release-please is gone.
