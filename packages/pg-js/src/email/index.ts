@@ -26,7 +26,12 @@ export class EmailHelpers {
     return createEnvelopeImpl(options);
   }
 
-  /** Extract ciphertext from a received email (attachment or armored body) */
+  /** Extract ciphertext from the `postguard.encrypted` attachment of a received
+   *  email. It does not read the body: for an archived message carrying only an
+   *  in-body armor block use the standalone `extractArmoredCiphertext`, and for
+   *  tier 3 (no attachment at all) use `extractUploadUuid`. This doc previously
+   *  claimed "attachment or armored body", which the implementation has never
+   *  done. */
   extractCiphertext(options: ExtractCiphertextOptions): Uint8Array | null {
     return extractCiphertextImpl(options);
   }

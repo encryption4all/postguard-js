@@ -26,6 +26,7 @@ export {
   type DecryptInput,
   type DecryptResult,
   DecryptionError,
+  type DetectPostGuardInput,
   type EncryptInput,
   type EnvelopeResult,
   type EnvelopeTier,
@@ -39,6 +40,9 @@ export {
   Opened,
   PG_MAX_ATTACHMENT_SIZE,
   PG_MAX_URL_FRAGMENT_SIZE,
+  POSTGUARD_ENCRYPTED_FILENAME,
+  type ParsedAttachment,
+  type ParsedMessage,
   PostGuard,
   type PostGuardConfig,
   PostGuardError,
@@ -60,12 +64,19 @@ export {
   YiviNotInstalledError,
   YiviSessionError,
   type YiviSign,
+  bodyFromMime,
   buildMime,
   createEnvelope,
   createZipReadable,
+  detectPostGuard,
+  extractArmoredCiphertext,
   extractCiphertext,
   extractUploadUuid,
   injectMimeHeaders,
+  isMultipart,
+  looksLikeArmoredPostGuard,
+  parseDecryptedMime,
+  readMimeHeader,
   resumeUpload,
 };
 
@@ -144,6 +155,11 @@ type DecryptResult = DecryptFileResult | DecryptDataResult;
 
 declare class DecryptionError extends PostGuardError {
     constructor(message: string, options?: ErrorOptions);
+}
+
+interface DetectPostGuardInput {
+    attachmentNames?: string[];
+    htmlBody?: string;
 }
 
 interface EmailAttributes {
@@ -236,6 +252,20 @@ declare class Opened {
 declare const PG_MAX_ATTACHMENT_SIZE: number;
 
 declare const PG_MAX_URL_FRAGMENT_SIZE = 100000;
+
+declare const POSTGUARD_ENCRYPTED_FILENAME = "postguard.encrypted";
+
+interface ParsedAttachment {
+    data: Uint8Array;
+    name: string;
+    type: string;
+}
+
+interface ParsedMessage {
+    attachments: ParsedAttachment[];
+    htmlBody: string | null;
+    plainBody: string | null;
+}
 
 declare class PostGuard extends PostGuardBase {
     encrypt(options: EncryptInput): Sealed;
@@ -420,17 +450,31 @@ interface YiviSign {
     type: 'yivi';
 }
 
+declare function bodyFromMime(rawMime: string): string;
+
 declare function buildMime(input: BuildMimeOptions): Uint8Array;
 
 declare function createEnvelope(options: CreateEnvelopeOptions): Promise<EnvelopeResult>;
 
 declare function createZipReadable(files: File[]): Promise<ReadableStream>;
 
+declare function detectPostGuard(input: DetectPostGuardInput): boolean;
+
+declare function extractArmoredCiphertext(htmlOrText: string): string | null;
+
 declare function extractCiphertext(options: ExtractCiphertextOptions): Uint8Array | null;
 
 declare function extractUploadUuid(html: string): string | null;
 
 declare function injectMimeHeaders(mime: string, headersToInject: Record<string, string>, headersToRemove?: string[]): string;
+
+declare function isMultipart(rawMime: string): boolean;
+
+declare function looksLikeArmoredPostGuard(htmlOrText: string): boolean;
+
+declare function parseDecryptedMime(rawMime: string): ParsedMessage;
+
+declare function readMimeHeader(rawMime: string, name: string): string | undefined;
 
 declare function resumeUpload(cryptifyUrl: string, uuid: string, recoveryToken: string, signal?: AbortSignal, headers?: HeadersInit): Promise<{
     state: FileState;

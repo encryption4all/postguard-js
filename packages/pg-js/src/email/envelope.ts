@@ -1,6 +1,7 @@
 import type { CreateEnvelopeOptions, EnvelopeResult, EnvelopeTier } from '../types.js';
 import {
   toUrlSafeBase64,
+  POSTGUARD_ENCRYPTED_FILENAME,
   PG_MAX_URL_FRAGMENT_SIZE,
   PG_MAX_ATTACHMENT_SIZE,
 } from './extract.js';
@@ -170,7 +171,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
   const attachment =
     tier === 'tier3'
       ? null
-      : new File([encrypted as BlobPart], 'postguard.encrypted', {
+      : new File([encrypted as BlobPart], POSTGUARD_ENCRYPTED_FILENAME, {
           type: 'application/postguard; charset=utf-8',
         });
 
