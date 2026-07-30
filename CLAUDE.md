@@ -69,7 +69,13 @@ The package is `"type": "module"` and `"sideEffects": false`. Always use `.js` e
 
 Vitest with Node default environment. Browser-only paths (Yivi QR widgets, `triggerBrowserDownload`) are not covered by the unit tests — those need a real browser and live PKG/Cryptify endpoints. `tests/api.test.ts` is the broad integration of the encrypt/upload/open/decrypt flow against mocked PKG/Cryptify; the smaller files (`chunker`, `zip`, `errors`, `decrypt-session`, `recipients`, `exports`, `postguard`) target single units.
 
-`tsconfig.json` has `include: ["src"]`, so **tests are never typechecked**. A test can pass a shape the public types do not declare and `pnpm typecheck` stays green — that is how a `Buffer` reached an `ExtractCiphertextOptions.attachments` slot declared as `ArrayBuffer`. When a test constructs a value for a public API, match the declared type by hand.
+**Tests are typechecked, but by a different config than the build, and `pnpm typecheck` runs BOTH.** `tsconfig.json` is the BUILD config — tsdown reads it, and its `rootDir: "src"` makes every file under `tests/` a `TS6059` error rather than a checked file. So `typecheck` is `tsc -p tsconfig.json && tsc -p tsconfig.typecheck.json`; the second config extends the first, drops `rootDir`, and adds `tests` and `scripts` to `include`. Add new test directories to that file's `include`, not to `tsconfig.json`.
+
+Three things about it that are easy to get wrong:
+
+- **Dropping the first pass loses coverage of `src`.** Two settings in `tsconfig.typecheck.json` are program-wide: `types: ["node"]` legalizes `Buffer` and `process` in `src` too (this is a browser SDK that reaches `process` through an explicit `globalThis` cast in `src/util/client-version.ts`), and `declaration: false` silences TS4023 / TS4094 / TS2742, which are only reported while declaration emit is on. Since tsdown does not typecheck, the `tsconfig.json` pass is the only thing guarding the published `.d.mts`.
+- **`types: ["node"]` is load-bearing for the second pass.** TypeScript 6 no longer pulls every `node_modules/@types` package into the program automatically. Without it, `Buffer`, `process` and every `node:*` import fail with `TS2591` telling you to install `@types/node` — while `@types/node` is installed and sitting right there. It is pinned to the major in `engines` (`>=22`) so a test cannot quietly use an API the floor lacks.
+- Anything a test hands to a public API is part of the contract the package claims, so it is checked. Tests were outside `include` until #153 reviewed one that passed a `Buffer` into a slot `ExtractCiphertextOptions` declares as `ArrayBuffer`, with `pnpm typecheck` green the whole time because it never opened the file. Note that `scripts` is in `include` for the import boundary only: with `checkJs: false` and every script being `.mjs`, script bodies are not checked — what the include buys is inferred shapes where `tests/api-surface.test.ts` imports `scripts/lib/api-surface.mjs`.
 
 ### Envelope compatibility (the fixture corpus is append-only)
 
@@ -205,7 +211,7 @@ Org-wide lesson: any repo combining gitignored generated sources with build-time
 ## Package scripts
 - `prebuild` / `pretypecheck` / `pretest` / `pretest:watch`: run all three generators.
 - `build`: tsdown.
-- `typecheck`: `tsc --noEmit`.
+- `typecheck`: two passes, `tsc --noEmit -p tsconfig.json` then `tsc --noEmit -p tsconfig.typecheck.json` (`src` with declaration emit and no Node globals, then `src` + `tests` + `scripts`; see the Tests section for why both are needed).
 - `test` / `test:watch`: vitest.
 
 ## Signing keys / Yivi sessions

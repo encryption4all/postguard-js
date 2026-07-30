@@ -97,6 +97,12 @@ describe('email attribute configuration (postguard#236)', () => {
     expect(policy['alice@example.com'].con[0].t).toBe('pbdf.sidn-pbdf.email.email');
 
     const body = buildStartRequestBody({ element: '#x' });
-    expect(body.con[0].t).toBe('pbdf.sidn-pbdf.email.email');
+    // `con` is `AttrConItem[]`, so an entry is either an `AttrReq` or a
+    // disjunction-of-conjunctions. Narrowing with `Array.isArray` is the idiom
+    // types.ts documents, and it makes the assertion stronger than the old
+    // property access: this entry must be a single attribute, not a discon.
+    const first = body.con[0];
+    if (Array.isArray(first)) throw new Error('expected a single attribute, not a discon');
+    expect(first.t).toBe('pbdf.sidn-pbdf.email.email');
   });
 });

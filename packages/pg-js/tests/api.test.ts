@@ -306,7 +306,7 @@ describe('Cryptify API', () => {
       const chunk = new Uint8Array([1, 2, 3, 4]);
       const result = await storeChunk(
         'https://cryptify.example.com',
-        { token: 'tok-123', uuid: 'file-uuid' },
+        { token: 'tok-123', uuid: 'file-uuid', recoveryToken: 'r' },
         chunk,
         0
       );
@@ -333,7 +333,7 @@ describe('Cryptify API', () => {
 
       await storeChunk(
         'https://cryptify.example.com',
-        { token: 't', uuid: 'u' },
+        { token: 't', uuid: 'u', recoveryToken: 'r' },
         new Uint8Array([1]),
         0,
         undefined,
@@ -364,7 +364,7 @@ describe('Cryptify API', () => {
       await expect(
         storeChunk(
           'https://cryptify.example.com',
-          { token: 'tok', uuid: 'file-uuid' },
+          { token: 'tok', uuid: 'file-uuid', recoveryToken: 'r' },
           new Uint8Array([1]),
           0
         )
@@ -386,7 +386,7 @@ describe('Cryptify API', () => {
 
       const err = await storeChunk(
         'https://cryptify.example.com',
-        { token: 'tok', uuid: 'u' },
+        { token: 'tok', uuid: 'u', recoveryToken: 'r' },
         new Uint8Array([1]),
         0
       ).catch((e) => e);
@@ -414,7 +414,7 @@ describe('Cryptify API', () => {
 
       const result = await storeChunkWithRetry(
         'https://cryptify.example.com',
-        { token: 'tok-before', uuid: 'u' },
+        { token: 'tok-before', uuid: 'u', recoveryToken: 'r' },
         new Uint8Array([1]),
         0,
         fastRetry
@@ -441,7 +441,7 @@ describe('Cryptify API', () => {
 
       const result = await storeChunkWithRetry(
         'https://cryptify.example.com',
-        { token: 'tok-before', uuid: 'u' },
+        { token: 'tok-before', uuid: 'u', recoveryToken: 'r' },
         new Uint8Array([1]),
         0,
         fastRetry
@@ -462,7 +462,7 @@ describe('Cryptify API', () => {
 
       const result = await storeChunkWithRetry(
         'https://cryptify.example.com',
-        { token: 'tok-current', prevToken: 'tok-prev', uuid: 'u' },
+        { token: 'tok-current', prevToken: 'tok-prev', uuid: 'u', recoveryToken: 'r' },
         new Uint8Array([1]),
         0,
         fastRetry
@@ -505,7 +505,7 @@ describe('Cryptify API', () => {
       await expect(
         storeChunkWithRetry(
           'https://cryptify.example.com',
-          { token: 't', uuid: 'u' },
+          { token: 't', uuid: 'u', recoveryToken: 'r' },
           new Uint8Array([1]),
           0,
           fastRetry
@@ -525,7 +525,7 @@ describe('Cryptify API', () => {
       await expect(
         storeChunkWithRetry(
           'https://cryptify.example.com',
-          { token: 't', uuid: 'u' },
+          { token: 't', uuid: 'u', recoveryToken: 'r' },
           new Uint8Array([1]),
           0,
           fastRetry
@@ -545,7 +545,7 @@ describe('Cryptify API', () => {
       await expect(
         storeChunkWithRetry(
           'https://cryptify.example.com',
-          { token: 't', uuid: 'u' },
+          { token: 't', uuid: 'u', recoveryToken: 'r' },
           new Uint8Array([1]),
           0,
           fastRetry
@@ -565,7 +565,7 @@ describe('Cryptify API', () => {
       await expect(
         storeChunkWithRetry(
           'https://cryptify.example.com',
-          { token: 't', uuid: 'u' },
+          { token: 't', uuid: 'u', recoveryToken: 'r' },
           new Uint8Array([1]),
           0,
           fastRetry,
@@ -582,7 +582,7 @@ describe('Cryptify API', () => {
 
       await finalizeUpload(
         'https://cryptify.example.com',
-        { token: 'tok-123', uuid: 'file-uuid' },
+        { token: 'tok-123', uuid: 'file-uuid', recoveryToken: 'r' },
         1024
       );
 
@@ -602,7 +602,7 @@ describe('Cryptify API', () => {
       await expect(
         finalizeUpload(
           'https://cryptify.example.com',
-          { token: 'tok', uuid: 'uuid' },
+          { token: 'tok', uuid: 'uuid', recoveryToken: 'r' },
           100
         )
       ).rejects.toThrow(NetworkError);
@@ -613,7 +613,7 @@ describe('Cryptify API', () => {
 
       await finalizeUpload(
         'https://cryptify.example.com',
-        { token: 't', uuid: 'u' },
+        { token: 't', uuid: 'u', recoveryToken: 'r' },
         100,
         undefined,
         'PG-test-key'
@@ -637,7 +637,7 @@ describe('Cryptify API', () => {
       await expect(
         finalizeUpload(
           'https://cryptify.example.com',
-          { token: 't', uuid: 'u' },
+          { token: 't', uuid: 'u', recoveryToken: 'r' },
           200_000_000_000,
           undefined,
           'PG-test-key'
