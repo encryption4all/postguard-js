@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.3
+
+### Patch Changes
+
+- Updated dependencies [5fd30b7]
+    - @e4a/pg-js@2.4.0
+
 ## 1.8.2
 
 ### Patch Changes
