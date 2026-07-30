@@ -22,9 +22,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRelDir = 'packages/pg-js/tests/fixtures/envelopes';
 const absDir = join(here, '..', 'tests', 'fixtures', 'envelopes');
 
-function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8' }).trim();
+// Every git call is rooted at the repository, not the process cwd. `pnpm
+// envelope:check` runs this from packages/pg-js, where the repo-relative
+// pathspec below resolved to packages/pg-js/packages/pg-js/… and matched
+// nothing — so the check reported "none modified or removed" while a fixture
+// had been rewritten. Same shape as the working-directory bug in the Baked URLs
+// job, and caught here by mutation-testing rather than by reading it.
+function git(args, cwd = repoRoot) {
+  return execFileSync('git', args, { encoding: 'utf8', cwd }).trim();
 }
+
+const repoRoot = git(['rev-parse', '--show-toplevel'], process.cwd());
 
 function fail(message) {
   console.error(`envelope fixture check could not run: ${message}`);
