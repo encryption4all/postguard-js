@@ -21,6 +21,7 @@ All commands from the repo root unless noted; root `build`/`test`/`typecheck` ar
 | Run a single test file       | `pnpm exec vitest run tests/api.test.ts` (in `packages/pg-js`) |
 | Run a single test by name    | `pnpm exec vitest run -t "name fragment"` (in `packages/pg-js`) |
 | Refresh the API report       | `pnpm api:update` (in `packages/pg-js`, after a build) |
+| Check prettier plugin resolution | `pnpm check-prettier-plugins` |
 
 ### Prebuild generators (important)
 
@@ -85,6 +86,7 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 - `main` is the release branch. Releases are managed by **changesets** (`.github/workflows/delivery.yml`): a PR that should ship adds a changeset file (`pnpm changeset`); merging to main opens/updates a "Version Packages" PR; merging THAT publishes to npm with provenance. PR titles must still follow Conventional Commits — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
 - Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
+- **Every prettier plugin a workspace member declares must ALSO be a root `devDependency`.** `changeset version` formats each `CHANGELOG.md` through prettier, resolving the owning package's config but loading its plugins from the *process cwd* — the repo root. A plugin missing there makes changesets throw while writing that changelog, catch it, print the stack, and **still exit 0 with "All files have been updated"**: the version bump lands, the changelog entry silently does not. `apps/website` did this on every release from its import until it was found, because the gap is invisible in normal use — the app's own `pnpm lint` resolves the plugin fine from its own `node_modules`. `pnpm check-prettier-plugins` asserts it, runs in `integration.yml`, and gates `version-packages` ahead of `changeset version`. When it reports a plugin missing, add it to the ROOT `package.json`, not to the app that declares it.
 
 ### Public API surface report
 
