@@ -15,6 +15,12 @@ env:
     POSTGUARD_WEBSITE_URL: ${{ vars.POSTGUARD_WEBSITE_URL || 'https://postguard.eu' }}
 
 jobs:
+    # The broad lane, deliberately. It runs the recursive typecheck, build and test
+    # rather than filtering to the SDK the way `api-surface`, `bun` and `deno` do,
+    # because whole-workspace coverage is its job: apps/website and both addons
+    # included, which is what the `env:` block above exists to supply. Narrowing it
+    # would remove that coverage rather than relocate it. examples/* is cheap here,
+    # and examples.yml covering them again is duplication rather than a gap.
     node:
         name: Node ${{ matrix.node }}
         runs-on: ubuntu-latest
@@ -129,17 +135,9 @@ jobs:
 
             # Only the SDK: this lane exercises pg-js on the Bun runtime and
             # reads nothing from apps/* or examples/*. Same reasoning as
-            # api-surface below — filtering keeps the job out of the class where
+            # api-surface above — filtering keeps the job out of the class where
             # another package's build preconditions become this workflow's, which
             # the examples import would otherwise extend to two more builds.
-            #
-            # The `node` lane above is the deliberate exception and still runs the
-            # recursive typecheck, build and test. It is the one lane whose job IS
-            # whole-workspace coverage — apps/website and both addons included,
-            # which is what the env: block at the top exists to supply — so
-            # narrowing it would remove the coverage rather than relocate it. The
-            # examples are cheap there and examples.yml covers them again on its
-            # own, which is duplication rather than a gap.
             - name: Build the SDK
               run: pnpm --filter @e4a/pg-js build
 
