@@ -69,6 +69,40 @@ The package is `"type": "module"` and `"sideEffects": false`. Always use `.js` e
 
 Vitest with Node default environment. Browser-only paths (Yivi QR widgets, `triggerBrowserDownload`) are not covered by the unit tests — those need a real browser and live PKG/Cryptify endpoints. `tests/api.test.ts` is the broad integration of the encrypt/upload/open/decrypt flow against mocked PKG/Cryptify; the smaller files (`chunker`, `zip`, `errors`, `decrypt-session`, `recipients`, `exports`, `postguard`) target single units.
 
+`tsconfig.json` has `include: ["src"]`, so **tests are never typechecked**. A test can pass a shape the public types do not declare and `pnpm typecheck` stays green — that is how a `Buffer` reached an `ExtractCiphertextOptions.attachments` slot declared as `ArrayBuffer`. When a test constructs a value for a public API, match the declared type by hand.
+
+### Envelope compatibility (the fixture corpus is append-only)
+
+`tests/envelope-forward.test.ts` and `tests/envelope-archival.test.ts` implement the
+two directions of COMPATIBILITY.md's envelope guarantee, and they are **not**
+symmetric — read the `SDK support windows` section there before touching either.
+The `Envelope compatibility` job in `integration.yml` runs exactly these two files
+plus `pnpm envelope:check`, deliberately un-path-filtered (a path-filtered required
+check never reports on PRs that miss the filter, and branch protection then blocks
+them forever).
+
+- **`tests/fixtures/envelopes/` is append-only.** Each fixture records bytes some
+  sender actually emitted, and the archival guarantee is a promise about exactly
+  those bytes — so a failing archival test means the regression is in the reader, not
+  in the fixture. `pnpm envelope:check` fails the build on any modification, deletion
+  or rename, comparing against the merge base of the base branch and HEAD (so a
+  fixture added on `main` afterwards is not blamed on your branch). Add fixtures with
+  `pnpm envelope:fixtures` after a `pnpm build`; it skips existing files, and
+  `--force` exists only for a deliberate rebuild before the corpus is merged.
+- **The forward test derives every expectation from `result.tier`, never from
+  `result.attachment` or `result.uploadUuid`.** This looks like it could be
+  simplified and cannot: branching on the output under test means a HEAD that
+  silently stops emitting the tier-1 attachment takes the tier-3 branch and passes,
+  which is the postguard-tb-addon#85 regression the gate exists to catch.
+- The forward readers are real published packages, aliased in this package's
+  `devDependencies` as `pg-js-reader-v1` / `pg-js-reader-v2` (currently
+  `@e4a/pg-js@1.11.0` and `@e4a/pg-js@2.3.4`). A plain `pnpm install` gets them; they
+  resolve to registry tarballs, not to the workspace copy. **Nothing checks that they
+  are still the latest of their major** — after a `changeset version` the v2 pin needs
+  moving by hand, or the gate quietly degrades to "compatible with an ever-older 2.x"
+  while still reporting green. Bump it next to `pnpm api:update` when releasing, and
+  drop the v1 alias in a commit that says so when 3.0 takes 1.x out of the window.
+
 ## Supported runtimes
 
 - **Browser** — full surface, including Yivi.
@@ -122,9 +156,9 @@ in a `refactor:` commit.
   `main` afterwards is not blamed on the branch. That needs enough history in the
   clone to find a common ancestor: `fetch-depth: 0` in CI. A `--depth=1` fetch of the
   base branch is not enough, and the script says so rather than guessing.
-- `api:gate` is NOT yet a CI step. The job patch is a comment on
-  encryption4all/postguard-js#135 and needs a maintainer to apply it, because the bot
-  cannot push `.github/workflows/`. Until then, run it locally on API-changing PRs.
+- `api:gate` runs in CI: the `api-surface` job in `integration.yml` invokes it (with
+  `fetch-depth: 0`, which it needs). Run it locally on API-changing PRs anyway — it is
+  faster than waiting for the job.
 - The classifier (`scripts/lib/api-surface.mjs`, unit-tested by
   `tests/api-surface.test.ts`) is deliberately conservative: only trailing optional
   parameters count as additive, and everything else that changes an existing
