@@ -25,6 +25,13 @@ name: SDK canary
 # The `scope` job asserts that split rather than trusting this comment.
 
 on:
+    # `scope` runs on pull requests too, and the two registry jobs do not. Its
+    # whole purpose is that adding a published-SDK example without a job here
+    # gets noticed — but on a schedule-only trigger the PR that introduces that
+    # gap merges green and it surfaces the following Monday as a red canary. The
+    # equivalent guard in examples.yml runs per-PR, which is why it works there.
+    pull_request:
+        branches: [main]
     schedule:
         # Mondays 06:00 UTC, as in the source repo.
         - cron: '0 6 * * 1'
@@ -49,9 +56,19 @@ jobs:
             - name: Every published-SDK consumer is covered by a job below
               shell: bash
               run: |
+                  # `shell: bash` already runs with -e (Actions passes
+                  # --noprofile --norc -eo pipefail), which `set -uo pipefail`
+                  # cannot switch off. Every pipeline below is therefore
+                  # `|| true`-guarded on assignment: `grep -v` exits 1 when it
+                  # filters everything, and -e would otherwise kill the step at
+                  # that line, before the emptiness check could report anything.
                   set -uo pipefail
-                  # Keep in step with the jobs in this file.
-                  covered="pg-dotnet pg-manual"
+
+                  # Derived from the job ids in this file, not hand-listed:
+                  # a literal would still match after the job it names is
+                  # deleted, leaving that example uncovered and this check green.
+                  covered=$(grep -oE '^    pg-[a-z0-9-]+:' .github/workflows/sdk-canary.yml \
+                    | tr -d ' :' | sort -u | tr '\n' ' ' | sed 's/ $//') || true
 
                   needs=""
                   for pkg in examples/*/package.json; do
@@ -77,8 +94,7 @@ jobs:
                     fi
                   done
 
-                  needs=$(echo "$needs" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//')
-                  covered=$(echo "$covered" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//')
+                  needs=$(echo "$needs" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//') || true
 
                   # An empty result would mean the globs matched nothing rather
                   # than that everything is on the workspace SDK.
@@ -86,15 +102,22 @@ jobs:
                     echo "::error::found no example consuming a published PostGuard SDK; the globs above matched nothing, so this check covers nothing"
                     exit 1
                   fi
+                  if [ -z "$covered" ]; then
+                    echo "::error::found no pg-* jobs in this workflow; the covered set was derived from nothing"
+                    exit 1
+                  fi
                   echo "consume a published SDK: $needs"
                   echo "covered by this workflow: $covered"
                   if [ "$needs" != "$covered" ]; then
-                    echo "::error::canary scope is out of date — consumers of a published SDK are [$needs] but this workflow covers [$covered]. Add or remove a job, and update the \`covered\` list."
+                    echo "::error::canary scope is out of date — examples consuming a published SDK are [$needs] but this workflow has jobs for [$covered]. Add a job for each missing example, or drop the job for one that moved onto workspace:*."
                     exit 1
                   fi
 
     pg-manual:
         name: pg-manual vs latest @e4a/pg-wasm
+        # Not on pull requests: this resolves whatever the registry serves today,
+        # which is not a property of the PR. Only `scope` gates PRs.
+        if: github.event_name != 'pull_request'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
@@ -105,11 +128,27 @@ jobs:
                   cache: pnpm
             - run: pnpm install --frozen-lockfile
 
+            # An unmatched `--filter` prints "No projects matched the filters"
+            # and exits 0, so a wrong or drifted package name would take this
+            # whole job green having installed and built nothing. The name is
+            # therefore read from the directory rather than hardcoded — note
+            # examples/pg-manual is called @e4a/pg-example, so directory and
+            # package name already disagree — and asserted before use.
+            - name: Resolve the package name for examples/pg-manual
+              id: pkg
+              shell: bash
+              run: |
+                  name=$(jq -er .name examples/pg-manual/package.json)
+                  echo "name=$name" >> "$GITHUB_OUTPUT"
+                  echo "examples/pg-manual is $name"
+
             # Not --frozen-lockfile past this point: the whole job is about
             # resolving something the lockfile deliberately pins away from.
             - name: Install the latest @e4a/pg-wasm
-              run: pnpm --filter @e4a/pg-example add @e4a/pg-wasm@latest
+              run: pnpm --filter "${{ steps.pkg.outputs.name }}" add @e4a/pg-wasm@latest
 
+            # Reads the installed copy, so it also proves the install above did
+            # something rather than matching no project.
             - name: Report the resolved version
               run: |
                   node -p "require('./examples/pg-manual/node_modules/@e4a/pg-wasm/package.json').version"
@@ -118,12 +157,13 @@ jobs:
             # check/sdk-exports.js, which is the half that catches a removed export
             # across the examples' dynamic import(). Both matter here.
             - name: Build
-              run: pnpm --filter @e4a/pg-example build
+              run: pnpm --filter "${{ steps.pkg.outputs.name }}" build
             - name: Check the SDK export surface
-              run: pnpm --filter @e4a/pg-example typecheck
+              run: pnpm --filter "${{ steps.pkg.outputs.name }}" typecheck
 
     pg-dotnet:
         name: pg-dotnet vs latest E4A.PostGuard
+        if: github.event_name != 'pull_request'
         runs-on: ubuntu-latest
         defaults:
             run:
@@ -141,9 +181,12 @@ jobs:
             # pinned resolution.
             - name: Install the latest E4A.PostGuard
               run: dotnet add package E4A.PostGuard
+            # `dotnet list package` rather than grepping the csproj: the previous
+            # form depended on Include preceding Version on one line and carried
+            # `|| true`, so the step a human reads to learn WHICH version broke
+            # would have gone quietly blank if that ever changed.
             - name: Report the resolved version
-              run: |
-                  grep -o 'Include="E4A.PostGuard" Version="[^"]*"' PostGuard.Example.csproj || true
+              run: dotnet list package
             - name: Build
               run: dotnet build
 
