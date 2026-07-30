@@ -1,7 +1,15 @@
 name: Integration
 
+# `edited` is in the list because two jobs here — `envelope-compat` and
+# `api-surface` — derive their verdict from the MERGE BASE of the base branch and
+# HEAD, so the result is only valid against the base they ran against. The default
+# trigger set is opened/synchronize/reopened; retargeting a PR fires `edited`, and
+# without it the stale check-run stays attached to the unchanged head sha and
+# GitHub reports it as current. A required check would then pass on a comparison
+# never made against the actual merge target.
 on:
     pull_request:
+        types: [opened, synchronize, reopened, edited]
         branches: [main]
     workflow_call:
 

@@ -13,14 +13,38 @@
 // Without --force it writes only fixtures that do not exist yet, so re-running
 // after a change to createEnvelope cannot silently rewrite history.
 
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outDir = join(here, '..', 'tests', 'fixtures', 'envelopes');
+const pkgDir = join(here, '..');
+const outDir = join(pkgDir, 'tests', 'fixtures', 'envelopes');
 const force = process.argv.includes('--force');
+
+// Actual provenance for the `producedBy` field. This used to be a constant
+// string, which answered nothing the fixture's own fields did not — and because
+// the corpus is append-only, whatever goes in here is permanent for that file.
+// The dirty marker matters: without it a fixture generated from uncommitted work
+// would name a commit whose tree never produced these bytes.
+function provenance() {
+  const { version } = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+  const git = (args) => execFileSync('git', args, { cwd: pkgDir, encoding: 'utf8' }).trim();
+  let commit = 'unknown commit';
+  let dirty = '';
+  try {
+    commit = git(['rev-parse', 'HEAD']);
+    if (git(['status', '--porcelain', '--', pkgDir]) !== '') dirty = ', working tree dirty';
+  } catch {
+    // Generating outside a checkout is legitimate; recording a commit that is a
+    // guess is not.
+  }
+  return `@e4a/pg-js ${version} createEnvelope, generated at postguard-js ${commit}${dirty}`;
+}
+
+const producedBy = provenance();
 
 // From dist/, not src/: the TS sources use `.js` specifiers that bare node does
 // not resolve, and the built package is what consumers actually receive — so the
@@ -85,7 +109,7 @@ async function envelopeFixture({ name, description, bytes, uploadToCryptify = tr
     description,
     // Recorded so a later reader can tell what produced these bytes without
     // guessing from the shape.
-    producedBy: '@e4a/pg-js createEnvelope at the commit that added this file',
+    producedBy,
     tier: result.tier,
     subject: result.subject,
     htmlBody: result.htmlBody,

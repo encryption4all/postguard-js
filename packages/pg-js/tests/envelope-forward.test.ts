@@ -56,13 +56,12 @@ async function buildAtHead(bytes: Uint8Array) {
     unencryptedMessage: 'Forward-compat probe.',
     websiteUrl: 'https://postguard.eu',
   });
+  // `data` is an ArrayBuffer because that is what ExtractCiphertextOptions
+  // declares (src/types.ts). A Buffer or a view happens to work today, but it is
+  // not what a published reader is typed to accept, and tsconfig.json's
+  // `include: ["src"]` means nothing here would flag the drift.
   const attachments = result.attachment
-    ? [
-        {
-          name: result.attachment.name,
-          data: new Uint8Array(await result.attachment.arrayBuffer()),
-        },
-      ]
+    ? [{ name: result.attachment.name, data: await result.attachment.arrayBuffer() }]
     : [];
   return { result, attachments };
 }
@@ -92,21 +91,40 @@ describe('envelope forward compatibility', () => {
       it.each(READERS.map(([name, reader]) => [name, reader] as const))(
         'is readable by %s',
         async (_name, reader) => {
-          const { result, attachments } = await buildAtHead(payload(size));
+          const bytes = payload(size);
+          const { result, attachments } = await buildAtHead(bytes);
           expect(result.tier).toBe(tier);
+
+          // Both expectations come from the TIER, never from the output under
+          // test. Branching on `attachments.length === 0` or on
+          // `result.uploadUuid` would let a HEAD that silently stopped emitting
+          // one of them take the other branch and pass — the exact
+          // postguard-tb-addon#85 shape this gate is named after. Both are hard
+          // invariants in src/email/envelope.ts: only tier 3 omits the
+          // attachment, and only tier 1 skips the Cryptify upload.
+          const carriesAttachment = tier !== 'tier3';
+          const carriesUuid = tier !== 'tier1';
+
+          expect(attachments.length, `${tier} attachment count`).toBe(carriesAttachment ? 1 : 0);
+          expect(result.uploadUuid, `${tier} uploadUuid`).toBe(
+            carriesUuid ? 'forward-uuid-0000' : null
+          );
 
           const recovered = reader.extractCiphertext({ attachments }) as Uint8Array | null;
 
-          if (attachments.length === 0) {
+          if (carriesAttachment) {
+            // Against the payload rather than against `attachments[0].data`, so
+            // the assertion covers the whole chain: HEAD put these bytes in the
+            // attachment and the published reader got them back out.
+            expect(recovered).not.toBeNull();
+            expect(Array.from(recovered!)).toEqual(Array.from(bytes));
+          } else {
             // Tier 3 carries no attachment by design; the published reader must
             // return null rather than throw, and recover the uuid instead.
             expect(recovered).toBeNull();
-          } else {
-            expect(recovered).not.toBeNull();
-            expect(Array.from(recovered!)).toEqual(Array.from(attachments[0].data));
           }
 
-          if (result.uploadUuid) {
+          if (carriesUuid) {
             expect(reader.extractUploadUuid(result.htmlBody)).toBe(result.uploadUuid);
           }
         }

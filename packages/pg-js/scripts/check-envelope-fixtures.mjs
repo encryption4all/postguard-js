@@ -32,11 +32,18 @@ function git(args, cwd = repoRoot) {
   return execFileSync('git', args, { encoding: 'utf8', cwd }).trim();
 }
 
-const repoRoot = git(['rev-parse', '--show-toplevel'], process.cwd());
-
 function fail(message) {
   console.error(`envelope fixture check could not run: ${message}`);
   process.exit(1);
+}
+
+// Wrapped like every other git call below, so running outside a repository
+// reports through `fail` instead of printing a raw execFileSync stack trace.
+let repoRoot;
+try {
+  repoRoot = git(['rev-parse', '--show-toplevel'], process.cwd());
+} catch {
+  fail(`${process.cwd()} is not inside a git repository, so there is no history to compare`);
 }
 
 const baseArgIndex = process.argv.indexOf('--base');
@@ -50,7 +57,10 @@ const baseRef =
 // A corpus that matched nothing would let this exit 0 having checked nothing —
 // the vacuous pass this whole gate exists to avoid.
 if (!existsSync(absDir)) {
-  fail(`${repoRelDir} does not exist. Run this from the repository root.`);
+  // No "run this from the repository root" advice: the script resolves both the
+  // corpus and every git call itself, so its output is identical from
+  // packages/pg-js and from the root. A missing directory means it moved.
+  fail(`${repoRelDir} does not exist`);
 }
 const present = readdirSync(absDir).filter((f) => f.endsWith('.json'));
 if (present.length === 0) {

@@ -3,7 +3,7 @@
   "version": "2.3.4",
   "type": "module",
   "sideEffects": false,
-  "description": "Browser SDK for PostGuard \u2014 end-to-end encrypted file sharing with identity-based encryption",
+  "description": "Browser SDK for PostGuard — end-to-end encrypted file sharing with identity-based encryption",
   "license": "MIT",
   "repository": {
     "type": "git",

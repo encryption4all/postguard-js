@@ -55,11 +55,17 @@ describe('envelope archival compatibility', () => {
 
   describe.each(fixtures.map((f) => [f.name, f] as const))('%s', (_name, fixture) => {
     it('HEAD recovers the ciphertext this envelope carries', () => {
+      // An exact-length ArrayBuffer, which is what ExtractCiphertextOptions
+      // declares (src/types.ts). A bare `Buffer.from(...)` lands at a non-zero
+      // byteOffset inside Node's shared 8 KiB pool for the small fixtures, so a
+      // conforming reader that wraps the whole buffer would see the pool rather
+      // than the fixture — and tsconfig.json's `include: ["src"]` keeps tests out
+      // of `pnpm typecheck`, so the mismatch would not surface there.
       const attachments = fixture.attachment
         ? [
             {
               name: fixture.attachment.name,
-              data: Buffer.from(fixture.attachment.dataBase64, 'base64'),
+              data: new Uint8Array(Buffer.from(fixture.attachment.dataBase64, 'base64')).buffer,
             },
           ]
         : [];
@@ -85,11 +91,18 @@ describe('envelope archival compatibility', () => {
       expect(extractUploadUuid(fixture.htmlBody)).toBe(fixture.expect.uploadUuid);
     });
 
-    it('the markers installed clients key on are still present', () => {
+    // A corpus lint, not a reader gate: every assertion here reads the fixture
+    // and none calls into HEAD, so combined with the append-only guard it can
+    // only ever fire on a newly added fixture. That is still worth having — it
+    // rejects a fixture that does not record what a real sender emits — but the
+    // forward direction is what holds HEAD to these markers. `application/postguard`
+    // has no HEAD-side coverage at all: src/email/extract.ts matches on
+    // `att.name === 'postguard.encrypted'` and never looks at the content type.
+    it('the markers installed clients key on are recorded in this fixture', () => {
       if (fixture.attachment) {
         // Mail clients match the attachment by name and content type, not by
         // sniffing the bytes. Renaming either is a silent break for every
-        // installed reader, and nothing else in the suite covers it.
+        // installed reader.
         expect(fixture.attachment.name).toBe('postguard.encrypted');
         expect(fixture.attachment.contentType).toMatch(/^application\/postguard\b/);
       }
