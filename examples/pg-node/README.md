@@ -74,7 +74,7 @@ const sealed = pg.encrypt({
 const { uuid } = await sealed.upload({ notify: { recipients: true, message, language: 'EN' } });
 ```
 
-`notify` must be nested under an object, and **nothing checks that for you** — `{ notify: true }` fails silently and is worse than omitting `notify` altogether:
+`notify` must be nested under an object, and **nothing checks that at runtime** — `{ notify: true }` fails silently and is worse than omitting `notify` altogether:
 
 - reading `.recipients` off the boolean `true` yields `undefined`, so `false` goes on the wire and no mail is sent;
 - and because `notify` *is* defined, the SDK's silent-upload notice does not fire either, so there is no warning.

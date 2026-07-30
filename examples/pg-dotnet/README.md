@@ -67,7 +67,8 @@ var pg = new PostGuard(new PostGuardConfig
 });
 
 // Encrypt returns a lazy Sealed builder. Note the name: `sealed` is a C#
-// keyword, so it cannot be an identifier — Program.cs uses sealed1/sealed2.
+// keyword, so it cannot be used bare as an identifier. `@sealed` compiles,
+// but reads worse than a name, which is why Program.cs uses sealed1/sealed2.
 var sealedFiles = pg.Encrypt(new EncryptInput
 {
     Files = [new PgFile("report.txt", stream)],
