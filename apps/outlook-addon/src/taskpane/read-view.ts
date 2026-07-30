@@ -5,7 +5,15 @@
 // decrypted content is shown only inside this taskpane and a small
 // notification banner is added to the message.
 
-import { PostGuard } from "@e4a/pg-js";
+import {
+  PostGuard,
+  POSTGUARD_ENCRYPTED_FILENAME,
+  extractArmoredCiphertext,
+  looksLikeArmoredPostGuard,
+  parseDecryptedMime,
+  readMimeHeader,
+  type ParsedAttachment,
+} from "@e4a/pg-js";
 import {
   getReadAttachments,
   readReadAttachmentBytes,
@@ -17,14 +25,6 @@ import {
   showNotification,
 } from "../lib/office-helpers";
 import { fromBase64, toBase64, bytesToUtf8 } from "../lib/encoding";
-import {
-  POSTGUARD_ENCRYPTED_FILENAME,
-  extractArmoredCiphertext,
-  looksLikePostGuard,
-  parseDecryptedMime,
-  ParsedAttachment,
-  readMimeHeader,
-} from "../lib/mime";
 import { Badge, FriendlySender } from "../lib/types";
 import {
   PKG_URL,
@@ -139,7 +139,7 @@ async function tryFindCiphertext(): Promise<Uint8Array | null> {
     if (armored) {
       return fromBase64(armored);
     }
-    if (looksLikePostGuard(html)) {
+    if (looksLikeArmoredPostGuard(html)) {
       // Armor markers were present but content not extractable — still
       // treat as encrypted so the user gets an error instead of silence.
       return new Uint8Array();

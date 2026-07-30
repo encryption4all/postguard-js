@@ -31,7 +31,8 @@ import {
   clientHeaders,
 } from "../lib/pkg-client";
 import { byId } from "../lib/dom";
-import { guessContentType, POSTGUARD_ENCRYPTED_FILENAME } from "../lib/mime";
+import { guessContentType } from "../lib/mime";
+import { POSTGUARD_ENCRYPTED_FILENAME } from "@e4a/pg-js";
 import {
   ENCRYPTION_STATUS_NOTIFICATION_KEY,
   HEADER_ENCRYPT_ON_SEND,
