@@ -10,6 +10,7 @@ import {
 import { buildEncryptionPolicy } from '../src/recipients/builders.js';
 import { buildKeyRequest } from '../src/util/policy.js';
 import { buildStartRequestBody } from '../src/signing/yivi.js';
+import type { AttrReq } from '../src/types.js';
 import { RecipientBuilder } from '../src/recipients/builder.js';
 
 const TEST_ATTRS = {
@@ -97,6 +98,12 @@ describe('email attribute configuration (postguard#236)', () => {
     expect(policy['alice@example.com'].con[0].t).toBe('pbdf.sidn-pbdf.email.email');
 
     const body = buildStartRequestBody({ element: '#x' });
-    expect(body.con[0].t).toBe('pbdf.sidn-pbdf.email.email');
+    // `con` is `AttrConItem[]`, so an entry is either an `AttrReq` or a
+    // disjunction-of-conjunctions. Narrowing with `Array.isArray` is the idiom
+    // types.ts documents, and it makes the assertion stronger than the old
+    // property access: this entry must be a single attribute, not a discon.
+    const first = body.con[0];
+    expect(Array.isArray(first)).toBe(false);
+    expect((first as AttrReq).t).toBe('pbdf.sidn-pbdf.email.email');
   });
 });

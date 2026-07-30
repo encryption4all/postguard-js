@@ -6,7 +6,12 @@ import {
   extractAllZipEntries,
 } from '../src/util/zip.js';
 
-async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
+// `Uint8Array<ArrayBuffer>` rather than a bare `Uint8Array`: since TS 5.7 the
+// array is generic over its backing buffer, and `BlobPart` accepts only an
+// ArrayBuffer-backed view — a bare `Uint8Array` widens to `ArrayBufferLike`,
+// which could be a SharedArrayBuffer. The production code casts (`chunk as
+// BlobPart`); here the honest type costs one word.
+async function deflateRaw(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
   const cs = new CompressionStream('deflate-raw');
   const stream = new Blob([data]).stream().pipeThrough(cs);
   return new Uint8Array(await new Response(stream).arrayBuffer());
@@ -15,7 +20,10 @@ async function deflateRaw(data: Uint8Array): Promise<Uint8Array> {
 // Build a single-entry ZIP with method=8 (deflate). Mirrors the streaming-mode
 // shape conflux produces: LFH carries compressedSize=0 and uncompressedSize=0,
 // while the CDR holds the real sizes (extractZipEntry must read from the CDR).
-async function createStreamingDeflateZip(name: string, content: Uint8Array): Promise<Blob> {
+async function createStreamingDeflateZip(
+  name: string,
+  content: Uint8Array<ArrayBuffer>
+): Promise<Blob> {
   const encoder = new TextEncoder();
   const nameBytes = encoder.encode(name);
   const compressed = await deflateRaw(content);

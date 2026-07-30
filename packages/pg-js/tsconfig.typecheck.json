@@ -1,0 +1,32 @@
+// What `pnpm typecheck` actually runs. Separate from tsconfig.json because that
+// one is the BUILD config: tsdown reads it, and it sets `rootDir: "src"`, which
+// makes every file under tests/ a TS6059 error rather than a typechecked file.
+//
+// Tests were outside `include` until encryption4all/postguard-js#153 reviewed a
+// test that passed a `Buffer` into a slot the public types declare as an
+// `ArrayBuffer`. `pnpm typecheck` was green throughout, because it never looked
+// at the file. Anything a test hands to a public API is part of the contract the
+// package claims, so it gets checked here.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    // Explicit, because TypeScript 6 no longer pulls every `node_modules/@types`
+    // package into the program automatically — with this omitted, `Buffer`,
+    // `process` and every `node:*` import resolve to nothing and report TS2591
+    // even though @types/node is installed. Pinned to the major named in
+    // `engines` (>=22), so a test cannot quietly use an API the floor lacks.
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    // tests/api-surface.test.ts imports scripts/lib/api-surface.mjs, which is
+    // plain JS and stays that way. allowJs lets TS infer its shape instead of
+    // failing the import; checkJs stays off so the script itself is not held to
+    // strict mode it was never written for.
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["src", "tests", "scripts"]
+}
