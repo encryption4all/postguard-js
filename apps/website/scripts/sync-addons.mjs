@@ -118,14 +118,20 @@ async function findReleaseWithAsset(target, cached) {
         // window fills up with them (see the note on RELEASE_LOOKBACK above).
         // That wants the window widened, not the pattern touched. Draft and
         // prerelease releases filter out here the same way.
+        // Scroll-out is only a candidate explanation for a release that was once
+        // mirrored, so it is named only when there is a cached tag to have
+        // scrolled out. Offering it unconditionally left "it has scrolled out"
+        // with no antecedent on a first run, and led with the one cause that
+        // cannot apply when nothing was ever mirrored.
+        const wrongConfig =
+            "the tag pattern, the repo, or the release's published state is wrong"
+        const causes = cached?.tag
+            ? `${cached.tag} was mirrored previously, so either that release has scrolled out ` +
+              `of the window (widen RELEASE_LOOKBACK) or ${wrongConfig}`
+            : wrongConfig
         throw new Error(
             `[${target.name}] no published release matching ${target.tagPattern} in the last ` +
-                `${RELEASE_LOOKBACK}` +
-                (cached?.tag
-                    ? `, but ${cached.tag} was mirrored previously`
-                    : '') +
-                ` — either it has scrolled out of the ${RELEASE_LOOKBACK}-release lookback, ` +
-                "or the tag pattern, the repo, or the release's published state is wrong"
+                `${RELEASE_LOOKBACK} releases — ${causes}`
         )
     }
     for (let i = 0; i < eligible.length; i++) {
