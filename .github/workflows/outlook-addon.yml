@@ -231,7 +231,13 @@ jobs:
                   exit "$fail"
 
     nginx:
-        name: nginx config test
+        # Qualified with the app, and it has to stay that way: website.yml has a
+        # job that validates ITS nginx config, and a required status check is
+        # matched by name across the whole repo. While both were called
+        # `nginx config test`, requiring that name covered both copies — and
+        # deleting either job would have left the name still reporting from the
+        # other, so the gate would look alive while covering half of it.
+        name: nginx config test (outlook-addon)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
