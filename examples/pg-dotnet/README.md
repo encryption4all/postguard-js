@@ -9,7 +9,12 @@ Example .NET console app demonstrating how to use the [postguard-dotnet](https:/
 
 ## Prerequisites
 
-- .NET 8.0 or 10.0 SDK
+- .NET 10.0+ SDK. The project targets `net8.0;net10.0`, and an SDK cannot build a
+  target framework newer than itself, so the .NET 8 SDK fails on the `net10.0` target.
+  The .NET 10 SDK builds both: it ships only its own targeting pack, and `dotnet
+  restore` acquires the net8.0 one from NuGet. `--locked-mode` does not block that,
+  because a targeting pack is not a `PackageReference` and so is absent from
+  `packages.lock.json`.
 - A PostGuard API key
 
 ## Run
@@ -18,14 +23,14 @@ Store your API key with [user-secrets](https://learn.microsoft.com/en-us/aspnet/
 
 ```bash
 dotnet user-secrets set "PG_API_KEY" "PG-your-key-here"
-dotnet run
+dotnet run -f net10.0
 ```
 
 Or pass it via environment variable:
 
 ```bash
 export PG_API_KEY="PG-your-key-here"
-dotnet run
+dotnet run -f net10.0
 ```
 
 Override the default URLs (via user-secrets or env vars) if needed:
@@ -61,8 +66,10 @@ var pg = new PostGuard(new PostGuardConfig
     CryptifyUrl = "https://storage.staging.postguard.eu"
 });
 
-// Encrypt returns a lazy Sealed builder
-var sealed = pg.Encrypt(new EncryptInput
+// Encrypt returns a lazy Sealed builder. Note the name: `sealed` is a C#
+// keyword, so it cannot be used bare as an identifier. `@sealed` compiles,
+// but reads worse than a name, which is why Program.cs uses sealed1/sealed2.
+var sealedFiles = pg.Encrypt(new EncryptInput
 {
     Files = [new PgFile("report.txt", stream)],
     Recipients = [
@@ -73,10 +80,10 @@ var sealed = pg.Encrypt(new EncryptInput
 });
 
 // Silent upload (no Cryptify-sent emails). Returns UUID for custom distribution.
-var result = await sealed.UploadAsync();
+var silentResult = await sealedFiles.UploadAsync();
 
 // Or upload + have Cryptify email the recipients (and optionally the sender).
-var result = await sealed.UploadAsync(new UploadOptions
+var notifiedResult = await sealedFiles.UploadAsync(new UploadOptions
 {
     Notify = new NotifyOptions
     {

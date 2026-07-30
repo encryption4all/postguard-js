@@ -51,7 +51,7 @@ Requires the .NET 10.0+ SDK and a PostGuard API key. The example uses the `E4A.P
 ```bash
 cd examples/pg-dotnet
 export PG_API_KEY="PG-your-key-here"
-dotnet run
+dotnet run -f net10.0
 ```
 
 See [pg-dotnet/README.md](pg-dotnet/README.md) for full setup instructions.
