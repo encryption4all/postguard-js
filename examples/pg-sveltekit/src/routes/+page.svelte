@@ -165,7 +165,7 @@
 				<code class="download-url">{DOWNLOAD_URL}/download?uuid={resultUuid}</code>
 			</div>
 		{/if}
-		<button class="primary-btn" onclick={handleReset}>Start over</button>
+		<button type="button" class="primary-btn" onclick={handleReset}>Start over</button>
 	</div>
 {:else}
 	<!-- Delivery mode toggle -->
@@ -204,11 +204,11 @@
 		<p class="hint">Must prove their exact email address to decrypt.</p>
 		<div class="field-group">
 			<label class="field">
-				<span class="field-label">Name</span>
+				<span class="field-label">Citizen name</span>
 				<input type="text" bind:value={citizenName} />
 			</label>
 			<label class="field">
-				<span class="field-label">Email address</span>
+				<span class="field-label">Citizen email address</span>
 				<input type="email" bind:value={citizenEmail} placeholder="citizen@example.com" />
 			</label>
 		</div>
@@ -267,10 +267,10 @@
 	{#if sendState === 'encrypting'}
 		<section>
 			<ProgressBar percentage={progress} label="Encrypting & uploading..." />
-			<button class="cancel-btn" onclick={handleCancel}>Cancel</button>
+			<button type="button" class="cancel-btn" onclick={handleCancel}>Cancel</button>
 		</section>
 	{:else}
-		<button class="primary-btn" disabled={!canSend} onclick={handleSubmit}>
+		<button type="button" class="primary-btn" disabled={!canSend} onclick={handleSubmit}>
 			{deliveryMode === 'send-email' ? 'Encrypt & Send' : 'Encrypt & Upload'}
 		</button>
 	{/if}
@@ -338,11 +338,13 @@
 	}
 
 	/* Form fields */
+	/* No `flex: 1`: .field-group is column-direction, so it equalised height rather
+	   than putting fields side by side — dead space once a label wrapped — and at the
+	   two section-level usages .field is not a flex item at all. */
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
-		flex: 1;
 	}
 	.field-label {
 		font-size: 0.85rem;
