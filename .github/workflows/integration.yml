@@ -64,6 +64,54 @@ jobs:
               working-directory: packages/pg-js
               run: node scripts/smoke.mjs
 
+    # postguard-js#131. Deliberately NOT path-filtered to src/email/**, though the
+    # issue asks for it: a required status check that is path-filtered never
+    # reports on PRs which miss the filter, and branch protection then blocks them
+    # indefinitely. It runs in seconds, so it is cheap to let it be trivially green.
+    envelope-compat:
+        name: Envelope compatibility
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+              with:
+                  # The append-only check compares against the merge base of the
+                  # base branch and HEAD; a shallow clone has no common ancestor
+                  # and the script fails rather than guessing.
+                  fetch-depth: 0
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: '24'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            # actions/checkout leaves the base branch out of the local refs.
+            - name: Fetch the base branch
+              shell: bash
+              run: |
+                  BASE="${GITHUB_BASE_REF:-main}"
+                  git fetch --no-tags origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+
+            # A fixture records bytes a sender actually emitted, so it may be
+            # added but never edited or removed. Without this, a failing archival
+            # test could be "fixed" by rewriting the evidence.
+            - name: Fixture corpus is append-only
+              working-directory: packages/pg-js
+              run: pnpm envelope:check
+
+            # Both directions. Forward resolves the published readers named in
+            # COMPATIBILITY.md's support window; archival replays the corpus.
+            - name: Envelope compatibility, both directions
+              working-directory: packages/pg-js
+              run: pnpm exec vitest run tests/envelope-forward.test.ts tests/envelope-archival.test.ts
+
     api-surface:
         name: API surface
         runs-on: ubuntu-latest

@@ -3,7 +3,7 @@
   "version": "2.3.4",
   "type": "module",
   "sideEffects": false,
-  "description": "Browser SDK for PostGuard — end-to-end encrypted file sharing with identity-based encryption",
+  "description": "Browser SDK for PostGuard \u2014 end-to-end encrypted file sharing with identity-based encryption",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,6 +35,8 @@
     "api:update": "node scripts/api-report.mjs --update",
     "api:check": "node scripts/api-report.mjs --check",
     "api:gate": "node scripts/api-report.mjs --gate",
+    "envelope:fixtures": "node scripts/generate-envelope-fixtures.mjs",
+    "envelope:check": "node scripts/check-envelope-fixtures.mjs",
     "prepare": "node scripts/generate-wasm-base64.mjs && node scripts/generate-yivi-css.mjs && node scripts/generate-version.mjs && tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
@@ -50,6 +52,8 @@
     "@transcend-io/conflux": "^6.1.3"
   },
   "devDependencies": {
+    "pg-js-reader-v1": "npm:@e4a/pg-js@1.11.0",
+    "pg-js-reader-v2": "npm:@e4a/pg-js@2.3.4",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
