@@ -88,6 +88,22 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 - Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
 - **Every prettier plugin a workspace member declares must ALSO be a root `devDependency`.** `changeset version` formats each `CHANGELOG.md` through prettier, resolving the owning package's config but loading its plugins from the *process cwd* — the repo root. A plugin missing there makes changesets throw while writing that changelog, catch it, print the stack, and **still exit 0 with "All files have been updated"**: the version bump lands, the changelog entry silently does not. `apps/website` did this on every release from its import until it was found, because the gap is invisible in normal use — the app's own `pnpm lint` resolves the plugin fine from its own `node_modules`. `pnpm check-prettier-plugins` asserts it, runs in `integration.yml`, and gates `version-packages` ahead of `changeset version`. When it reports a plugin missing, add it to the ROOT `package.json`, not to the app that declares it.
 
+### Workflow guard steps
+
+Several workflows assert an invariant in an inline `run:` block rather than trusting a
+comment — `examples.yml`'s "Every example declares typecheck", `sdk-canary.yml`'s
+"Every example consuming a published SDK is covered". Two things about editing those:
+
+- `shell: bash` makes Actions run the script as `bash --noprofile --norc -eo pipefail`,
+  so `-e` and `pipefail` arrive on the command line and `set +e` is the only way off
+  them. A pipeline on the right of an assignment therefore aborts the step at that
+  line — `grep -v` exits 1 when it filters everything, which is how one of these
+  guards shipped with its own error annotation unreachable. Append `|| true` to every
+  such assignment.
+- Verify one by extracting its `run:` block out of the YAML and running it under that
+  exact shell, in a throwaway tree holding only the files it reads. A hand-written
+  replica under plain `bash` does not reproduce the point above.
+
 ### Public API surface report
 
 `packages/pg-js/etc/pg-js.api.md` is a committed snapshot of the package's public
