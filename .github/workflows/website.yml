@@ -107,7 +107,11 @@ jobs:
             - run: pnpm lint:css
 
     nginx:
-        name: nginx config test
+        # Qualified with the app — see the matching note in outlook-addon.yml.
+        # Both jobs were called `nginx config test`, and a required status check
+        # is matched by name across the whole repo, so the two were
+        # indistinguishable to branch protection.
+        name: nginx config test (website)
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v6
