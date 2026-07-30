@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "PostGuard Node.js example \u2014 encrypt + upload from a server",
+  "description": "PostGuard Node.js example — encrypt + upload from a server",
   "license": "MIT",
   "scripts": {
     "start": "node --env-file-if-exists=.env index.mjs",

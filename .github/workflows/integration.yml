@@ -38,6 +38,13 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
+            # Cheap, and it guards a failure that already shipped unnoticed: a
+            # prettier plugin a package declares but the root does not install
+            # makes `changeset version` drop that package's CHANGELOG silently,
+            # while still exiting 0. See scripts/check-prettier-plugins.mjs.
+            - name: Prettier plugins resolve from the root
+              run: pnpm check-prettier-plugins
+
             - name: Typecheck
               run: pnpm -r typecheck
 

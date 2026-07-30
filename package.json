@@ -10,13 +10,16 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "check-prettier-plugins": "node scripts/check-prettier-plugins.mjs",
     "changeset": "changeset",
-    "version-packages": "changeset version && pnpm --filter postguard-tb-addon sync-version && pnpm --filter postguard-outlook-addin sync-version",
+    "version-packages": "pnpm check-prettier-plugins && changeset version && pnpm --filter postguard-tb-addon sync-version && pnpm --filter postguard-outlook-addin sync-version",
     "release": "pnpm --filter @e4a/pg-js build && changeset publish",
     "prepare": "husky"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.5",
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "prettier": "^3.9.6",
+    "prettier-plugin-svelte": "^4.1.1"
   }
 }
