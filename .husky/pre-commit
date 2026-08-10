@@ -1,11 +1,16 @@
 # lint-staged runs per workspace package; add a line here when an app joins.
 #
-# apps/tb-addon is deliberately absent: it ships no prettier/eslint config and no
-# lint or format script (it never had them as a standalone repo), so there is
-# nothing for lint-staged to run. Adding formatting tooling would reformat the
-# whole app in one commit, which belongs in its own change rather than an import.
-# Tracked as encryption4all/postguard-js#138.
+# Every app is now covered (#138 closed the tb-addon gap). What is NOT covered is
+# packages/pg-js and examples/*: they declare no prettier config, so a line here
+# would format them against prettier's bare defaults rather than a style anyone
+# chose. Give a package a config first, then add its line — and note that a
+# config at the REPO ROOT is not the way to do it, because prettier resolves
+# config by walking up from each file and a package.json without a `prettier` key
+# does not stop the search, so one root config silently becomes the style of
+# every package that has none. See apps/tb-addon/CLAUDE.md.
+#
+# Each line runs with that package's directory as cwd, which is what makes the
+# package's own prettier config and .prettierignore apply.
 pnpm --filter postguard-website exec lint-staged
-# apps/outlook-addon ships eslint + prettier config and lint scripts, so unlike
-# apps/tb-addon it is not exempt.
 pnpm --filter postguard-outlook-addin exec lint-staged
+pnpm --filter postguard-tb-addon exec lint-staged
