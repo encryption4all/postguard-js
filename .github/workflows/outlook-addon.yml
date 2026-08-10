@@ -25,10 +25,14 @@ on:
 permissions:
     contents: read
 
-# Until encryption4all/postguard-outlook-addon's own release.yml is neutralised,
-# both repos push `:edge` and `:latest` to this package and can overwrite each
-# other with different content. Disabling the old workflow is part of merging
-# this; see the after-merge plan on encryption4all/postguard-js#127.
+# This workflow is the only publisher of the image below. There was briefly a
+# race — encryption4all/postguard-outlook-addon's own release.yml pushed `:edge`
+# and `:latest` to the same package and the two could overwrite each other with
+# different content — and that is over: the repo is archived, and an archived
+# repo runs no workflows, so nothing else can push this name. Note that
+# archiving the *source* repo of a GHCR package does not revoke the package
+# itself or anyone's push access to it, so "the old repo is archived" is the
+# reason the race ended, not "the package moved".
 env:
     IMAGE: ghcr.io/encryption4all/postguard-outlook-addon
     # Baked into the bundle by webpack's DefinePlugin. `storage.postguard.eu`,
