@@ -7,10 +7,7 @@ import { EMAIL_ATTRIBUTE_TYPE } from "../../lib/utils";
 // translation of the wire format the background sends us into the
 // typed Recipient builders pg-js exposes.
 
-export type RecipientFactory = Pick<
-  PostGuard["recipient"],
-  "email" | "emailDomain"
->;
+export type RecipientFactory = Pick<PostGuard["recipient"], "email" | "emailDomain">;
 
 /**
  * Reconstitute the `Recipient[]` argument for `pg.encrypt()` from the
@@ -21,13 +18,10 @@ export type RecipientFactory = Pick<
  */
 export function buildRecipients(
   factory: RecipientFactory,
-  serialized: readonly SerializedRecipient[],
+  serialized: readonly SerializedRecipient[]
 ): Recipient[] {
   return serialized.map((r) => {
-    const base =
-      r.type === "emailDomain"
-        ? factory.emailDomain(r.email)
-        : factory.email(r.email);
+    const base = r.type === "emailDomain" ? factory.emailDomain(r.email) : factory.email(r.email);
     if (r.policy) {
       for (const attr of r.policy) {
         if (attr.t !== EMAIL_ATTRIBUTE_TYPE) {

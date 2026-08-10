@@ -23,7 +23,7 @@ export interface DecryptionInputs {
  */
 export function chooseDecryptionInput(
   ciphertext: Uint8Array | null | undefined,
-  uploadUuid: string | null | undefined,
+  uploadUuid: string | null | undefined
 ): DecryptionInputs {
   if (ciphertext) return { ciphertext, uploadUuid: null };
   if (uploadUuid) return { ciphertext: null, uploadUuid };
@@ -38,7 +38,7 @@ export function chooseDecryptionInput(
 export function pickRecipientEmail(
   recipients: readonly string[],
   ccList: readonly string[],
-  toEmail: (addr: string) => string,
+  toEmail: (addr: string) => string
 ): string | undefined {
   const first = [...recipients, ...ccList][0];
   return first === undefined ? undefined : toEmail(first).toLowerCase();
@@ -60,9 +60,9 @@ export interface DecryptedThreadingHeaders {
  * decrypted message can't reference this thread by ID, which silently
  * breaks threading from this point onward.
  */
-export function buildDecryptedThreadingHeaders(
-  envelopeFull: { headers: Record<string, string[] | string | undefined> },
-): DecryptedThreadingHeaders {
+export function buildDecryptedThreadingHeaders(envelopeFull: {
+  headers: Record<string, string[] | string | undefined>;
+}): DecryptedThreadingHeaders {
   const headers: Record<string, string> = {};
   const remove: string[] = [];
   const map = {
@@ -88,9 +88,7 @@ export function buildDecryptedThreadingHeaders(
  * "you don't have the right key" (decryptionFailed) from generic failures
  * (decryptionError).
  */
-export function classifyDecryptionError(
-  e: unknown,
-): "decryptionFailed" | "decryptionError" {
+export function classifyDecryptionError(e: unknown): "decryptionFailed" | "decryptionError" {
   if (e instanceof Error && e.message.includes("KEM error")) {
     return "decryptionFailed";
   }
@@ -108,7 +106,7 @@ export function badgesFromSender(
         attributes?: ReadonlyArray<{ value?: string | null }>;
       }
     | null
-    | undefined,
+    | undefined
 ): Badge[] {
   return (sender?.attributes ?? []).map((a) => ({ value: a.value ?? "" }));
 }

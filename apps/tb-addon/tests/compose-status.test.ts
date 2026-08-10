@@ -146,9 +146,7 @@ describe("renderComposeStatusPanel", () => {
     );
 
     expect(container.hidden).toBe(false);
-    const emails = [...container.querySelectorAll(".panel-row__email")].map(
-      (el) => el.textContent
-    );
+    const emails = [...container.querySelectorAll(".panel-row__email")].map((el) => el.textContent);
     expect(emails).toContain("alice@example.com");
     expect(emails).toContain("sender@example.com"); // signing row
 

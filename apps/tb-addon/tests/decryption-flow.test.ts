@@ -57,18 +57,14 @@ describe("handleDecryptMessage — ciphertext extraction", () => {
 
 describe("handleDecryptMessage — recipient resolution", () => {
   it("should use first recipient/cc address for decryption", () => {
-    expect(
-      pickRecipientEmail(["Alice <a@example.com>"], ["b@example.com"], toEmail),
-    ).toBe("a@example.com");
-    expect(pickRecipientEmail([], ["c@example.com"], toEmail)).toBe(
-      "c@example.com",
+    expect(pickRecipientEmail(["Alice <a@example.com>"], ["b@example.com"], toEmail)).toBe(
+      "a@example.com"
     );
+    expect(pickRecipientEmail([], ["c@example.com"], toEmail)).toBe("c@example.com");
   });
 
   it("should lowercase recipient email before passing to SDK", () => {
-    expect(
-      pickRecipientEmail(["MiXeD@Example.COM"], [], toEmail),
-    ).toBe("mixed@example.com");
+    expect(pickRecipientEmail(["MiXeD@Example.COM"], [], toEmail)).toBe("mixed@example.com");
   });
 
   it("should return undefined when there are no recipients", () => {
@@ -128,9 +124,7 @@ describe("handleDecryptMessage — post-decryption", () => {
       "In-Reply-To": "<env-A@x>",
       References: "<env-A@x>",
     });
-    expect(remove.sort()).toEqual(
-      ["In-Reply-To", "Message-ID", "References"].sort(),
-    );
+    expect(remove.sort()).toEqual(["In-Reply-To", "Message-ID", "References"].sort());
   });
 
   it("should handle string-form headers (not just arrays)", () => {
@@ -142,15 +136,9 @@ describe("handleDecryptMessage — post-decryption", () => {
 
   it("should store sender badges for the imported message", () => {
     const badges = badgesFromSender({
-      attributes: [
-        { value: "alice@example.com" },
-        { value: "Alice Anderson" },
-      ],
+      attributes: [{ value: "alice@example.com" }, { value: "Alice Anderson" }],
     });
-    expect(badges).toEqual([
-      { value: "alice@example.com" },
-      { value: "Alice Anderson" },
-    ]);
+    expect(badges).toEqual([{ value: "alice@example.com" }, { value: "Alice Anderson" }]);
   });
 
   // Regression for #48: the decrypted-message banner must show *all*
@@ -191,15 +179,11 @@ describe("handleDecryptMessage — post-decryption", () => {
 
 describe("handleDecryptMessage — error handling", () => {
   it("should return decryptionFailed on KEM error (wrong attributes)", () => {
-    expect(classifyDecryptionError(new Error("KEM error: blah"))).toBe(
-      "decryptionFailed",
-    );
+    expect(classifyDecryptionError(new Error("KEM error: blah"))).toBe("decryptionFailed");
   });
 
   it("should return decryptionError on generic failure", () => {
-    expect(classifyDecryptionError(new Error("network broke"))).toBe(
-      "decryptionError",
-    );
+    expect(classifyDecryptionError(new Error("network broke"))).toBe("decryptionError");
     expect(classifyDecryptionError("string error")).toBe("decryptionError");
     expect(classifyDecryptionError(undefined)).toBe("decryptionError");
   });

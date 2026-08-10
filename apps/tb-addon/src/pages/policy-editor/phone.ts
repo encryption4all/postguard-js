@@ -1,7 +1,4 @@
-import {
-  parsePhoneNumberFromString,
-  type CountryCode,
-} from "libphonenumber-js/mobile";
+import { parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js/mobile";
 
 // Yivi stores mobile numbers in canonical E.164 (e.g. "+31612345678"). If the
 // policy commits anything that isn't canonical E.164, the identity derived
@@ -10,8 +7,7 @@ import {
 // website validates this attribute the exact same way via
 // `libphonenumber-js/mobile`; this helper mirrors that logic so the
 // Thunderbird addon rejects wrongly-formatted numbers before they are used.
-export const MOBILE_NUMBER_ATTR_TYPE =
-  "pbdf.sidn-pbdf.mobilenumber.mobilenumber";
+export const MOBILE_NUMBER_ATTR_TYPE = "pbdf.sidn-pbdf.mobilenumber.mobilenumber";
 
 // Default region used to interpret local-format input (e.g. "0612345678").
 export const DEFAULT_PHONE_COUNTRY: CountryCode = "NL";

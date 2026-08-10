@@ -12,15 +12,12 @@ export interface RuntimeHandlers {
   handlePolicyEditorInit: (windowId: number | undefined) => unknown;
   handlePolicyEditorDone: (windowId: number | undefined, policy: Policy) => unknown;
   handleCryptoPopupInit: (windowId: number | undefined) => unknown;
-  handleCryptoPopupDone: (
-    windowId: number | undefined,
-    result: CryptoPopupResult,
-  ) => unknown;
+  handleCryptoPopupDone: (windowId: number | undefined, result: CryptoPopupResult) => unknown;
   handleCryptoPopupError: (windowId: number | undefined, error: string) => unknown;
   handleCryptoPopupUploadInit: (
     windowId: number | undefined,
     uuid: string,
-    recoveryToken: string,
+    recoveryToken: string
   ) => unknown;
   handleDecryptMessage: (messageId: number) => unknown;
   resolveComposeTabId: (windowId: number | undefined) => Promise<number | undefined>;
@@ -40,7 +37,7 @@ export interface RuntimeSender {
 export function dispatchRuntimeMessage(
   message: unknown,
   sender: RuntimeSender,
-  handlers: RuntimeHandlers,
+  handlers: RuntimeHandlers
 ): unknown {
   if (!message || typeof message !== "object") return false;
   const msg = message as Record<string, unknown>;
@@ -71,16 +68,11 @@ export function dispatchRuntimeMessage(
     case "policyEditorDone": {
       const policy = msg.policy;
       if (!policy || typeof policy !== "object") return false;
-      return handlers.handlePolicyEditorDone(
-        sender.tab?.windowId,
-        policy as Policy,
-      );
+      return handlers.handlePolicyEditorDone(sender.tab?.windowId, policy as Policy);
     }
 
     case "cryptoPopupInit":
-      return Promise.resolve(
-        handlers.handleCryptoPopupInit(sender.tab?.windowId),
-      );
+      return Promise.resolve(handlers.handleCryptoPopupInit(sender.tab?.windowId));
 
     case "cryptoPopupDone": {
       const result = msg.result;
@@ -88,19 +80,13 @@ export function dispatchRuntimeMessage(
       const op = (result as Record<string, unknown>).operation;
       if (op !== "encrypt" && op !== "decrypt") return false;
       return Promise.resolve(
-        handlers.handleCryptoPopupDone(
-          sender.tab?.windowId,
-          result as CryptoPopupResult,
-        ),
+        handlers.handleCryptoPopupDone(sender.tab?.windowId, result as CryptoPopupResult)
       );
     }
 
     case "cryptoPopupError":
       return Promise.resolve(
-        handlers.handleCryptoPopupError(
-          sender.tab?.windowId,
-          msg.error as string,
-        ),
+        handlers.handleCryptoPopupError(sender.tab?.windowId, msg.error as string)
       );
 
     case "cryptoPopupUploadInit":
@@ -108,8 +94,8 @@ export function dispatchRuntimeMessage(
         handlers.handleCryptoPopupUploadInit(
           sender.tab?.windowId,
           msg.uuid as string,
-          msg.recoveryToken as string,
-        ),
+          msg.recoveryToken as string
+        )
       );
 
     case "decryptMessage": {

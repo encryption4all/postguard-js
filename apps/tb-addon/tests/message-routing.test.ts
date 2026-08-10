@@ -18,9 +18,7 @@ function makeHandlers(): RuntimeHandlers {
     handleCryptoPopupError: vi.fn(),
     handleCryptoPopupUploadInit: vi.fn(),
     handleDecryptMessage: vi.fn(),
-    resolveComposeTabId: vi.fn(async (windowId) =>
-      windowId == null ? undefined : windowId * 10,
-    ),
+    resolveComposeTabId: vi.fn(async (windowId) => (windowId == null ? undefined : windowId * 10)),
   };
 }
 
@@ -40,9 +38,7 @@ describe("message routing", () => {
   });
 
   it("should reject messages with unknown type", () => {
-    expect(
-      dispatchRuntimeMessage({ type: "nonsense" }, sender, handlers),
-    ).toBe(false);
+    expect(dispatchRuntimeMessage({ type: "nonsense" }, sender, handlers)).toBe(false);
     expect(dispatchRuntimeMessage({}, sender, handlers)).toBe(false);
   });
 
@@ -53,21 +49,13 @@ describe("message routing", () => {
   });
 
   it("should route toggleEncryption to the correct handler", async () => {
-    await dispatchRuntimeMessage(
-      { type: "toggleEncryption" },
-      sender,
-      handlers,
-    );
+    await dispatchRuntimeMessage({ type: "toggleEncryption" }, sender, handlers);
     expect(handlers.resolveComposeTabId).toHaveBeenCalledWith(3);
     expect(handlers.handleToggleEncryption).toHaveBeenCalledWith(30);
   });
 
   it("should route decryptMessage with messageId to the correct handler", () => {
-    dispatchRuntimeMessage(
-      { type: "decryptMessage", messageId: 42 },
-      sender,
-      handlers,
-    );
+    dispatchRuntimeMessage({ type: "decryptMessage", messageId: 42 }, sender, handlers);
     expect(handlers.handleDecryptMessage).toHaveBeenCalledWith(42);
   });
 
@@ -79,11 +67,7 @@ describe("message routing", () => {
     dispatchRuntimeMessage({ type: "queryMessageState" }, stranger, handlers);
     expect(handlers.handleQueryMessageState).toHaveBeenCalledWith(undefined);
 
-    await dispatchRuntimeMessage(
-      { type: "toggleEncryption" },
-      stranger,
-      handlers,
-    );
+    await dispatchRuntimeMessage({ type: "toggleEncryption" }, stranger, handlers);
     expect(handlers.handleToggleEncryption).toHaveBeenCalledWith(undefined);
   });
 
@@ -97,11 +81,7 @@ describe("message routing", () => {
   it("should ignore the windowId in the message and use the sender windowId on cryptoPopupInit", () => {
     // The message payload is sender-controlled; the router must trust only
     // the browser-supplied sender.tab.windowId (matches policyEditor routes).
-    dispatchRuntimeMessage(
-      { type: "cryptoPopupInit", windowId: 99 },
-      sender,
-      handlers,
-    );
+    dispatchRuntimeMessage({ type: "cryptoPopupInit", windowId: 99 }, sender, handlers);
     expect(handlers.handleCryptoPopupInit).toHaveBeenCalledWith(3);
   });
 
@@ -113,13 +93,9 @@ describe("message routing", () => {
 
 describe("message type validation", () => {
   it("should reject cryptoPopupDone with missing result", () => {
-    expect(
-      dispatchRuntimeMessage(
-        { type: "cryptoPopupDone", windowId: 1 },
-        sender,
-        handlers,
-      ),
-    ).toBe(false);
+    expect(dispatchRuntimeMessage({ type: "cryptoPopupDone", windowId: 1 }, sender, handlers)).toBe(
+      false
+    );
     expect(handlers.handleCryptoPopupDone).not.toHaveBeenCalled();
   });
 
@@ -128,8 +104,8 @@ describe("message type validation", () => {
       dispatchRuntimeMessage(
         { type: "cryptoPopupDone", windowId: 1, result: { operation: "wat" } },
         sender,
-        handlers,
-      ),
+        handlers
+      )
     ).toBe(false);
     expect(handlers.handleCryptoPopupDone).not.toHaveBeenCalled();
   });
@@ -142,7 +118,7 @@ describe("message type validation", () => {
         result: { operation: "encrypt" },
       },
       sender,
-      handlers,
+      handlers
     );
     await dispatchRuntimeMessage(
       {
@@ -151,29 +127,21 @@ describe("message type validation", () => {
         result: { operation: "decrypt" },
       },
       sender,
-      handlers,
+      handlers
     );
     expect(handlers.handleCryptoPopupDone).toHaveBeenCalledTimes(2);
   });
 
   it("should reject policyEditorDone with missing policy", () => {
-    expect(
-      dispatchRuntimeMessage({ type: "policyEditorDone" }, sender, handlers),
-    ).toBe(false);
+    expect(dispatchRuntimeMessage({ type: "policyEditorDone" }, sender, handlers)).toBe(false);
     expect(handlers.handlePolicyEditorDone).not.toHaveBeenCalled();
   });
 
   it("should reject decryptMessage with non-numeric messageId", () => {
     expect(
-      dispatchRuntimeMessage(
-        { type: "decryptMessage", messageId: "abc" },
-        sender,
-        handlers,
-      ),
+      dispatchRuntimeMessage({ type: "decryptMessage", messageId: "abc" }, sender, handlers)
     ).toBe(false);
-    expect(
-      dispatchRuntimeMessage({ type: "decryptMessage" }, sender, handlers),
-    ).toBe(false);
+    expect(dispatchRuntimeMessage({ type: "decryptMessage" }, sender, handlers)).toBe(false);
     expect(handlers.handleDecryptMessage).not.toHaveBeenCalled();
   });
 
@@ -182,11 +150,7 @@ describe("message type validation", () => {
     // pending map. Pin that the router still returns the handler's result
     // (wrapped in a Promise) rather than swallowing a null.
     (handlers.handleCryptoPopupInit as any).mockReturnValue(null);
-    const result = dispatchRuntimeMessage(
-      { type: "cryptoPopupInit" },
-      sender,
-      handlers,
-    );
+    const result = dispatchRuntimeMessage({ type: "cryptoPopupInit" }, sender, handlers);
     expect(handlers.handleCryptoPopupInit).toHaveBeenCalledWith(3);
     expect(result).toBeInstanceOf(Promise);
   });

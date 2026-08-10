@@ -1,9 +1,4 @@
-import type {
-  EnvelopeTier,
-  FriendlySender,
-  PostGuardConfig,
-  RetryOptions,
-} from "@e4a/pg-js";
+import type { EnvelopeTier, FriendlySender, PostGuardConfig, RetryOptions } from "@e4a/pg-js";
 
 export interface AttributeRequest {
   t: string;

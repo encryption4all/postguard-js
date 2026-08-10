@@ -35,10 +35,7 @@ let cachedKey: Promise<CryptoKey> | undefined;
 let memoryKey: CryptoKey | undefined;
 
 function generateKey(): Promise<CryptoKey> {
-  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -118,7 +115,7 @@ export async function encryptString(plaintext: string): Promise<EncryptedBlob> {
   const ct = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
-    new TextEncoder().encode(plaintext),
+    new TextEncoder().encode(plaintext)
   );
   return { iv: toBase64(iv), data: toBase64(new Uint8Array(ct)) };
 }
@@ -131,7 +128,7 @@ export async function decryptString(blob: EncryptedBlob): Promise<string> {
   const pt = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: fromBase64(blob.iv) },
     key,
-    fromBase64(blob.data),
+    fromBase64(blob.data)
   );
   return new TextDecoder().decode(pt);
 }

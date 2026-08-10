@@ -1,6 +1,13 @@
 /// <reference path="../types/thunderbird.d.ts" />
 
-import { buildMime, extractCiphertext, extractUploadUuid, injectMimeHeaders, resumeUpload, UploadSessionExpiredError } from "@e4a/pg-js";
+import {
+  buildMime,
+  extractCiphertext,
+  extractUploadUuid,
+  injectMimeHeaders,
+  resumeUpload,
+  UploadSessionExpiredError,
+} from "@e4a/pg-js";
 import {
   composeTabs,
   decryptedMessages,
@@ -26,10 +33,7 @@ import { getOrCreateLocalFolder } from "../lib/folders";
 import { isPGEncrypted, wasPGEncrypted } from "../lib/detection";
 import { dispatchRuntimeMessage } from "./runtime-router";
 import { handleAfterSend } from "./sent-copy";
-import {
-  evaluateBeforeSendGuards,
-  runBeforeSendEncryption,
-} from "./encryption-flow";
+import { evaluateBeforeSendGuards, runBeforeSendEncryption } from "./encryption-flow";
 import {
   buildDecryptedThreadingHeaders,
   classifyDecryptionError,
@@ -84,7 +88,7 @@ browser.scripting.messageDisplay
 // --- Register ALL event listeners BEFORE heavy awaits ---
 
 async function resolveComposeTabIdFromWindow(
-  windowId: number | undefined,
+  windowId: number | undefined
 ): Promise<number | undefined> {
   if (!windowId) return undefined;
   const tabs = await browser.tabs.query({
@@ -94,22 +98,21 @@ async function resolveComposeTabIdFromWindow(
   return tabs[0]?.id;
 }
 
-browser.runtime.onMessage.addListener(
-  (message: unknown, sender: browser.MessageSender) =>
-    dispatchRuntimeMessage(message, sender, {
-      handleQueryMessageState,
-      handleToggleEncryption,
-      handleGetComposeState,
-      handleOpenPolicyEditor,
-      handlePolicyEditorInit,
-      handlePolicyEditorDone,
-      handleCryptoPopupInit,
-      handleCryptoPopupDone,
-      handleCryptoPopupError,
-      handleCryptoPopupUploadInit,
-      handleDecryptMessage,
-      resolveComposeTabId: resolveComposeTabIdFromWindow,
-    }),
+browser.runtime.onMessage.addListener((message: unknown, sender: browser.MessageSender) =>
+  dispatchRuntimeMessage(message, sender, {
+    handleQueryMessageState,
+    handleToggleEncryption,
+    handleGetComposeState,
+    handleOpenPolicyEditor,
+    handlePolicyEditorInit,
+    handlePolicyEditorDone,
+    handleCryptoPopupInit,
+    handleCryptoPopupDone,
+    handleCryptoPopupError,
+    handleCryptoPopupUploadInit,
+    handleDecryptMessage,
+    resolveComposeTabId: resolveComposeTabIdFromWindow,
+  })
 );
 
 browser.compose.onBeforeSend.addListener(handleBeforeSend);
@@ -121,7 +124,7 @@ browser.compose.onAfterSend.addListener((tab, sendInfo) =>
     getOrCreateLocalFolder,
     getFullMessage: (msgId) => browser.messages.getFull(msgId),
     injectMimeHeaders,
-  }),
+  })
 );
 
 // Clean up decryptedMessages when messages are deleted
@@ -242,7 +245,7 @@ async function shouldEncrypt(tabId: number): Promise<boolean> {
     const details = await browser.compose.getComposeDetails(tabId);
     if (details.type === "reply" && details.relatedMessageId) {
       const encrypted = await isPGEncrypted(details.relatedMessageId);
-      const wasEncrypted = !encrypted && await wasPGEncrypted(details.relatedMessageId);
+      const wasEncrypted = !encrypted && (await wasPGEncrypted(details.relatedMessageId));
       return encrypted || wasEncrypted;
     }
   } catch (e) {
@@ -272,7 +275,7 @@ function keepAlive<T>(name: string, promise: Promise<T>): Promise<T> {
 
 async function openCryptoPopup(
   data: CryptoPopupInitData,
-  composeTabId?: number,
+  composeTabId?: number
 ): Promise<CryptoPopupResult> {
   const { promise, resolve, reject } = Promise.withResolvers<CryptoPopupResult>();
 
@@ -315,10 +318,7 @@ function handleCryptoPopupInit(windowId: number | undefined) {
   return pending.data;
 }
 
-function handleCryptoPopupDone(
-  windowId: number | undefined,
-  result: CryptoPopupResult
-) {
+function handleCryptoPopupDone(windowId: number | undefined, result: CryptoPopupResult) {
   if (windowId == null) return;
   const pending = pendingCryptoPopups.get(windowId);
   if (!pending) return;
@@ -330,10 +330,7 @@ function handleCryptoPopupDone(
   pendingCryptoPopups.delete(windowId);
 }
 
-function handleCryptoPopupError(
-  windowId: number | undefined,
-  error: string
-) {
+function handleCryptoPopupError(windowId: number | undefined, error: string) {
   if (windowId == null) return;
   const pending = pendingCryptoPopups.get(windowId);
   if (!pending) return;
@@ -353,7 +350,7 @@ function handleCryptoPopupError(
 function handleCryptoPopupUploadInit(
   windowId: number | undefined,
   uuid: string,
-  recoveryToken: string,
+  recoveryToken: string
 ) {
   if (windowId == null || !uuid || !recoveryToken) return;
   const pending = pendingCryptoPopups.get(windowId);
@@ -387,8 +384,7 @@ async function handleBeforeSend(tab: { id: number }, details: any) {
       listAttachments: (tabId) => browser.compose.listAttachments(tabId),
       getAttachmentFile: (attId) => browser.compose.getAttachmentFile(attId),
       getFullMessage: (msgId) => browser.messages.getFull(msgId),
-      removeAttachment: (tabId, attId) =>
-        browser.compose.removeAttachment(tabId, attId),
+      removeAttachment: (tabId, attId) => browser.compose.removeAttachment(tabId, attId),
       addAttachment: (tabId, opts) => browser.compose.addAttachment(tabId, opts),
       openCryptoPopup,
       notifyError,
@@ -402,7 +398,7 @@ async function handleBeforeSend(tab: { id: number }, details: any) {
       if (outcome.sentMimeData) state.sentMimeData = outcome.sentMimeData;
       if (outcome.cancel) return { cancel: true };
       return { details: outcome.details };
-    }),
+    })
   );
 }
 
@@ -416,9 +412,7 @@ async function handleQueryMessageState(tabId: number | undefined) {
 
     const messageId = msg.id;
     const isEncrypted = await isPGEncrypted(messageId);
-    const wasEncrypted = isEncrypted
-      ? false
-      : await wasPGEncrypted(messageId);
+    const wasEncrypted = isEncrypted ? false : await wasPGEncrypted(messageId);
     const badges = decryptedMessages.get(messageId)?.badges;
     return { messageId, isEncrypted, wasEncrypted, badges };
   } catch (e) {
@@ -458,10 +452,7 @@ async function handleGetComposeState(tabId: number | undefined) {
 
 // --- Policy editor flow ---
 
-async function handleOpenPolicyEditor(
-  windowId: number | undefined,
-  sign: boolean
-) {
+async function handleOpenPolicyEditor(windowId: number | undefined, sign: boolean) {
   if (windowId == null) return;
 
   const tabs = await browser.tabs.query({
@@ -572,10 +563,7 @@ async function handlePolicyEditorInit(windowId: number | undefined) {
   };
 }
 
-async function handlePolicyEditorDone(
-  windowId: number | undefined,
-  policy: Policy
-) {
+async function handlePolicyEditorDone(windowId: number | undefined, policy: Policy) {
   if (windowId == null) return;
   const pending = pendingPolicyEditors.get(windowId);
   if (!pending) return;
@@ -621,7 +609,7 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
     });
     const { ciphertext, uploadUuid } = chooseDecryptionInput(
       rawCiphertext,
-      rawCiphertext ? null : extractUploadUuid(htmlBody ?? ""),
+      rawCiphertext ? null : extractUploadUuid(htmlBody ?? "")
     );
 
     if (!ciphertext && !uploadUuid) {
@@ -634,7 +622,7 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
 
     // Delegate decryption to popup — popup creates its own pg instance,
     // renders Yivi QR, decrypts, and returns the plaintext + sender
-    const result = await openCryptoPopup({
+    const result = (await openCryptoPopup({
       operation: "decrypt",
       config: {
         pkgUrl: PKG_URL!,
@@ -644,7 +632,7 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
       ciphertextBase64: ciphertext ? toBase64(ciphertext) : undefined,
       uuid: uploadUuid ?? undefined,
       recipientEmail: recipientEmail ?? "",
-    }) as DecryptPopupResult;
+    })) as DecryptPopupResult;
 
     const plaintext = new TextDecoder().decode(fromBase64(result.plaintextBase64));
 

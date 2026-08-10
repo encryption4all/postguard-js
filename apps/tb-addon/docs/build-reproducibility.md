@@ -127,7 +127,7 @@ This hash should match the npm package's `bundler/index_bg.wasm`.
 ## Reviewer notes for AMO submissions
 
 When submitting this add-on to addons.thunderbird.net, paste the
-following into the *Notes for reviewers* field, with the relevant tag
+following into the _Notes for reviewers_ field, with the relevant tag
 and hashes filled in:
 
 ```text

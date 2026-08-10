@@ -1,202 +1,229 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>PostGuard — Compose</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      width: 280px;
-      padding: 16px;
-      background: #fff;
-      color: #022E3D;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-    .header img { width: 28px; height: 28px; }
-    .header h2 { font-size: 14px; font-weight: 600; }
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .toggle-label { font-size: 13px; font-weight: 500; }
-    .toggle-switch {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      cursor: pointer;
-    }
-    .toggle-switch input { display: none; }
-    .slider {
-      position: absolute;
-      inset: 0;
-      background: #ccc;
-      border-radius: 24px;
-      transition: background 0.2s;
-    }
-    .slider::before {
-      content: "";
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      left: 3px;
-      bottom: 3px;
-      background: #fff;
-      border-radius: 50%;
-      transition: transform 0.2s;
-    }
-    .toggle-switch input:checked + .slider {
-      background: #006EF4;
-    }
-    .toggle-switch input:checked + .slider::before {
-      transform: translateX(20px);
-    }
-    .status {
-      font-size: 12px;
-      color: #6b7280;
-      padding: 8px 0;
-    }
-    .status-panel {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding: 12px;
-      margin-top: 4px;
-      background: #f3f7fb;
-      border: 1px solid #d6e3f0;
-      border-radius: 8px;
-    }
-    .status-panel[hidden] { display: none; }
-    .panel-section {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .panel-section__title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      /* Darkened from brand #006EF4 to clear WCAG AA (4.5:1) on the #f3f7fb panel. */
-      color: #0063DC;
-    }
-    .panel-row {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .panel-row__email {
-      font-size: 12px;
-      font-weight: 500;
-      word-break: break-all;
-    }
-    .panel-row__badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
-    .panel-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 2px 8px;
-      font-size: 11px;
-      color: #022E3D;
-      background: #fff;
-      border: 1px solid #d6e3f0;
-      border-radius: 12px;
-    }
-    .panel-empty {
-      font-size: 12px;
-      /* Slightly darker than the popup's #6b7280 muted grey to clear WCAG AA on the tinted panel. */
-      color: #646b78;
-    }
-    .panel-warning {
-      font-size: 12px;
-      color: #A63232;
-      padding: 8px;
-      background: #fbecec;
-      border-radius: 6px;
-    }
-    .actions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .btn {
-      display: block;
-      width: 100%;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 500;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: #fff;
-      color: #022E3D;
-      cursor: pointer;
-      text-align: center;
-    }
-    .btn:hover { background: #f3f4f6; }
-    .btn:disabled,
-    .btn[aria-disabled="true"] { color: #6b7280; opacity: 1; cursor: default; }
-    .btn:disabled:hover,
-    .btn[aria-disabled="true"]:hover { background: #fff; }
-    .hint {
-      font-size: 12px;
-      color: #6b7280;
-      margin-top: -2px;
-    }
-    .hint[hidden] { display: none; }
-    .btn:focus-visible,
-    .toggle-switch:focus-within .slider {
-      outline: 2px solid #006EF4;
-      outline-offset: 2px;
-    }
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0,0,0,0);
-      white-space: nowrap;
-      border: 0;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <img src="../../icons/icon-64.svg" alt="" aria-hidden="true">
-    <h2>PostGuard</h2>
-  </div>
+  <head>
+    <meta charset="utf-8" />
+    <title>PostGuard — Compose</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        width: 280px;
+        padding: 16px;
+        background: #fff;
+        color: #022e3d;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .header img {
+        width: 28px;
+        height: 28px;
+      }
+      .header h2 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .toggle-label {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        cursor: pointer;
+      }
+      .toggle-switch input {
+        display: none;
+      }
+      .slider {
+        position: absolute;
+        inset: 0;
+        background: #ccc;
+        border-radius: 24px;
+        transition: background 0.2s;
+      }
+      .slider::before {
+        content: "";
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        left: 3px;
+        bottom: 3px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform 0.2s;
+      }
+      .toggle-switch input:checked + .slider {
+        background: #006ef4;
+      }
+      .toggle-switch input:checked + .slider::before {
+        transform: translateX(20px);
+      }
+      .status {
+        font-size: 12px;
+        color: #6b7280;
+        padding: 8px 0;
+      }
+      .status-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+        margin-top: 4px;
+        background: #f3f7fb;
+        border: 1px solid #d6e3f0;
+        border-radius: 8px;
+      }
+      .status-panel[hidden] {
+        display: none;
+      }
+      .panel-section {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .panel-section__title {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        /* Darkened from brand #006EF4 to clear WCAG AA (4.5:1) on the #f3f7fb panel. */
+        color: #0063dc;
+      }
+      .panel-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .panel-row__email {
+        font-size: 12px;
+        font-weight: 500;
+        word-break: break-all;
+      }
+      .panel-row__badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .panel-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #022e3d;
+        background: #fff;
+        border: 1px solid #d6e3f0;
+        border-radius: 12px;
+      }
+      .panel-empty {
+        font-size: 12px;
+        /* Slightly darker than the popup's #6b7280 muted grey to clear WCAG AA on the tinted panel. */
+        color: #646b78;
+      }
+      .panel-warning {
+        font-size: 12px;
+        color: #a63232;
+        padding: 8px;
+        background: #fbecec;
+        border-radius: 6px;
+      }
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        color: #022e3d;
+        cursor: pointer;
+        text-align: center;
+      }
+      .btn:hover {
+        background: #f3f4f6;
+      }
+      .btn:disabled,
+      .btn[aria-disabled="true"] {
+        color: #6b7280;
+        opacity: 1;
+        cursor: default;
+      }
+      .btn:disabled:hover,
+      .btn[aria-disabled="true"]:hover {
+        background: #fff;
+      }
+      .hint {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: -2px;
+      }
+      .hint[hidden] {
+        display: none;
+      }
+      .btn:focus-visible,
+      .toggle-switch:focus-within .slider {
+        outline: 2px solid #006ef4;
+        outline-offset: 2px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <img src="../../icons/icon-64.svg" alt="" aria-hidden="true" />
+      <h2>PostGuard</h2>
+    </div>
 
-  <div class="toggle-row">
-    <span class="toggle-label" id="toggle-label">Encrypt this email</span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="toggle-encrypt" aria-labelledby="toggle-label">
-      <span class="slider" aria-hidden="true"></span>
-    </label>
-  </div>
+    <div class="toggle-row">
+      <span class="toggle-label" id="toggle-label">Encrypt this email</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-encrypt" aria-labelledby="toggle-label" />
+        <span class="slider" aria-hidden="true"></span>
+      </label>
+    </div>
 
-  <div class="status" id="status-text" role="status" aria-live="polite"></div>
+    <div class="status" id="status-text" role="status" aria-live="polite"></div>
 
-  <div class="status-panel" id="status-panel" role="status" aria-live="polite" hidden></div>
+    <div class="status-panel" id="status-panel" role="status" aria-live="polite" hidden></div>
 
-  <div class="actions">
-    <button class="btn" id="btn-manage" aria-disabled="true">Manage Access</button>
-    <p class="hint" id="manage-hint" role="status" aria-live="polite" hidden></p>
-    <button class="btn" id="btn-sign" aria-disabled="true">Sign</button>
-  </div>
+    <div class="actions">
+      <button class="btn" id="btn-manage" aria-disabled="true">Manage Access</button>
+      <p class="hint" id="manage-hint" role="status" aria-live="polite" hidden></p>
+      <button class="btn" id="btn-sign" aria-disabled="true">Sign</button>
+    </div>
 
-  <script src="compose-action.js"></script>
-</body>
+    <script src="compose-action.js"></script>
+  </body>
 </html>

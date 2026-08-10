@@ -3,7 +3,12 @@
 
 declare namespace browser {
   namespace runtime {
-    function getBrowserInfo(): Promise<{ name: string; vendor: string; version: string; buildID: string }>;
+    function getBrowserInfo(): Promise<{
+      name: string;
+      vendor: string;
+      version: string;
+      buildID: string;
+    }>;
     function getManifest(): { version: string; [key: string]: unknown };
     function sendMessage(message: unknown): Promise<unknown>;
     const onMessage: {
@@ -52,10 +57,17 @@ declare namespace browser {
     function getAttachmentFile(attachmentId: number): Promise<File>;
     function removeAttachment(tabId: number, attachmentId: number): Promise<void>;
     const onBeforeSend: {
-      addListener(callback: (tab: Tab, details: ComposeDetails) => Promise<{ cancel?: boolean; details?: Partial<ComposeDetails> } | void>): void;
+      addListener(
+        callback: (
+          tab: Tab,
+          details: ComposeDetails
+        ) => Promise<{ cancel?: boolean; details?: Partial<ComposeDetails> } | void>
+      ): void;
     };
     const onAfterSend: {
-      addListener(callback: (tab: Tab, sendInfo: { messages: MessageHeader[]; mode: string }) => void): void;
+      addListener(
+        callback: (tab: Tab, sendInfo: { messages: MessageHeader[]; mode: string }) => void
+      ): void;
     };
   }
 
@@ -88,7 +100,10 @@ declare namespace browser {
   namespace composeAction {
     function enable(tabId?: number): Promise<void>;
     function disable(tabId?: number): Promise<void>;
-    function setIcon(details: { tabId?: number; path: string | Record<string, string> }): Promise<void>;
+    function setIcon(details: {
+      tabId?: number;
+      path: string | Record<string, string>;
+    }): Promise<void>;
     function setTitle(details: { tabId?: number; title: string }): Promise<void>;
     function setBadgeText(details: { tabId?: number; text: string }): Promise<void>;
     function openPopup(): Promise<void>;
@@ -103,7 +118,9 @@ declare namespace browser {
   //   (browser.messages as Messages).delete(ids, skipTrash)
   interface Messages {
     get(messageId: number): Promise<MessageHeader>;
-    getFull(messageId: number): Promise<{ headers: Record<string, string[]>; parts?: MessagePart[] }>;
+    getFull(
+      messageId: number
+    ): Promise<{ headers: Record<string, string[]>; parts?: MessagePart[] }>;
     listAttachments(messageId: number): Promise<MessageAttachment[]>;
     getAttachmentFile(messageId: number, partName: string): Promise<File>;
     update(messageId: number, newProperties: Record<string, unknown>): Promise<void>;
@@ -165,19 +182,23 @@ declare namespace browser {
 
   namespace scripting {
     namespace messageDisplay {
-      function registerScripts(scripts: Array<{
-        id: string;
-        css?: string[];
-        js?: string[];
-        runAt?: string;
-      }>): Promise<void>;
+      function registerScripts(
+        scripts: Array<{
+          id: string;
+          css?: string[];
+          js?: string[];
+          runAt?: string;
+        }>
+      ): Promise<void>;
     }
     namespace compose {
-      function registerScripts(scripts: Array<{
-        id: string;
-        css?: string[];
-        js?: string[];
-      }>): Promise<void>;
+      function registerScripts(
+        scripts: Array<{
+          id: string;
+          css?: string[];
+          js?: string[];
+        }>
+      ): Promise<void>;
     }
   }
 
@@ -218,7 +239,10 @@ declare namespace browser {
   }
 
   namespace alarms {
-    function create(name: string, alarmInfo: { periodInMinutes?: number; delayInMinutes?: number }): void;
+    function create(
+      name: string,
+      alarmInfo: { periodInMinutes?: number; delayInMinutes?: number }
+    ): void;
     function clear(name: string): Promise<boolean>;
     const onAlarm: {
       addListener(callback: (alarm: { name: string }) => void): void;

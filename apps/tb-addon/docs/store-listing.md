@@ -135,27 +135,27 @@ and press send.
 
 The extension declares the following permissions in `manifest.json`:
 
-| Permission | Why it is needed |
-| --- | --- |
-| `compose` | Intercept the "Send" action to encrypt outgoing messages when the user has enabled PostGuard for that compose window. |
-| `messagesRead` | Read the body and attachments of an incoming encrypted message so they can be decrypted locally. |
-| `messagesModify` | Allow the decrypted message to replace the encrypted original in the user's mailbox. |
-| `messagesMove` | Place the decrypted message back into the folder where the encrypted original was stored (Inbox, a subfolder, etc.). |
-| `messagesDelete` | Delete the encrypted original after a successful decrypt so the user does not see two copies of the same email. |
-| `messagesImport` | Import the decrypted message as a new local message so Thunderbird can render it with threading intact. |
-| `accountsRead` | Identify which email address the user is sending as, so PostGuard knows which identity the recipient needs to prove on the return path. |
-| `accountsFolders` | Locate the correct destination folder when importing a decrypted message. |
-| `storage` | Cache the Yivi-issued JWT and the PKG's public master key in `browser.storage.local`, and persist per-compose "encryption enabled" state across MV3 background suspensions. |
-| `scripting` | Register the content script that renders the "Decrypt" / "Encrypted" banner on top of encrypted messages in the reading pane. |
-| `alarms` | MV3 keepalive for the background service, and periodic cleanup of expired JWTs from local storage. |
-| `notifications` | Show user-facing error notifications when decryption fails (e.g. wrong recipient, malformed ciphertext) so the failure does not disappear silently. |
+| Permission        | Why it is needed                                                                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compose`         | Intercept the "Send" action to encrypt outgoing messages when the user has enabled PostGuard for that compose window.                                                       |
+| `messagesRead`    | Read the body and attachments of an incoming encrypted message so they can be decrypted locally.                                                                            |
+| `messagesModify`  | Allow the decrypted message to replace the encrypted original in the user's mailbox.                                                                                        |
+| `messagesMove`    | Place the decrypted message back into the folder where the encrypted original was stored (Inbox, a subfolder, etc.).                                                        |
+| `messagesDelete`  | Delete the encrypted original after a successful decrypt so the user does not see two copies of the same email.                                                             |
+| `messagesImport`  | Import the decrypted message as a new local message so Thunderbird can render it with threading intact.                                                                     |
+| `accountsRead`    | Identify which email address the user is sending as, so PostGuard knows which identity the recipient needs to prove on the return path.                                     |
+| `accountsFolders` | Locate the correct destination folder when importing a decrypted message.                                                                                                   |
+| `storage`         | Cache the Yivi-issued JWT and the PKG's public master key in `browser.storage.local`, and persist per-compose "encryption enabled" state across MV3 background suspensions. |
+| `scripting`       | Register the content script that renders the "Decrypt" / "Encrypted" banner on top of encrypted messages in the reading pane.                                               |
+| `alarms`          | MV3 keepalive for the background service, and periodic cleanup of expired JWTs from local storage.                                                                          |
+| `notifications`   | Show user-facing error notifications when decryption fails (e.g. wrong recipient, malformed ciphertext) so the failure does not disappear silently.                         |
 
 ### Host permissions
 
-| Host | Why |
-| --- | --- |
+| Host                                                    | Why                                                                                                                          |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `https://postguard.eu/*` and `https://*.postguard.eu/*` | Contact the PKG server for key retrieval and fetch the public master key. Also used for static assets in the decrypt banner. |
-| `https://*.yivi.app/*` | Session coordination with the Yivi identity wallet during disclosure. |
+| `https://*.yivi.app/*`                                  | Session coordination with the Yivi identity wallet during disclosure.                                                        |
 
 No broader host permissions are requested.
 

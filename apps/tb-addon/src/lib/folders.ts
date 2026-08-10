@@ -8,7 +8,10 @@ export async function getOrCreateLocalFolder(
   // Find "Local Folders" account (type "none")
   const localAccount = accounts.find((acc) => acc.type === "none" || acc.type === "local");
   if (!localAccount) {
-    console.warn("[PostGuard] No Local Folders account found. Account types:", accounts.map(a => `${a.name}(${a.type})`));
+    console.warn(
+      "[PostGuard] No Local Folders account found. Account types:",
+      accounts.map((a) => `${a.name}(${a.type})`)
+    );
     return undefined;
   }
 

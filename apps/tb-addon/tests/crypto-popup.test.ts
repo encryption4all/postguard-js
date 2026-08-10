@@ -5,11 +5,7 @@ import { runEncryptInPopup, YIVI_ELEMENT_SELECTOR } from "../src/pages/yivi-popu
 import { runDecryptInPopup } from "../src/pages/yivi-popup/decrypt-popup";
 import { initCryptoPopup } from "../src/pages/yivi-popup/init-flow";
 import { toBase64, fromBase64 } from "../src/lib/encoding";
-import type {
-  SerializedRecipient,
-  EncryptPopupData,
-  DecryptPopupData,
-} from "../src/lib/types";
+import type { SerializedRecipient, EncryptPopupData, DecryptPopupData } from "../src/lib/types";
 
 interface FakeRecipient {
   kind: "email" | "emailDomain";
@@ -139,27 +135,21 @@ describe("crypto popup — recipients", () => {
   });
 
   it("should map emailDomain recipients with pg.recipient.emailDomain", () => {
-    const input: SerializedRecipient[] = [
-      { type: "emailDomain", email: "@example.com" },
-    ];
+    const input: SerializedRecipient[] = [{ type: "emailDomain", email: "@example.com" }];
     buildRecipients(factory as any, input);
     expect(factory.emailDomain).toHaveBeenCalledWith("@example.com");
     expect(factory.email).not.toHaveBeenCalled();
   });
 
   it("should map plain email recipients with pg.recipient.email", () => {
-    const input: SerializedRecipient[] = [
-      { type: "email", email: "plain@example.com" },
-    ];
+    const input: SerializedRecipient[] = [{ type: "email", email: "plain@example.com" }];
     buildRecipients(factory as any, input);
     expect(factory.email).toHaveBeenCalledWith("plain@example.com");
     expect(factory.emailDomain).not.toHaveBeenCalled();
   });
 
   it("should not call extraAttribute when no policy is set", () => {
-    const input: SerializedRecipient[] = [
-      { type: "email", email: "a@example.com" },
-    ];
+    const input: SerializedRecipient[] = [{ type: "email", email: "a@example.com" }];
     const out = buildRecipients(factory as any, input) as any as FakeRecipient[];
     expect(out[0].extras).toEqual([]);
   });
@@ -216,7 +206,7 @@ describe("crypto popup — initialization", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 42,
       requestInitData,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt,
       runDecrypt,
       sendError: async () => undefined,
@@ -274,7 +264,7 @@ describe("crypto popup — initialization", () => {
   it("should create PostGuard instance with config from background", async () => {
     const ui = makeUi();
     const data = fakeData("encrypt");
-    const createPg = vi.fn(() => ({} as any));
+    const createPg = vi.fn(() => ({}) as any);
     await initCryptoPopup({
       resolveWindowId: async () => 1,
       requestInitData: async () => data,
@@ -353,7 +343,7 @@ describe("crypto popup — encrypt", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 5,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => undefined,
       runDecrypt: async () => undefined,
       sendError: async () => undefined,
@@ -488,7 +478,7 @@ describe("crypto popup — decrypt", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 12,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => undefined,
       runDecrypt: async () => undefined,
       sendError: async () => undefined,
@@ -546,7 +536,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 8,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => {
         throw new Error("encrypt boom");
       },
@@ -569,7 +559,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 9,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => undefined,
       runDecrypt: async () => {
         throw new Error("decrypt boom");
@@ -591,7 +581,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 1,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => {
         throw new Error("UI boom");
       },
@@ -614,7 +604,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 7,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => {
         throw new UploadSessionExpiredError("test-uuid", "expired_or_unknown", "");
       },
@@ -637,7 +627,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 3,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => {
         throw new Error(secret);
       },
@@ -663,7 +653,7 @@ describe("crypto popup — error handling", () => {
     await initCryptoPopup({
       resolveWindowId: async () => 1,
       requestInitData: async () => data,
-      createPg: () => ({} as any),
+      createPg: () => ({}) as any,
       runEncrypt: async () => {
         throw new Error("nope");
       },

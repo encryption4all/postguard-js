@@ -51,9 +51,7 @@ export function applyComposeActionUi(
   state: ComposeUiState,
   t: Translate
 ): void {
-  els.statusText.textContent = state.encrypt
-    ? t("encryptionEnabled")
-    : t("encryptionDisabled");
+  els.statusText.textContent = state.encrypt ? t("encryptionEnabled") : t("encryptionDisabled");
 
   setDisabled(els.btnManage, !canManageAccess(state));
   setDisabled(els.btnSign, !state.encrypt);

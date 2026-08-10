@@ -15,9 +15,9 @@ async function showBanner() {
     // Ask the background script to check the message displayed in our tab.
     // Content scripts don't have access to messageDisplay or tabs APIs,
     // so the background uses sender.tab.id to look up the message.
-    const state: MessageState | null = await browser.runtime.sendMessage({
+    const state: MessageState | null = (await browser.runtime.sendMessage({
       type: "queryMessageState",
-    }) as MessageState | null;
+    })) as MessageState | null;
 
     console.log("[PostGuard] Message state:", JSON.stringify(state));
 
@@ -30,14 +30,9 @@ async function showBanner() {
         state.messageId!
       );
     } else if (state.badges && state.badges.length > 0) {
-      createBadgeBanner(
-        browser.i18n.getMessage("notificationHeaderBadgesLabel"),
-        state.badges
-      );
+      createBadgeBanner(browser.i18n.getMessage("notificationHeaderBadgesLabel"), state.badges);
     } else if (state.wasEncrypted) {
-      createInfoBanner(
-        browser.i18n.getMessage("displayScriptWasEncryptedBar")
-      );
+      createInfoBanner(browser.i18n.getMessage("displayScriptWasEncryptedBar"));
     }
   } catch (e) {
     console.error("[PostGuard] showBanner error:", e);
@@ -61,10 +56,10 @@ function createBanner(text: string, buttonLabel: string, messageId: number) {
     btn.setAttribute("aria-busy", "true");
     btn.textContent = browser.i18n.getMessage("decryptingButton") || "Decrypting...";
     try {
-      const result = await browser.runtime.sendMessage({
+      const result = (await browser.runtime.sendMessage({
         type: "decryptMessage",
         messageId,
-      }) as { ok: boolean; error?: string } | undefined;
+      })) as { ok: boolean; error?: string } | undefined;
       if (result && !result.ok) {
         const errorMsg = result.error
           ? browser.i18n.getMessage(result.error)
@@ -102,10 +97,7 @@ function createInfoBanner(text: string) {
   document.body.insertBefore(banner, document.body.firstChild);
 }
 
-function createBadgeBanner(
-  text: string,
-  badges: Array<{ value: string }>
-) {
+function createBadgeBanner(text: string, badges: Array<{ value: string }>) {
   const banner = document.createElement("div");
   banner.className = "postguard-banner";
 

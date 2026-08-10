@@ -1,4 +1,10 @@
-import type { Policy, AttributeCon, Badge, CryptoPopupInitData, CryptoPopupResult } from "../lib/types";
+import type {
+  Policy,
+  AttributeCon,
+  Badge,
+  CryptoPopupInitData,
+  CryptoPopupResult,
+} from "../lib/types";
 import { EMAIL_ATTRIBUTE_TYPE } from "../lib/utils";
 import { encryptString, decryptString, type EncryptedBlob } from "./token-crypto";
 
@@ -114,7 +120,7 @@ export async function restoreEncryptState(): Promise<void> {
  * compose-action UI rather than state.
  */
 export async function toggleEncrypt(
-  tabId: number,
+  tabId: number
 ): Promise<{ encrypt: boolean; hasRecipients: boolean }> {
   const state = composeTabs.get(tabId) ?? { encrypt: false };
   state.encrypt = !state.encrypt;
@@ -206,7 +212,9 @@ export async function persistInFlightUploads(): Promise<void> {
  *  freshness window. Stale records are dropped without a network call.
  *  Callers are expected to feed the returned list into `resumeUpload` to
  *  classify each as alive / expired and react accordingly. */
-export async function loadInFlightUploads(): Promise<Array<{ tabId: number; record: InFlightUpload }>> {
+export async function loadInFlightUploads(): Promise<
+  Array<{ tabId: number; record: InFlightUpload }>
+> {
   try {
     const data = await browser.storage.local.get(IN_FLIGHT_KEY);
     const saved = data[IN_FLIGHT_KEY] as Record<string, PersistedInFlightUpload> | undefined;
@@ -298,9 +306,7 @@ export async function getSignPrefill(account: string): Promise<AttributeCon> {
 export async function setSignPrefill(account: string, attrs: AttributeCon): Promise<void> {
   try {
     const key = accountKey(account);
-    const cleaned = attrs.filter(
-      (a) => a.t !== EMAIL_ATTRIBUTE_TYPE && a.v.trim() !== "",
-    );
+    const cleaned = attrs.filter((a) => a.t !== EMAIL_ATTRIBUTE_TYPE && a.v.trim() !== "");
     const data = await browser.storage.local.get(SIGN_PREFILLS_KEY);
     const saved = (data[SIGN_PREFILLS_KEY] as SignPrefills | undefined) ?? {};
     if (cleaned.length === 0) {

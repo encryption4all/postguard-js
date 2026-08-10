@@ -1,14 +1,9 @@
 import { describe, it, expect } from "vitest";
-import {
-  MOBILE_NUMBER_ATTR_TYPE,
-  validateMobileNumber,
-} from "../src/pages/policy-editor/phone";
+import { MOBILE_NUMBER_ATTR_TYPE, validateMobileNumber } from "../src/pages/policy-editor/phone";
 
 describe("validateMobileNumber — recipient phone validation", () => {
   it("exposes the Yivi mobile-number attribute type", () => {
-    expect(MOBILE_NUMBER_ATTR_TYPE).toBe(
-      "pbdf.sidn-pbdf.mobilenumber.mobilenumber"
-    );
+    expect(MOBILE_NUMBER_ATTR_TYPE).toBe("pbdf.sidn-pbdf.mobilenumber.mobilenumber");
   });
 
   it("normalises a Dutch local-format number to E.164", () => {
