@@ -1,10 +1,6 @@
 import type { PostGuard } from "@e4a/pg-js";
 import { UploadSessionExpiredError } from "@e4a/pg-js";
-import type {
-  CryptoPopupInitData,
-  EncryptPopupData,
-  DecryptPopupData,
-} from "../../lib/types";
+import type { CryptoPopupInitData, EncryptPopupData, DecryptPopupData } from "../../lib/types";
 
 export interface CryptoPopupUi {
   setOperation(op: "encrypt" | "decrypt"): void;
@@ -22,16 +18,8 @@ export interface InitCryptoPopupDeps {
    *  (or null if none — the popup was opened orphaned). */
   requestInitData: (windowId: number) => Promise<CryptoPopupInitData | null>;
   createPg: (config: CryptoPopupInitData["config"]) => PostGuard;
-  runEncrypt: (
-    pg: PostGuard,
-    data: EncryptPopupData,
-    windowId: number,
-  ) => Promise<void>;
-  runDecrypt: (
-    pg: PostGuard,
-    data: DecryptPopupData,
-    windowId: number,
-  ) => Promise<void>;
+  runEncrypt: (pg: PostGuard, data: EncryptPopupData, windowId: number) => Promise<void>;
+  runDecrypt: (pg: PostGuard, data: DecryptPopupData, windowId: number) => Promise<void>;
   sendError: (windowId: number, message: string) => Promise<unknown>;
   closeWindow: (windowId: number) => Promise<void>;
   ui: CryptoPopupUi;

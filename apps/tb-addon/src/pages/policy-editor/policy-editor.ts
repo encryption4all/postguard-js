@@ -45,9 +45,7 @@ async function init() {
   renderRecipients(initData.initialPolicy);
 }
 
-function renderRecipients(
-  policy: Record<string, Array<{ t: string; v: string }>>
-) {
+function renderRecipients(policy: Record<string, Array<{ t: string; v: string }>>) {
   container.innerHTML = "";
 
   for (const [email, attrs] of Object.entries(policy)) {
@@ -70,7 +68,8 @@ function renderRecipients(
       const isChecked = isLockedEmail || !!existing;
 
       const item = document.createElement("label");
-      item.className = "attr-item" + (isChecked ? " selected" : "") + (isLockedEmail ? " locked" : "");
+      item.className =
+        "attr-item" + (isChecked ? " selected" : "") + (isLockedEmail ? " locked" : "");
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -141,10 +140,7 @@ function renderRecipients(
 
 // Mark a mobile-number input as invalid and surface a clear inline message.
 // Returns whether the current value is valid.
-function showPhoneValidity(
-  input: HTMLInputElement,
-  error: HTMLElement
-): boolean {
+function showPhoneValidity(input: HTMLInputElement, error: HTMLElement): boolean {
   const { valid } = validateMobileNumber(input.value);
   if (valid) {
     clearPhoneError(input, error);

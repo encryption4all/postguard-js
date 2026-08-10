@@ -288,28 +288,20 @@ describe("per-account sign prefills (issue #77)", () => {
 
   it("round-trips saved attributes for an account", async () => {
     await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
-    expect(await getSignPrefill("alice@example.com")).toEqual([
-      { t: SURNAME, v: "Smith" },
-    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([{ t: SURNAME, v: "Smith" }]);
   });
 
   it("keeps different accounts' attributes separate", async () => {
     await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
     await setSignPrefill("bob@example.com", [{ t: DOB, v: "01-01-1990" }]);
 
-    expect(await getSignPrefill("alice@example.com")).toEqual([
-      { t: SURNAME, v: "Smith" },
-    ]);
-    expect(await getSignPrefill("bob@example.com")).toEqual([
-      { t: DOB, v: "01-01-1990" },
-    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([{ t: SURNAME, v: "Smith" }]);
+    expect(await getSignPrefill("bob@example.com")).toEqual([{ t: DOB, v: "01-01-1990" }]);
   });
 
   it("matches the account key case-insensitively", async () => {
     await setSignPrefill("Alice@Example.com", [{ t: SURNAME, v: "Smith" }]);
-    expect(await getSignPrefill("alice@example.com")).toEqual([
-      { t: SURNAME, v: "Smith" },
-    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([{ t: SURNAME, v: "Smith" }]);
   });
 
   it("drops the locked email attribute and blank values before storing", async () => {
@@ -318,17 +310,13 @@ describe("per-account sign prefills (issue #77)", () => {
       { t: SURNAME, v: "Smith" },
       { t: DOB, v: "   " },
     ]);
-    expect(await getSignPrefill("alice@example.com")).toEqual([
-      { t: SURNAME, v: "Smith" },
-    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([{ t: SURNAME, v: "Smith" }]);
   });
 
   it("overwrites the previously stored attributes for the account", async () => {
     await setSignPrefill("alice@example.com", [{ t: SURNAME, v: "Smith" }]);
     await setSignPrefill("alice@example.com", [{ t: DOB, v: "01-01-1990" }]);
-    expect(await getSignPrefill("alice@example.com")).toEqual([
-      { t: DOB, v: "01-01-1990" },
-    ]);
+    expect(await getSignPrefill("alice@example.com")).toEqual([{ t: DOB, v: "01-01-1990" }]);
   });
 
   it("clears a stored prefill when an empty/effectively-empty set is saved", async () => {

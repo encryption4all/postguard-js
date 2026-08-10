@@ -119,7 +119,10 @@ describe("in-flight upload persistence", () => {
     };
     const records = await mod.loadInFlightUploads();
     expect(records).toEqual([
-      { tabId: 5, record: { uuid: "uuid-fresh", recoveryToken: "tok-fresh", startedAt: now - 60_000 } },
+      {
+        tabId: 5,
+        record: { uuid: "uuid-fresh", recoveryToken: "tok-fresh", startedAt: now - 60_000 },
+      },
     ]);
   });
 

@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  handleAfterSend,
-  stampSentMessageId,
-  type SentInfo,
-} from "../src/background/sent-copy";
+import { handleAfterSend, stampSentMessageId, type SentInfo } from "../src/background/sent-copy";
 import {
   composeTabs,
   decryptedMessages,
@@ -58,7 +54,7 @@ beforeEach(() => {
     (mime: string, h: Record<string, string>) =>
       `${mime}\r\n${Object.entries(h)
         .map(([k, v]) => `${k}: ${v}`)
-        .join("\r\n")}`,
+        .join("\r\n")}`
   );
 
   importSpy = vi.spyOn(browser.messages, "import");
@@ -154,11 +150,9 @@ describe("onAfterSend — sent copy management", () => {
     await handleAfterSend({ id: 7 }, sentInfo([42]), deps());
 
     expect(getFullMessage).toHaveBeenCalledWith(42);
-    expect(injectMimeHeaders).toHaveBeenCalledWith(
-      "AB",
-      { "Message-ID": "<env-A@example.com>" },
-      ["Message-ID"],
-    );
+    expect(injectMimeHeaders).toHaveBeenCalledWith("AB", { "Message-ID": "<env-A@example.com>" }, [
+      "Message-ID",
+    ]);
   });
 
   it("should still import when envelope has no Message-ID", async () => {
@@ -208,11 +202,9 @@ describe("stampSentMessageId", () => {
     const bytes = new TextEncoder().encode("HEADERS\r\n\r\nBODY");
     const inject = vi.fn(() => "PATCHED");
     const out = stampSentMessageId(bytes, "<env-X@host>", inject);
-    expect(inject).toHaveBeenCalledWith(
-      "HEADERS\r\n\r\nBODY",
-      { "Message-ID": "<env-X@host>" },
-      ["Message-ID"],
-    );
+    expect(inject).toHaveBeenCalledWith("HEADERS\r\n\r\nBODY", { "Message-ID": "<env-X@host>" }, [
+      "Message-ID",
+    ]);
     expect(new TextDecoder().decode(out)).toBe("PATCHED");
   });
 });

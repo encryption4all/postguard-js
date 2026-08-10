@@ -8,7 +8,11 @@ export function toEmail(identity: string): string {
 
 export const EMAIL_ATTRIBUTE_TYPE = "pbdf.sidn-pbdf.email.email";
 
-export function findHtmlBody(part: { contentType?: string; body?: string; parts?: any[] }): string | null {
+export function findHtmlBody(part: {
+  contentType?: string;
+  body?: string;
+  parts?: any[];
+}): string | null {
   if (part.contentType === "text/html" && part.body) return part.body;
   if (part.parts) {
     for (const sub of part.parts) {

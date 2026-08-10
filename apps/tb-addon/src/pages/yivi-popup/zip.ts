@@ -11,11 +11,7 @@ export async function extractFromZip(blob: Blob, filename: string): Promise<Uint
   const decoder = new TextDecoder("utf-8");
 
   let eocdOffset = -1;
-  for (
-    let i = bytes.length - 22;
-    i >= Math.max(0, bytes.length - 65557);
-    i--
-  ) {
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
     if (view.getUint32(i, true) === 0x06054b50) {
       eocdOffset = i;
       break;
@@ -36,9 +32,7 @@ export async function extractFromZip(blob: Blob, filename: string): Promise<Uint
     const extraLen = view.getUint16(pos + 30, true);
     const commentLen = view.getUint16(pos + 32, true);
     const lfhOffset = view.getUint32(pos + 42, true);
-    const name = decoder.decode(
-      bytes.slice(pos + 46, pos + 46 + nameLen)
-    );
+    const name = decoder.decode(bytes.slice(pos + 46, pos + 46 + nameLen));
 
     if (name === filename) {
       const lfhNameLen = view.getUint16(lfhOffset + 26, true);

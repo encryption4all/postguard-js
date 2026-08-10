@@ -1,0 +1,14 @@
+# prettier already skips everything in .gitignore (dist/, node_modules/, *.xpi,
+# .env), so this file only holds what is tracked but must NOT be formatted.
+#
+# Both files are machine-written by scripts/sync-version.mjs with
+# `JSON.stringify(…, null, 2)`, which always expands arrays onto one line each.
+# prettier collapses a short array back onto the parent line, so formatting them
+# here would put the two writers in a loop: `version-packages` runs sync-version
+# and commits the expanded form, then the next pre-commit hook to touch the app
+# collapses it again, and a release diff carries manifest.json churn that has
+# nothing to do with the release. manifest.json has three such arrays today
+# (`background.scripts`, `web_accessible_resources[].resources`/`.matches`).
+# The writer owns their layout; if that ever needs to change, change it there.
+manifest.json
+updates.json

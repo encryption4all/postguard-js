@@ -15,8 +15,7 @@ import { toBase64, fromBase64 } from "../lib/encoding";
 // `background.ts` calls these directly — behavior is unchanged.
 
 export type BeforeSendGuardResult =
-  | { kind: "skip" }
-  | { kind: "cancel"; reason: "bcc" | "policyEditorOpen" };
+  { kind: "skip" } | { kind: "cancel"; reason: "bcc" | "policyEditorOpen" };
 
 /**
  * Early-exit decision for `onBeforeSend`. Pulled out so the three branches
@@ -27,7 +26,7 @@ export type BeforeSendGuardResult =
  */
 export function evaluateBeforeSendGuards(
   state: { encrypt: boolean; configWindowId?: number } | undefined,
-  details: { bcc?: readonly string[] | null },
+  details: { bcc?: readonly string[] | null }
 ): BeforeSendGuardResult | null {
   if (!state?.encrypt) return { kind: "skip" };
   if ((details.bcc ?? []).length > 0) return { kind: "cancel", reason: "bcc" };
@@ -53,7 +52,7 @@ export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 export function serializeRecipients(
   to: readonly string[],
   cc: readonly string[],
-  customPolicies?: Policy,
+  customPolicies?: Policy
 ): SerializedRecipient[] {
   return [...to, ...cc].map((addr) => {
     const id = toEmail(addr);
@@ -62,7 +61,7 @@ export function serializeRecipients(
         type: "email" as const,
         email: id,
         policy: customPolicies[id].map(({ t, v }) =>
-          t === EMAIL_ATTRIBUTE_TYPE ? { t, v: v.toLowerCase() } : { t, v },
+          t === EMAIL_ATTRIBUTE_TYPE ? { t, v: v.toLowerCase() } : { t, v }
         ),
       };
     }
@@ -86,7 +85,7 @@ export interface ThreadingHeaders {
  * function just handles the "header is missing" case.
  */
 export function buildThreadingHeaders(
-  relFull: { headers: Record<string, string[] | string | undefined> } | null | undefined,
+  relFull: { headers: Record<string, string[] | string | undefined> } | null | undefined
 ): ThreadingHeaders {
   if (!relFull) return {};
   const raw = relFull.headers["message-id"];
@@ -143,10 +142,7 @@ export interface RunBeforeSendDeps {
   } | null>;
   removeAttachment: (tabId: number, attId: number) => Promise<void>;
   addAttachment: (tabId: number, opts: { file: File }) => Promise<void>;
-  openCryptoPopup: (
-    data: CryptoPopupInitData,
-    composeTabId?: number,
-  ) => Promise<CryptoPopupResult>;
+  openCryptoPopup: (data: CryptoPopupInitData, composeTabId?: number) => Promise<CryptoPopupResult>;
   notifyError: (messageKey: string) => void;
   buildMime: (input: {
     from: string;
@@ -196,7 +192,7 @@ export async function runBeforeSendEncryption(
   state: BeforeSendState,
   details: BeforeSendDetails,
   tabId: number,
-  deps: RunBeforeSendDeps,
+  deps: RunBeforeSendDeps
 ): Promise<BeforeSendOutcome> {
   try {
     const originalSubject = details.subject;
@@ -211,7 +207,7 @@ export async function runBeforeSendEncryption(
           type: file.type,
           data: await file.arrayBuffer(),
         };
-      }),
+      })
     );
 
     let inReplyTo: string | undefined;
@@ -241,13 +237,13 @@ export async function runBeforeSendEncryption(
     const serializedRecipients: SerializedRecipient[] = serializeRecipients(
       details.to,
       details.cc,
-      state.policy,
+      state.policy
     );
 
     const from = toEmail(details.from);
     const signIdPolicy = state.signId;
     const senderAttributes = signIdPolicy?.[from]?.filter(
-      (attr) => attr.t !== EMAIL_ATTRIBUTE_TYPE,
+      (attr) => attr.t !== EMAIL_ATTRIBUTE_TYPE
     );
 
     const result = (await deps.openCryptoPopup(
@@ -265,7 +261,7 @@ export async function runBeforeSendEncryption(
         websiteUrl: deps.websiteUrl,
         senderAttributes,
       },
-      tabId,
+      tabId
     )) as EncryptPopupResult;
 
     // Detach originals only after the popup resolves. If it throws or
@@ -276,10 +272,7 @@ export async function runBeforeSendEncryption(
       await deps.removeAttachment(tabId, att.id);
     }
 
-    if (
-      result.attachmentBase64 != null &&
-      result.attachmentSize <= MAX_ATTACHMENT_SIZE
-    ) {
+    if (result.attachmentBase64 != null && result.attachmentSize <= MAX_ATTACHMENT_SIZE) {
       const attBytes = fromBase64(result.attachmentBase64);
       const attFile = new File([attBytes as BlobPart], "postguard.encrypted", {
         type: "application/postguard; charset=utf-8",
@@ -293,9 +286,7 @@ export async function runBeforeSendEncryption(
         subject: result.subject,
         body: result.htmlBody,
         plainTextBody: result.plainTextBody,
-        customHeaders: [
-          { name: "x-postguard", value: deps.xPostguardVersion },
-        ],
+        customHeaders: [{ name: "x-postguard", value: deps.xPostguardVersion }],
       },
     };
   } catch (e) {

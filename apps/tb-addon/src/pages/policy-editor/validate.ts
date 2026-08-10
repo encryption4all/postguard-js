@@ -26,8 +26,7 @@ export function mobileFields(container: ParentNode): MobileField[] {
     const item = input.closest(".attr-item");
     return {
       input,
-      checkbox:
-        item?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null,
+      checkbox: item?.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? null,
       error: item?.querySelector<HTMLElement>(".attr-error") ?? null,
     };
   });
@@ -44,14 +43,9 @@ export function isActiveMobileField(field: MobileField): boolean {
  * are present). Pure — does not touch the DOM — so the Save gate it backs can
  * be unit-tested directly.
  */
-export function firstInvalidMobileInput(
-  container: ParentNode
-): HTMLInputElement | null {
+export function firstInvalidMobileInput(container: ParentNode): HTMLInputElement | null {
   for (const field of mobileFields(container)) {
-    if (
-      isActiveMobileField(field) &&
-      !validateMobileNumber(field.input.value).valid
-    ) {
+    if (isActiveMobileField(field) && !validateMobileNumber(field.input.value).valid) {
       return field.input;
     }
   }

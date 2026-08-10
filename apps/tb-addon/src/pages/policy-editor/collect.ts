@@ -25,9 +25,7 @@ export function collectPolicy(
     const email = (section as HTMLElement).dataset.email!;
     const attrs: Array<{ t: string; v: string }> = [];
 
-    const checkboxes = section.querySelectorAll<HTMLInputElement>(
-      'input[type="checkbox"]:checked'
-    );
+    const checkboxes = section.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked');
 
     for (const cb of checkboxes) {
       const type = cb.dataset.attrType!;

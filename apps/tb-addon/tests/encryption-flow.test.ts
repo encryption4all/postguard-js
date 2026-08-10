@@ -22,9 +22,10 @@ describe("handleBeforeSend — encryption guard", () => {
   });
 
   it("should cancel send when BCC recipients are present", () => {
-    expect(
-      evaluateBeforeSendGuards({ encrypt: true }, { bcc: ["x@y.z"] }),
-    ).toEqual({ kind: "cancel", reason: "bcc" });
+    expect(evaluateBeforeSendGuards({ encrypt: true }, { bcc: ["x@y.z"] })).toEqual({
+      kind: "cancel",
+      reason: "bcc",
+    });
   });
 
   it("should notify user when BCC blocks send", () => {
@@ -36,12 +37,10 @@ describe("handleBeforeSend — encryption guard", () => {
   });
 
   it("should cancel send when policy editor is already open", () => {
-    expect(
-      evaluateBeforeSendGuards(
-        { encrypt: true, configWindowId: 42 },
-        { bcc: [] },
-      ),
-    ).toEqual({ kind: "cancel", reason: "policyEditorOpen" });
+    expect(evaluateBeforeSendGuards({ encrypt: true, configWindowId: 42 }, { bcc: [] })).toEqual({
+      kind: "cancel",
+      reason: "policyEditorOpen",
+    });
   });
 
   it("should focus existing policy editor window instead of opening new one", () => {
@@ -49,17 +48,12 @@ describe("handleBeforeSend — encryption guard", () => {
     // state.configWindowId and calls windows.update on it. Pin the
     // guard's contract — focusing itself is exercised in the
     // integration tests on the background bundle.
-    const r = evaluateBeforeSendGuards(
-      { encrypt: true, configWindowId: 99 },
-      { bcc: [] },
-    );
+    const r = evaluateBeforeSendGuards({ encrypt: true, configWindowId: 99 }, { bcc: [] });
     expect(r).toMatchObject({ kind: "cancel", reason: "policyEditorOpen" });
   });
 
   it("should proceed when encrypt is on and no BCC / editor", () => {
-    expect(
-      evaluateBeforeSendGuards({ encrypt: true }, { bcc: [] }),
-    ).toBeNull();
+    expect(evaluateBeforeSendGuards({ encrypt: true }, { bcc: [] })).toBeNull();
   });
 });
 
@@ -80,16 +74,14 @@ describe("handleBeforeSend — attachment handling", () => {
     // Pin both arms here so a refactor cannot silently drop one.
     const noBase64 = { attachmentBase64: null, attachmentSize: 100 };
     expect(
-      noBase64.attachmentBase64 != null &&
-        noBase64.attachmentSize <= MAX_ATTACHMENT_SIZE,
+      noBase64.attachmentBase64 != null && noBase64.attachmentSize <= MAX_ATTACHMENT_SIZE
     ).toBe(false);
     const overLimit = {
       attachmentBase64: "AAAA",
       attachmentSize: MAX_ATTACHMENT_SIZE + 1,
     };
     expect(
-      overLimit.attachmentBase64 != null &&
-        overLimit.attachmentSize <= MAX_ATTACHMENT_SIZE,
+      overLimit.attachmentBase64 != null && overLimit.attachmentSize <= MAX_ATTACHMENT_SIZE
     ).toBe(false);
   });
 });
@@ -132,15 +124,8 @@ describe("handleBeforeSend — recipient serialization", () => {
   });
 
   it("should include both to and cc recipients", () => {
-    const r = serializeRecipients(
-      ["a@example.com"],
-      ["b@example.com", "c@example.com"],
-    );
-    expect(r.map((x) => x.email)).toEqual([
-      "a@example.com",
-      "b@example.com",
-      "c@example.com",
-    ]);
+    const r = serializeRecipients(["a@example.com"], ["b@example.com", "c@example.com"]);
+    expect(r.map((x) => x.email)).toEqual(["a@example.com", "b@example.com", "c@example.com"]);
   });
 
   it("should not include bcc recipients", () => {
@@ -174,9 +159,7 @@ describe("handleBeforeSend — threading headers", () => {
         references: ["<root@example.com> <reply1@example.com>"],
       },
     });
-    expect(h.references).toBe(
-      "<root@example.com> <reply1@example.com> <parent@example.com>",
-    );
+    expect(h.references).toBe("<root@example.com> <reply1@example.com> <parent@example.com>");
   });
 
   it("should handle missing related message gracefully", () => {
@@ -332,7 +315,7 @@ describe("handleBeforeSend — error recovery", () => {
       state,
       { ...details, body: "PLAINTEXT-SECRET" },
       1,
-      deps,
+      deps
     );
     expect(out).toEqual({ cancel: true });
     expect(out.sentMimeData).toBeUndefined();

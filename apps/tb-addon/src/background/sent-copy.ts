@@ -25,17 +25,11 @@ export interface SentInfo {
 export interface SentCopyDeps {
   notifyError: (messageKey: string) => void;
   isPGEncrypted: (msgId: number) => Promise<boolean>;
-  getOrCreateLocalFolder: (
-    name: string,
-  ) => Promise<{ id: unknown } | undefined>;
+  getOrCreateLocalFolder: (name: string) => Promise<{ id: unknown } | undefined>;
   getFullMessage: (msgId: number) => Promise<{
     headers: Record<string, string[] | string | undefined>;
   } | null>;
-  injectMimeHeaders: (
-    mime: string,
-    headers: Record<string, string>,
-    remove?: string[],
-  ) => string;
+  injectMimeHeaders: (mime: string, headers: Record<string, string>, remove?: string[]) => string;
 }
 
 /**
@@ -48,20 +42,16 @@ export interface SentCopyDeps {
 export function stampSentMessageId(
   sentMime: Uint8Array,
   envelopeMessageId: string | undefined,
-  injectMimeHeaders: SentCopyDeps["injectMimeHeaders"],
+  injectMimeHeaders: SentCopyDeps["injectMimeHeaders"]
 ): Uint8Array {
   if (!envelopeMessageId) return sentMime;
   const text = new TextDecoder().decode(sentMime);
-  const patched = injectMimeHeaders(
-    text,
-    { "Message-ID": envelopeMessageId },
-    ["Message-ID"],
-  );
+  const patched = injectMimeHeaders(text, { "Message-ID": envelopeMessageId }, ["Message-ID"]);
   return new TextEncoder().encode(patched);
 }
 
 function readMessageIdHeader(
-  full: { headers: Record<string, string[] | string | undefined> } | null | undefined,
+  full: { headers: Record<string, string[] | string | undefined> } | null | undefined
 ): string | undefined {
   if (!full) return undefined;
   const raw = full.headers["message-id"];
@@ -77,7 +67,7 @@ function readMessageIdHeader(
 export async function handleAfterSend(
   tab: { id: number },
   sendInfo: SentInfo,
-  deps: SentCopyDeps,
+  deps: SentCopyDeps
 ): Promise<void> {
   const state = composeTabs.get(tab.id);
   if (!state?.sentMimeData) return;
@@ -89,27 +79,15 @@ export async function handleAfterSend(
       if (!localFolder) continue;
       let mimeToImport = state.sentMimeData;
       try {
-        const envelopeMessageId = readMessageIdHeader(
-          await deps.getFullMessage(msg.id),
-        );
-        mimeToImport = stampSentMessageId(
-          mimeToImport,
-          envelopeMessageId,
-          deps.injectMimeHeaders,
-        );
+        const envelopeMessageId = readMessageIdHeader(await deps.getFullMessage(msg.id));
+        mimeToImport = stampSentMessageId(mimeToImport, envelopeMessageId, deps.injectMimeHeaders);
       } catch (e) {
-        console.warn(
-          "[PostGuard] Could not read envelope Message-ID for Sent copy:",
-          e,
-        );
+        console.warn("[PostGuard] Could not read envelope Message-ID for Sent copy:", e);
       }
       const file = new File([mimeToImport as BlobPart], "sent.eml", {
         type: "text/plain",
       });
-      const localMsg = await browser.messages.import(
-        file,
-        localFolder.id as any,
-      );
+      const localMsg = await browser.messages.import(file, localFolder.id as any);
       await browser.messages.move([localMsg.id], msg.folder.id as any);
       await browser.messages.delete([msg.id], true);
     }

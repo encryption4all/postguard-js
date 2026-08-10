@@ -1,9 +1,4 @@
-import type {
-  DecryptDataResult,
-  DecryptFileResult,
-  DecryptResult,
-  PostGuard,
-} from "@e4a/pg-js";
+import type { DecryptDataResult, DecryptFileResult, DecryptResult, PostGuard } from "@e4a/pg-js";
 import type { DecryptPopupData } from "../../lib/types";
 import { toBase64, fromBase64 } from "../../lib/encoding";
 import { extractFromZip } from "./zip";
@@ -29,7 +24,7 @@ export async function runDecryptInPopup(
   pg: PostGuard,
   data: DecryptPopupData,
   windowId: number,
-  deps: DecryptPopupDeps,
+  deps: DecryptPopupDeps
 ): Promise<void> {
   const unzip = deps.extractFromZip ?? extractFromZip;
   let plaintext: Uint8Array;

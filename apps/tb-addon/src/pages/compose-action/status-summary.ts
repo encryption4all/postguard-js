@@ -171,9 +171,7 @@ export function renderComposeStatusPanel(
   container.appendChild(recSection);
 
   const signSection = makeSection(t("notificationComposeBadgesLabel"));
-  signSection.appendChild(
-    makeIdentityRow(summary.signing.from, summary.signing.attributes)
-  );
+  signSection.appendChild(makeIdentityRow(summary.signing.from, summary.signing.attributes));
   container.appendChild(signSection);
 
   for (const warning of summary.warnings) {

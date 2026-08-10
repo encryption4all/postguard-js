@@ -11,7 +11,9 @@ const outdir = "dist";
 const requiredEnvKeys = ["PKG_URL", "CRYPTIFY_URL", "POSTGUARD_WEBSITE_URL"];
 const missing = requiredEnvKeys.filter((key) => !process.env[key]);
 if (missing.length > 0) {
-  throw new Error(`Missing required environment variables: ${missing.join(", ")}. See .env.example`);
+  throw new Error(
+    `Missing required environment variables: ${missing.join(", ")}. See .env.example`
+  );
 }
 
 const envDefine = {
@@ -23,9 +25,7 @@ for (const key of requiredEnvKeys) {
 
 // In release builds, strip console.log calls (marked pure so minification
 // removes them since the return value is never used) and minify output.
-const releaseOptions = isDev
-  ? {}
-  : { pure: ["console.log"], minify: true };
+const releaseOptions = isDev ? {} : { pure: ["console.log"], minify: true };
 
 // Ensure dist exists
 mkdirSync(outdir, { recursive: true });
@@ -39,9 +39,7 @@ function copyStatic() {
 copyStatic();
 
 // Packages that are unused in the extension context.
-const pgExternals = [
-  "@transcend-io/conflux",
-];
+const pgExternals = ["@transcend-io/conflux"];
 
 // Background script
 const backgroundBuild = {

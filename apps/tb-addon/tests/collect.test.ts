@@ -97,9 +97,7 @@ describe("collectPolicy — reads selected attribute values from the DOM", () =>
     );
 
     const policy = collectPolicy(container);
-    expect(policy["bob@example.com"]).toEqual([
-      { t: MOBILE_TYPE, v: "+31612345678" },
-    ]);
+    expect(policy["bob@example.com"]).toEqual([{ t: MOBILE_TYPE, v: "+31612345678" }]);
     // Explicitly assert the checkbox default value never leaks through.
     expect(policy["bob@example.com"][0].v).not.toBe("on");
   });
@@ -124,9 +122,7 @@ describe("collectPolicy — reads selected attribute values from the DOM", () =>
 
   it("collects multiple recipient sections independently", () => {
     container.appendChild(
-      buildSection("a@example.com", [
-        { type: EMAIL_TYPE, value: "a@example.com", checked: true },
-      ])
+      buildSection("a@example.com", [{ type: EMAIL_TYPE, value: "a@example.com", checked: true }])
     );
     container.appendChild(
       buildSection("b@example.com", [

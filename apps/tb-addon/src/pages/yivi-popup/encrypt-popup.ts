@@ -22,7 +22,7 @@ export async function runEncryptInPopup(
   pg: PostGuard,
   data: EncryptPopupData,
   windowId: number,
-  deps: EncryptPopupDeps,
+  deps: EncryptPopupDeps
 ): Promise<void> {
   const mimeData = fromBase64(data.mimeDataBase64);
   const recipients = buildRecipients(pg.recipient, data.recipients);
