@@ -1,7 +1,7 @@
 services:
     # Cryptify for filesharing
     cryptify-fileshare:
-        image: ghcr.io/encryption4all/cryptify-backend:edge
+        image: ghcr.io/encryption4all/cryptify:edge
         pull_policy: always
         container_name: postguard-cryptify-fileshare
         healthcheck:
