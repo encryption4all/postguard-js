@@ -125,9 +125,54 @@ There's a manual smoke test at `scripts/smoke.mjs` runnable under any of the fou
 
 - `main` is the release branch. Releases are managed by **changesets** (`.github/workflows/delivery.yml`): a PR that should ship adds a changeset file (`pnpm changeset`); merging to main opens/updates a "Version Packages" PR; merging THAT publishes to npm with provenance. PR titles must still follow Conventional Commits — `.github/workflows/pr-title.yml` enforces this via `action-semantic-pull-request`.
 - `.github/workflows/integration.yml` runs `typecheck + build + test + smoke` across Node 22/24, Bun 1.3.14, and Deno 2.8.0 on every PR. Get the Node lanes green locally before pushing.
-- **`Integration complete` is the required status check for that workflow, and `needs:` is what it covers.** The lanes are matrix-named, so `Node 22` / `Bun 1.3.14` / `Deno 2.8.0` embed a version in the check name: requiring those directly would mean a matrix bump silently retires the required check, leaving `main` blocked with nothing red to point at. The aggregate job's name never changes, so a runtime bump is a one-line matrix edit. **Adding a lane means adding it to that job's `needs` list** — a lane missing from `needs` is not covered by the required check no matter how loudly it fails. Its `if: always()` is equally load-bearing: without it the job is skipped when a lane fails, and GitHub counts a skipped check as *passing* for branch protection.
+- **`Integration complete` is the required status check for that workflow, and `needs:` is what it covers.** The lanes are matrix-named, so `Node 22` / `Bun 1.3.14` / `Deno 2.8.0` embed a version in the check name: requiring those directly would mean a matrix bump silently retires the required check, leaving `main` blocked with nothing red to point at. The aggregate job's name never changes, so a runtime bump is a one-line matrix edit. **Adding a lane means adding it to that job's `needs` list** — a lane missing from `needs` is not covered by the required check no matter how loudly it fails. Its `if: always()` is equally load-bearing: without it the job is skipped when a lane fails, and GitHub counts a skipped check as *passing* for branch protection. None of that is a convention any more — `packages/pg-js/tests/ci-wiring.test.ts` derives the lane set from the file and fails on a lane that is not in `needs`; see the subsection below.
 - Version in `packages/pg-js/package.json` is the REAL published version, maintained by `changeset version` — do not bump it by hand; add a changeset instead.
 - **Every prettier plugin a workspace member declares must ALSO be a root `devDependency`.** `changeset version` formats each `CHANGELOG.md` through prettier, resolving the owning package's config but loading its plugins from the *process cwd* — the repo root. A plugin missing there makes changesets throw while writing that changelog, catch it, print the stack, and **still exit 0 with "All files have been updated"**: the version bump lands, the changelog entry silently does not. `apps/website` did this on every release from its import until it was found, because the gap is invisible in normal use — the app's own `pnpm lint` resolves the plugin fine from its own `node_modules`. `pnpm check-prettier-plugins` asserts it, runs in `integration.yml`, and gates `version-packages` ahead of `changeset version`. When it reports a plugin missing, add it to the ROOT `package.json`, not to the app that declares it.
+
+### The required checks are machine-read, so edit a workflow and its guard together
+
+`packages/pg-js/tests/ci-wiring.test.ts` reads every file in `.github/workflows/` and
+asserts what `main`'s gates are actually wired to (postguard-js#222; the sibling
+instrument is `pg-core/tests/ci_wiring.rs` in `encryption4all/postguard`, and
+`pg-pkg/tests/api_gate.rs` there for `api-diff.yml`). Rename a job or move a command
+without updating it and the suite fails, rather than a gate silently going quiet.
+
+- **`main` pins twenty contexts by display name**, spread over seven of the eight
+  workflow files (every one but `delivery.yml`). The list is in `REQUIRED_CONTEXTS`
+  in that file; the live one is `gh api repos/encryption4all/postguard-js/rules/branches/main`.
+  **Read it from the ruleset, not from the protection endpoint** — measured 2026-08-10,
+  classic protection here requires *no status checks at all*, only one approving review
+  with `enforce_admins: false`. All twenty come from the ruleset `main` (id `14326269`),
+  which is also **bypassable**, unlike postguard's: the `developers` team holds
+  `bypass_mode: always`, so for anyone on that team all twenty are advisory. That is the
+  argument for a guard rather than against one — a test runs on its own merits whether or
+  not the enforcement behind it binds.
+- **A required check is matched by NAME, across the whole repo.** So renaming a job does not
+  break its gate, it **disarms** it: the required context is simply never produced, and
+  a check that never reports is not a check. Rename the context in the ruleset in the
+  same change. The reverse hazard is two jobs sharing one name, which is
+  indistinguishable to branch protection — that is why both nginx jobs are qualified
+  per app (#156), and the guard now asserts exactly one producer per context.
+- **A skipped job counts as PASSING.** So does a job whose workflow never ran. Both are
+  ways for a required check to stop being able to fail without ever going red: hence the
+  guard's `PR_SAFE_CONDITIONS` allowlist for job-level `if:` on a required job, and its
+  refusal of a `paths:`/`paths-ignore:` filter on any workflow carrying one. No workflow
+  here is path-filtered, deliberately and per its own header comment — the point of the
+  monorepo is that an SDK change is tested against its consumers in the same PR.
+- **Where the guard lives is the load-bearing decision.** It is in `packages/pg-js`, so
+  it runs in three lanes (`Node`, `Bun`, `Deno`) and — the part that matters — in a
+  different *file* from six of the seven workflows that carry a required context, all
+  but `integration.yml` itself. A guard under `apps/website` would be run by
+  `Svelte Check`'s own workflow, which is the file whose renames it is
+  supposed to notice. Residual gap, stated rather than papered over: dropping all three
+  SDK lanes from the aggregate's `needs` would leave it red in jobs nothing requires.
+- Verified by mutation, not by inspection: 38 drifts applied one at a time, all 38 red,
+  plus three semantics-preserving rewrites (2-space, 8-space and CRLF reformats of
+  `integration.yml`) confirmed still green. The reader takes YAML as text and detects
+  the file's indent instead of assuming it; it throws when it finds no jobs, so a shape
+  change it cannot follow fails loudly instead of asserting nothing.
+- What it cannot reach is the registry: that the ruleset still lists those contexts, and
+  who may bypass them, needs the `gh api` call above and stays manual.
 
 ### Workflow guard steps
 

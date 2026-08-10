@@ -262,7 +262,10 @@ jobs:
     # is a one-line matrix edit and nothing else.
     #
     # Adding a lane above? Add it to `needs` here too, or it is not covered by
-    # the required check no matter how loudly it fails.
+    # the required check no matter how loudly it fails. That is no longer left to
+    # this comment: packages/pg-js/tests/ci-wiring.test.ts derives the lane set
+    # from this file and fails until the new lane appears below — along with the
+    # rest of what `main`'s twenty required contexts are wired to (#222).
     integration-complete:
         name: Integration complete
         needs: [node, envelope-compat, api-surface, bun, deno]
