@@ -45,7 +45,7 @@ jobs:
             # `.husky/pre-commit` runs lint-staged over this app, but a hook only
             # ever sees staged files and `--no-verify` skips it entirely, so until
             # this step existed the formatting rule was a convention rather than a
-            # contract. `pnpm lint` is `prettier --check .`, package-wide, which is
+            # contract. The step below runs `prettier --check .`, package-wide, which is
             # wider than the hook's globs — a CI gate narrower than the hook it
             # complements is strictly weaker than it looks. It runs before the
             # build, and apps/tb-addon/.gitignore keeps `dist/` out either way,
