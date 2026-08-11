@@ -42,6 +42,22 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
 
+            # `.husky/pre-commit` runs lint-staged over this app, but a hook only
+            # ever sees staged files and `--no-verify` skips it entirely, so until
+            # this step existed the formatting rule was a convention rather than a
+            # contract. The step below runs `prettier --check .`, package-wide, which is
+            # wider than the hook's globs — a CI gate narrower than the hook it
+            # complements is strictly weaker than it looks. It runs before the
+            # build, and apps/tb-addon/.gitignore keeps `dist/` out either way,
+            # which prettier honours as a default ignore path.
+            #
+            # A step rather than a job, deliberately: it reports under this job's
+            # existing required `Build & test` context, so it needs no entry in the
+            # `main` ruleset or in REQUIRED_CONTEXTS. A new job would be a new
+            # context, unenforced until both are updated in lockstep.
+            - name: Prettier (format check)
+              run: pnpm lint
+
             # changesets bumps package.json only; Thunderbird reads manifest.json
             # and the update channel reads updates.json. The release job below
             # refuses a mismatched tag, so catch the drift on the PR instead.
