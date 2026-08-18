@@ -462,3 +462,104 @@ Stated plainly rather than papered over.
   working day figure is stated for Office add-ins generally; whether a unified
   manifest submission is routed through the faster Teams/SPFx lane (24 hours) is
   unknown, and could matter if we ever add the second listing.
+
+---
+
+## Addendum (2026-08-18): tooling verified from shipped source
+
+A second pass verified the **tooling** half of Q4 against npm registry metadata and
+downloaded package tarballs (reading the shipped JavaScript), rather than against
+docs. It changes no conclusion — it makes the switching cost concrete, and turns one
+line of the Answer ("loss of CI's network store-readiness check") into a measured
+finding.
+
+### `office-addin-manifest` has supported JSON since 2022 — but not equally
+
+JSON support is not new: `manifestHandlerJson`, `export.js` and the `.json` branch of
+`validate.js` all ship in **1.8.0 (2022-05-02)**, and the command surface (`info`,
+`modify`, `validate`, `export`) has not changed since. Latest is `2.1.6` (2026-07-06).
+Dispatch is purely by file extension in `getManifestHandler()`.
+
+**The asymmetry is in `validate`, and it is the real cost of switching:**
+
+|                       | XML path                                                                                                           | JSON path                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| What runs             | `POST validationgateway.omex.office.net/package/api/check`                                                         | `AppManifestUtils.validateAgainstSchema()` — AJV, local                            |
+| What it checks        | Microsoft's store-readiness service; returns `notes` / `warnings` / `errors` plus `addInDetails.supportedProducts` | JSON Schema conformance only                                                       |
+| `--production` / `-p` | switches `clientId=devx` → `clientId=Default`                                                                      | **silently ignored** — `verifyProduction` is referenced only inside the XML branch |
+| Schema source         | fixed                                                                                                              | **fetched at runtime from the manifest's own `$schema`**                           |
+
+Two consequences worth stating plainly. First, `validate` on JSON tells you the file is
+well-formed, not that the store will accept it — so the CI gate we have today would
+quietly become weaker while still reporting green. Second, because AJV compiles
+whatever URL `$schema` names, a manifest pinning an old schema is validated against old
+rules, and `@microsoft/app-manifest` throws only if the property is absent entirely.
+
+Also: **`validate` does not accept a `.zip`.** `validateManifest()` calls
+`readManifestFile()` first, so a package hits the extension check and throws.
+
+### The replacement gate is a different tool
+
+Store-readiness for a unified manifest lives in the **Microsoft 365 Agents Toolkit
+CLI**, `@microsoft/m365agentstoolkit-cli` (latest `1.1.15`, 2026-08-12, with builds
+dated daily). Note the predecessors are deprecated on npm —
+`@microsoft/teamsapp-cli` (`3.1.1`) says outright _"Please use
+@microsoft/m365agentstoolkit-cli instead"_, and `@microsoft/teamsfx-cli` (2024-03-26)
+likewise.
+
+`atk validate` takes `--validate-method` of `validation-rules` or `test-cases`, accepts
+`--package-file` (so it _does_ validate a zip), and the CLI bundle shows three distinct
+drivers — `validateManifest`, `validateAppPackage`, `validateWithTestCases`, the last
+importing `AsyncAppValidationResponse`, i.e. a service-side async validation. So the
+capability exists; it is simply a different dependency, a different command, and a
+different CI step from the one we have.
+
+### The official converter's engine is stale
+
+The documented path is `npx office-addin-project convert -m <path>`, but the wrapper
+and the engine are maintained on different clocks:
+
+| Package                                    | Latest    | Published      |
+| ------------------------------------------ | --------- | -------------- |
+| `office-addin-project` (wrapper)           | 1.0.10    | 2026-07-06     |
+| `office-addin-manifest-converter` (engine) | **0.4.1** | **2024-10-28** |
+
+The engine hardcodes `MosManifestGAVersion_1_17 = "1.17"` and writes that `$schema`,
+while the current schema is **v1.30** — the conversion doc concedes this by instructing
+a manual `$schema` / `manifestVersion` fix-up afterwards. It also **silently truncates**
+(`DisplayName` → 30 chars for `name.short`, `Description` → 250 for
+`description.short`, `ProviderName` → 32 for `developer.name`), deletes your
+`manifest.xml` via `fs.unlinkSync` after writing `backup.zip`, and rewrites
+`package.json` scripts and `webpack.config.js`.
+
+### What survives, and the version trap
+
+**The webpack transform survives.** `manifest.json` is an ordinary checked-in file, not
+generated — the official `Office-Addin-TaskPane` template ships both
+`manifest.outlook.xml` and `manifest.outlook.json` with a literal
+`"page": "https://localhost:3000/taskpane.html"`, and the converter's own
+`updateWebpackConfig()` merely rewrites the glob from `"manifest*.xml"` to
+`"manifest*.json"`. Its source comment concedes the copy plugin should eventually go.
+
+**`sync-version.mjs` does not survive, and the schema will not catch it.** Schema v1.30
+declares `version` as `{type: string, maxLength: 256}` with **no `pattern`** — verified
+deliberate, since the sibling `hexColor` definition in the same file _does_ carry one.
+The real rule lives only in prose: three-part semver, ≤5 digits per segment, and
+_"prerelease and metadata version string extensions aren't supported."_ So a
+changesets-produced `2.3.4-beta.1` would **pass `office-addin-manifest validate`** and
+fail later. Any version-propagation script has to enforce this itself.
+
+**Package assets we do not have.** The zip needs `manifest.json` at its root plus
+`color.png` at **192×192** and `outline.png` at **32×32** with a transparent
+background, at paths matching the manifest. Today's assets top out at 128×128, and
+"outline icon" has no XML equivalent at all.
+
+### One open question in this pass that is already closed elsewhere
+
+This pass listed "whether AppSource currently accepts a unified-manifest Outlook add-in
+submission" as unestablished, having found only internal integrated-apps-portal
+distribution in the publish doc. **That is answered** by certification policy §1120.1,
+which names both formats explicitly: _"All Office Add-ins must use the latest released
+(not preview) version of the manifest schema for either the unified manifest for
+Microsoft 365 or for the add-in only manifest."_ Recorded here so the two halves of
+this document do not read as contradicting each other.
