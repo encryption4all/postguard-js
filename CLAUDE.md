@@ -95,6 +95,20 @@ them forever).
   fixture added on `main` afterwards is not blamed on your branch). Add fixtures with
   `pnpm envelope:fixtures` after a `pnpm build`; it skips existing files, and
   `--force` exists only for a deliberate rebuild before the corpus is merged.
+- **One fixture is not a tier, and cannot come from HEAD.** `legacy-armored-body.json`
+  records an in-body ASCII armor block. Nothing has *emitted* one since 1.0.1 —
+  `src/email/extract.ts` keeps `extractArmoredCiphertext` readable under
+  COMPATIBILITY.md's stored-artifact guarantee and its header forbids adding an
+  emitter — so the generator builds it by calling a real old sender:
+  `pg-js-legacy-armor` in `packages/pg-js` devDependencies is
+  `npm:@e4a/pg-js@0.10.0`, the last published version that armored bodies. That
+  boundary is measured from the published tarballs, not read off a changelog; note
+  it disagrees with extract.ts's "pg-js >= 1.1" wording, since 1.0.1 already emits
+  nothing. 0.10.0 predates the tier split, so the fixture carries `tier: null`, and
+  the corpus-shape assertion requires every untiered fixture to carry an
+  `expect.armoredBase64Sha256` — otherwise `tier: null` becomes a way to opt out of
+  the tier-coverage check. Added in #235, after mutation testing showed that
+  deleting `extractArmoredCiphertext` outright left the archival suite green.
 - **The forward test derives every expectation from `result.tier`, never from
   `result.attachment` or `result.uploadUuid`.** This looks like it could be
   simplified and cannot: branching on the output under test means a HEAD that

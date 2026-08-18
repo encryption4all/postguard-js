@@ -459,6 +459,9 @@ importers:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
+      pg-js-legacy-armor:
+        specifier: npm:@e4a/pg-js@0.10.0
+        version: '@e4a/pg-js@0.10.0'
       pg-js-reader-v1:
         specifier: npm:@e4a/pg-js@1.11.0
         version: '@e4a/pg-js@1.11.0'
@@ -1274,6 +1277,9 @@ packages:
     resolution: {integrity: sha512-Xc3VhU02wqZ1HvHRJUwL09HkZSTvidqY5Ya0NXBSYOxAp+Ln9dcJr9fySI+CkONzP3PekQo9WdzCv0PGER/mOA==}
     engines: {node: '>=14.17.0'}
 
+  '@e4a/pg-js@0.10.0':
+    resolution: {integrity: sha512-R4wFlruxRJLFVp8IWS2XKu+/GzmWgsKeLxE5H1J/+qNuY2GswfWdyD7JLxdDOVOtpdELGTqAQ3aCofSrfGUp5g==}
+
   '@e4a/pg-js@1.11.0':
     resolution: {integrity: sha512-EKg6Bqv+frHD5Wx2xlbFaGCJ82za27E7s4Zi63GtucSZRWzON8D+NGZ7WNqA/ghMuNIgZObYMM60D/w4M5TyUA==}
     engines: {node: '>=22'}
@@ -1281,6 +1287,9 @@ packages:
   '@e4a/pg-js@2.3.4':
     resolution: {integrity: sha512-aEag8mt4+Zbs0WpgDZ2XvKK7FR7/IKVwn2RPY3id27JcdX0MefXaQOtLX8Wiffx8p0aLhpPwZinIJkHmCkmJwQ==}
     engines: {node: '>=22'}
+
+  '@e4a/pg-wasm@0.5.10':
+    resolution: {integrity: sha512-bkxl6/kYIeUMg1/oK6BzXaTZbVO2vLpy9r7d5ODmdryt7CSfPJvR6Xn4GqwJrKrpXN9hC9peL6BQV/anMuxTPA==}
 
   '@e4a/pg-wasm@0.6.1':
     resolution: {integrity: sha512-JghjNQlUNAoD6rNjKxfGqE+Qu6yXNjq2VCZSY0hUl0q76csZnGbGQmutzc3WOFXTOjcKuzzrl89hN/ndxvMLsQ==}
@@ -2872,6 +2881,7 @@ packages:
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
@@ -8713,6 +8723,15 @@ snapshots:
 
   '@discoveryjs/json-ext@1.1.0': {}
 
+  '@e4a/pg-js@0.10.0':
+    dependencies:
+      '@e4a/pg-wasm': 0.5.10
+      '@privacybydesign/yivi-client': 1.0.1(@privacybydesign/yivi-core@1.0.0)
+      '@privacybydesign/yivi-core': 1.0.0
+      '@privacybydesign/yivi-css': 1.0.1
+      '@privacybydesign/yivi-web': 1.0.3(@privacybydesign/yivi-core@1.0.0)
+      '@transcend-io/conflux': 6.1.3
+
   '@e4a/pg-js@1.11.0':
     dependencies:
       '@e4a/pg-wasm': 0.6.1
@@ -8730,6 +8749,8 @@ snapshots:
       '@privacybydesign/yivi-css': 1.0.1
       '@privacybydesign/yivi-web': 1.0.3(@privacybydesign/yivi-core@1.0.0)
       '@transcend-io/conflux': 6.1.3
+
+  '@e4a/pg-wasm@0.5.10': {}
 
   '@e4a/pg-wasm@0.6.1': {}
 

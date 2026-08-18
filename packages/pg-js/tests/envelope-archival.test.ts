@@ -12,20 +12,33 @@
 // This class has shipped twice: pg-js >=1.1 silently stopped emitting body armor
 // and broke Thunderbird detection (postguard-tb-addon#85), and the data.bin zip
 // asymmetry broke the website's uuid decrypt path (#39).
+//
+// The armor half of that had no fixture until #235, so deleting
+// extractArmoredCiphertext left this suite green. `legacy-armored-body.json`
+// records what @e4a/pg-js 0.10.0 actually put on the wire, and every fixture now
+// asserts what a reader must recover from its body — nothing, or exactly that
+// block.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { extractCiphertext, extractUploadUuid } from '../src/email/extract.js';
+import {
+  extractArmoredCiphertext,
+  extractCiphertext,
+  extractUploadUuid,
+} from '../src/email/extract.js';
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'envelopes');
 
 interface Fixture {
   name: string;
   description: string;
-  tier: string;
+  /** Null for a fixture that predates the tier split — currently the armored
+   *  body from 0.10.0. See the corpus-shape assertion below for why that is not
+   *  a hole anyone can widen. */
+  tier: string | null;
   htmlBody: string;
   attachment: { name: string; contentType: string; dataBase64: string } | null;
   uploadUuid: string | null;
@@ -33,6 +46,11 @@ interface Fixture {
     ciphertextSha256: string | null;
     ciphertextLength: number | null;
     uploadUuid: string | null;
+    /** Digest of the base64 string `extractArmoredCiphertext` must recover from
+     *  `htmlBody`. Null or absent means this envelope carries no armor block and
+     *  a reader must recover nothing — the four fixtures added in #131 predate
+     *  the field and are that case. */
+    armoredBase64Sha256?: string | null;
   };
 }
 
@@ -47,10 +65,28 @@ describe('envelope archival compatibility', () => {
   // Without this the suite would report success while asserting nothing, which
   // is the failure mode the whole gate exists to prevent. An empty directory,
   // a renamed path or a bad glob all land here.
-  it('the corpus is non-empty and covers every tier', () => {
+  it('the corpus is non-empty, covers every tier, and holds an armored body', () => {
     expect(fixtures.length).toBeGreaterThan(0);
-    const tiers = new Set(fixtures.map((f) => f.tier));
+
+    // Tier-bearing fixtures still have to cover all three exactly. The armored
+    // fixture is excluded rather than added to the expected list: adding it there
+    // would mean a missing tier could be papered over by whatever else happens
+    // to be in the directory.
+    const tiers = new Set(fixtures.filter((f) => f.tier !== null).map((f) => f.tier));
     expect([...tiers].sort()).toEqual(['tier1', 'tier2', 'tier3']);
+
+    // And `tier: null` is not a free pass. The only reason a fixture may lack a
+    // tier is that it records a format from before tiers existed, which is the
+    // armor case — so an untiered fixture must carry an armor expectation.
+    for (const untiered of fixtures.filter((f) => f.tier === null)) {
+      expect(typeof untiered.expect.armoredBase64Sha256).toBe('string');
+    }
+
+    // The corpus must actually hold one. Without this the armor case below takes
+    // the "no armor here" branch for every fixture and the suite passes having
+    // asserted nothing about extractArmoredCiphertext — the archival reader with
+    // no live caller, and so the easiest one to delete (postguard-js#235).
+    expect(fixtures.some((f) => typeof f.expect.armoredBase64Sha256 === 'string')).toBe(true);
   });
 
   describe.each(fixtures.map((f) => [f.name, f] as const))('%s', (_name, fixture) => {
@@ -85,6 +121,34 @@ describe('envelope archival compatibility', () => {
       expect(createHash('sha256').update(recovered!).digest('hex')).toBe(
         fixture.expect.ciphertextSha256
       );
+    });
+
+    it('HEAD recovers the in-body armor this envelope carries', () => {
+      const recovered = extractArmoredCiphertext(fixture.htmlBody);
+      const expected = fixture.expect.armoredBase64Sha256 ?? null;
+
+      if (expected === null) {
+        // Every envelope HEAD itself can produce. A reader must come back empty
+        // rather than mistaking part of the body for a payload.
+        expect(recovered).toBeNull();
+        return;
+      }
+
+      expect(recovered).not.toBeNull();
+      expect(createHash('sha256').update(recovered!).digest('hex')).toBe(expected);
+
+      if (fixture.expect.ciphertextSha256 !== null) {
+        // The block has to decode back to the same ciphertext the attachment
+        // carries, so a reader that finds the block but mangles it — url-safe
+        // substitution, dropped padding, newlines left in — fails here instead
+        // of downstream in pg.open(). Guarded because an armor-only archived
+        // message, with no attachment at all, is a legitimate future fixture.
+        const decoded = new Uint8Array(Buffer.from(recovered!, 'base64'));
+        expect(decoded.length).toBe(fixture.expect.ciphertextLength);
+        expect(createHash('sha256').update(decoded).digest('hex')).toBe(
+          fixture.expect.ciphertextSha256
+        );
+      }
     });
 
     it('HEAD recovers the Cryptify uuid this envelope advertises', () => {

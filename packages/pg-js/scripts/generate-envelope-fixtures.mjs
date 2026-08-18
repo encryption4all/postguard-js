@@ -29,8 +29,7 @@ const force = process.argv.includes('--force');
 // the corpus is append-only, whatever goes in here is permanent for that file.
 // The dirty marker matters: without it a fixture generated from uncommitted work
 // would name a commit whose tree never produced these bytes.
-function provenance() {
-  const { version } = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8'));
+function provenance(sdkVersion) {
   const git = (args) => execFileSync('git', args, { cwd: pkgDir, encoding: 'utf8' }).trim();
   let commit = 'unknown commit';
   let dirty = '';
@@ -41,10 +40,14 @@ function provenance() {
     // Generating outside a checkout is legitimate; recording a commit that is a
     // guess is not.
   }
-  return `@e4a/pg-js ${version} createEnvelope, generated at postguard-js ${commit}${dirty}`;
+  return `@e4a/pg-js ${sdkVersion} createEnvelope, generated at postguard-js ${commit}${dirty}`;
 }
 
-const producedBy = provenance();
+function versionOf(pkgJsonPath) {
+  return JSON.parse(readFileSync(pkgJsonPath, 'utf8')).version;
+}
+
+const producedBy = provenance(versionOf(join(pkgDir, 'package.json')));
 
 // From dist/, not src/: the TS sources use `.js` specifiers that bare node does
 // not resolve, and the built package is what consumers actually receive — so the
@@ -77,6 +80,12 @@ function payload(size) {
   for (let i = 0; i < size; i++) out[i] = (i * 31 + 7) % 251;
   return out;
 }
+
+// Recorded here rather than imported from the SDK: this script has to be able to
+// tell that HEAD stopped recognising the markers, which it cannot do with HEAD's
+// own copy of them.
+const ARMOR_BEGIN = '-----BEGIN POSTGUARD MESSAGE-----';
+const ARMOR_END = '-----END POSTGUARD MESSAGE-----';
 
 function toBase64(bytes) {
   return Buffer.from(bytes).toString('base64');
@@ -123,6 +132,86 @@ async function envelopeFixture({ name, description, bytes, uploadToCryptify = tr
       ciphertextSha256: attachment ? sha256(bytes) : null,
       ciphertextLength: attachment ? bytes.length : null,
       uploadUuid: result.uploadUuid,
+      // Null, not absent: HEAD emits no body armor, and a reader handed one of
+      // these envelopes must recover nothing from the body rather than
+      // something. `legacyArmoredFixture` is the only producer that fills it.
+      armoredBase64Sha256: null,
+    },
+  };
+}
+
+// The one fixture HEAD cannot produce.
+//
+// COMPATIBILITY.md's archival guarantee covers in-body ASCII armor, and
+// src/email/extract.ts keeps `extractArmoredCiphertext` alive for it — but
+// nothing has *emitted* armor since 1.0.1, and teaching createEnvelope to emit
+// it again just to have something to record is the exact change that file's
+// header forbids. So this fixture comes from the last published sender that
+// really did emit it, aliased in devDependencies as `pg-js-legacy-armor`
+// (@e4a/pg-js 0.10.0). Those are bytes that reached real mailboxes, which is the
+// only kind of bytes this corpus is a promise about.
+//
+// 0.10.0 predates the tier split, so its result has no `tier` and no
+// `uploadUuid`. The fixture records `tier: null` rather than guessing one; see
+// the corpus-shape assertion in tests/envelope-archival.test.ts.
+async function legacyArmoredFixture({ name, description, bytes }) {
+  const legacyDir = join(pkgDir, 'node_modules', 'pg-js-legacy-armor');
+  if (!existsSync(legacyDir)) {
+    console.error('pg-js-legacy-armor is not installed. Run `pnpm install` at the repo root.');
+    process.exit(1);
+  }
+  const { createEnvelope: createLegacyEnvelope } = await import('pg-js-legacy-armor');
+
+  const result = await createLegacyEnvelope({
+    sealed: makeSealed(bytes),
+    from: 'sender@example.com',
+    unencryptedMessage: 'A fixture message.',
+    websiteUrl: 'https://postguard.eu',
+  });
+
+  // Derived from `bytes`, NOT by running HEAD's extractArmoredCiphertext over
+  // the body: an expectation computed with the reader under test is satisfied by
+  // definition, including when the reader is broken. The check below is a
+  // separate, deliberately dumb whitespace strip — it confirms the legacy sender
+  // really armored these bytes, and it fails loudly if 0.10.0's block ever holds
+  // something other than plain wrapped base64 (HEAD's reader additionally strips
+  // HTML tags, for clients that re-wrap the block in transit).
+  const armoredBase64 = toBase64(bytes);
+  const begin = result.htmlBody.indexOf(ARMOR_BEGIN);
+  const end = result.htmlBody.indexOf(ARMOR_END, begin);
+  if (begin < 0 || end < 0) {
+    throw new Error(`pg-js ${versionOf(join(legacyDir, 'package.json'))} emitted no armor block`);
+  }
+  const inBlock = result.htmlBody.slice(begin + ARMOR_BEGIN.length, end).replace(/\s+/g, '');
+  if (inBlock !== armoredBase64) {
+    throw new Error("the legacy armor block does not hold this fixture's ciphertext");
+  }
+
+  const attachment = {
+    name: result.attachment.name,
+    contentType: result.attachment.type,
+    dataBase64: toBase64(new Uint8Array(await result.attachment.arrayBuffer())),
+  };
+
+  return {
+    name,
+    description,
+    producedBy: provenance(versionOf(join(legacyDir, 'package.json'))),
+    tier: null,
+    subject: result.subject,
+    htmlBody: result.htmlBody,
+    plainTextBody: result.plainTextBody,
+    attachment,
+    uploadUuid: null,
+    expect: {
+      ciphertextSha256: sha256(bytes),
+      ciphertextLength: bytes.length,
+      uploadUuid: null,
+      // A digest of the base64 *string* a reader must hand back, for the same
+      // reason ciphertextSha256 is a digest: the attachment above already holds
+      // these bytes. It pins the exact string form — standard base64, whitespace
+      // stripped — which is what an add-in feeds to pg.open().
+      armoredBase64Sha256: sha256(armoredBase64),
     },
   };
 }
@@ -159,6 +248,16 @@ const fixtures = [
       'which is the asymmetry that broke the website uuid path (#39).',
     bytes: payload(10 * 1024 * 1024 + 1),
   }),
+  await legacyArmoredFixture({
+    name: 'legacy-armored-body',
+    description:
+      'Archived envelope from @e4a/pg-js 0.10.0, the last published sender that emitted an ' +
+      'in-body ASCII armor block (1.0.1 no longer does; the drop is what broke Thunderbird ' +
+      'detection in postguard-tb-addon#85). Predates the tier split, so it has no tier. ' +
+      'Bodies like this are still sitting in real mailboxes, and COMPATIBILITY.md says read ' +
+      'support for them never expires — so extractArmoredCiphertext has to keep working.',
+    bytes: payload(512),
+  }),
 ];
 
 mkdirSync(outDir, { recursive: true });
@@ -172,7 +271,7 @@ for (const fixture of fixtures) {
   }
   writeFileSync(path, `${JSON.stringify(fixture, null, 2)}\n`);
   written++;
-  console.log(`  wrote ${fixture.name}.json (${fixture.tier})`);
+  console.log(`  wrote ${fixture.name}.json (${fixture.tier ?? 'no tier'})`);
 }
 console.log(`${written} written, ${skipped} left alone (already present).`);
 if (skipped > 0 && !force) {
