@@ -29,9 +29,10 @@ export interface InspectSealedResult {
    *  header bytes verifies, but nothing binds it to the ciphertext, so any
    *  party the PKG will issue a signing key to can re-sign another sender's
    *  header with their own key and appear here (encryption4all/postguard#338).
-   *  Never present this as a verified sender. The bound answer is the
-   *  `sender` returned by `decrypt()`, which is authenticated inside the
-   *  AEAD and therefore only available once decryption has run. */
+   *  Never present this as a verified sender. `decrypt()`'s own `sender` is
+   *  the better value, but with the `@e4a/pg-wasm` this package resolves it
+   *  is not a bound one either; see `Opened.inspect()` for what does and does
+   *  not hold. */
   sender: SenderIdentity | null;
   /** Progress tracker for the underlying download stream. Null when
    *  decrypting from raw data (no network involved). Callers attach
@@ -44,8 +45,10 @@ export interface InspectSealedResult {
  *
  *  The `sender` in the result is only *claimed*: it is read off the header,
  *  and while its header signature verifies, nothing binds it to the
- *  ciphertext (encryption4all/postguard#338). Treat it as unverified until
- *  `decrypt()` returns its own `sender`, which is bound inside the AEAD. */
+ *  ciphertext (encryption4all/postguard#338). Treat it as unverified.
+ *  `decrypt()` returns its own `sender`, which is the stronger value because
+ *  the AEAD has run by then, but it is not verified either on the pinned
+ *  `@e4a/pg-wasm`; see `Opened.inspect()`. */
 export async function inspectSealed(options: InspectSealedOptions): Promise<InspectSealedResult> {
   const { pkgUrl, cryptifyUrl, uuid, data, signal, headers } = options;
 
@@ -173,6 +176,11 @@ export async function unsealAndCollect(
     throw new IdentityMismatchError({ cause: e });
   }
 
+  // When `unseal()` yields no identity this falls back to `preUnsealSender`,
+  // which is `public_identity()` read off the header before decryption. So
+  // the returned `sender` is not always the unsealer's own answer, and is one
+  // more reason no caller should treat it as verified
+  // (encryption4all/postguard#338).
   let sender: SenderIdentity | null = verified ?? preUnsealSender;
   if (!sender) {
     try {

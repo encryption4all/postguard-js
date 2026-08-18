@@ -41,9 +41,17 @@ export class Opened {
    *  over the header bytes verifies, but nothing binds it to the ciphertext,
    *  so any party the PKG will issue a signing key to can re-sign another
    *  sender's header with their own key and be reported here
-   *  (encryption4all/postguard#338). Do not show it as a verified sender: the
-   *  bound answer is the `sender` returned by decrypt(), authenticated inside
-   *  the AEAD and therefore available only after decryption. */
+   *  (encryption4all/postguard#338).
+   *
+   *  Do not show it as a verified sender. Note that decrypt()'s own `sender`
+   *  does not currently earn that label either: the public signing policy
+   *  travels outside the AEAD in every `@e4a/pg-wasm` this package can
+   *  resolve (`^0.6.1`, and 0.6.3 of 2026-08-10 is the newest published), so
+   *  the same swap is reported after decryption. encryption4all/postguard#347
+   *  adds the missing binding to pg-core; it reaches this SDK only once a
+   *  `@e4a/pg-wasm` carrying it is published, and even then it catches a swap
+   *  only on containers written by a sealer new enough to include the
+   *  AEAD-protected copy. */
   async inspect(): Promise<InspectResult> {
     if (this.cachedPolicies) {
       return {

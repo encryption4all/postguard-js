@@ -212,7 +212,10 @@ export interface InspectResult {
   /** Sender identity *claimed* by the header (if available before
    *  decryption). Its header signature verifies, but nothing binds it to the
    *  ciphertext (encryption4all/postguard#338), so it must not be shown as a
-   *  verified sender. The bound answer is the `sender` returned by decrypt(). */
+   *  verified sender. decrypt() returns its own `sender`, which is the
+   *  stronger value, but on the `@e4a/pg-wasm` this package resolves that one
+   *  is not bound to the ciphertext either; `Opened.inspect()` documents the
+   *  limits. */
   sender: FriendlySender | null;
   /** Raw policy map for power users */
   policies: Map<string, any>;

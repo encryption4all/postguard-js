@@ -9,8 +9,10 @@ import { expect, test } from '@playwright/test'
 // the header bytes but nothing binds it to the ciphertext
 // (encryption4all/postguard#338), so the pre-scan `Ready` state must not
 // present it as verified: no tick, no `verifiedEmail` copy, no attribute
-// chips. `Confirm` and `Done` render `result.sender` from decrypt(), which is
-// bound inside the AEAD, so those two keep the tick.
+// chips. `Confirm` and `Done` render `result.sender` from decrypt() instead;
+// #232 scopes this change to the pre-decryption screen, so their tick stays
+// and the assertions below pin it in place. Whether a post-decryption tick is
+// warranted at all is #338's question, not this test's.
 //
 // Reaching `Ready` in a browser needs a live upload, and `Confirm`/`Done`
 // need a full Yivi disclosure on top of that, so — as in
