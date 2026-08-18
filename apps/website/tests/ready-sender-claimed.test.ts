@@ -58,8 +58,12 @@ function stateBlock(state: string): string {
 test('the Ready state presents the sender as claimed, not verified', () => {
     const ready = stateBlock('Ready')
 
-    expect(ready).toContain('filesharing.decryptpanel.claimedEmail')
-    expect(ready).toContain('filesharing.decryptpanel.claimedEmailCaveat')
+    // Both needles carry the closing `')` of the `$_(...)` call. Without it,
+    // `claimedEmail` is a prefix of `claimedEmailCaveat`, so the first
+    // assertion would be satisfied by the caveat line alone and would not
+    // notice the label itself going missing.
+    expect(ready).toContain("filesharing.decryptpanel.claimedEmail')")
+    expect(ready).toContain("filesharing.decryptpanel.claimedEmailCaveat')")
     expect(ready).not.toContain('verifiedEmail')
     expect(ready).not.toContain('class="checkmark"')
     expect(ready).not.toContain('verifiedAttributes')
