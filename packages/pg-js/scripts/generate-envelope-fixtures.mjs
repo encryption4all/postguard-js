@@ -81,9 +81,11 @@ function payload(size) {
   return out;
 }
 
-// Recorded here rather than imported from the SDK: this script has to be able to
-// tell that HEAD stopped recognising the markers, which it cannot do with HEAD's
-// own copy of them.
+// The markers as the legacy sender wrote them. Kept local rather than taken from
+// src/email/extract.ts — which does not export them anyway — because the check
+// below asks whether the legacy body really carries these exact bytes. Sharing
+// HEAD's constants would make it agree with HEAD by construction, and the point
+// of the fixture is to notice when HEAD drifts.
 const ARMOR_BEGIN = '-----BEGIN POSTGUARD MESSAGE-----';
 const ARMOR_END = '-----END POSTGUARD MESSAGE-----';
 
