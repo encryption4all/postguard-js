@@ -45,13 +45,15 @@ export class Opened {
    *
    *  Do not show it as a verified sender. Note that decrypt()'s own `sender`
    *  does not currently earn that label either: the public signing policy
-   *  travels outside the AEAD in every `@e4a/pg-wasm` this package can
-   *  resolve (`^0.6.1`, and 0.6.3 of 2026-08-10 is the newest published), so
-   *  the same swap is reported after decryption. encryption4all/postguard#347
-   *  adds the missing binding to pg-core; it reaches this SDK only once a
-   *  `@e4a/pg-wasm` carrying it is published, and even then it catches a swap
-   *  only on containers written by a sealer new enough to include the
-   *  AEAD-protected copy. */
+   *  travels outside the AEAD in the pinned `@e4a/pg-wasm` (0.6.1) and in
+   *  every version published as of 2026-08-10 (0.6.3 is the newest), so the
+   *  same swap is reported after decryption. encryption4all/postguard#347
+   *  adds an AEAD-protected copy of that policy to pg-core and compares it
+   *  against the header's copy on read. That copy reaches this SDK only once
+   *  a `@e4a/pg-wasm` carrying it is published, and it is absent from
+   *  containers written by an older sealer. What the comparison settles for
+   *  this SDK is not established here, so treat the value as unverified on
+   *  every version. */
   async inspect(): Promise<InspectResult> {
     if (this.cachedPolicies) {
       return {

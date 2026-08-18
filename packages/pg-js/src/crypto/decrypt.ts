@@ -30,9 +30,8 @@ export interface InspectSealedResult {
    *  party the PKG will issue a signing key to can re-sign another sender's
    *  header with their own key and appear here (encryption4all/postguard#338).
    *  Never present this as a verified sender. `decrypt()`'s own `sender` is
-   *  the better value, but with the `@e4a/pg-wasm` this package resolves it
-   *  is not a bound one either; see `Opened.inspect()` for what does and does
-   *  not hold. */
+   *  the better value, but with the pinned `@e4a/pg-wasm` it is not a bound
+   *  one either; see `Opened.inspect()` for what does and does not hold. */
   sender: SenderIdentity | null;
   /** Progress tracker for the underlying download stream. Null when
    *  decrypting from raw data (no network involved). Callers attach
