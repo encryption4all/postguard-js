@@ -576,28 +576,19 @@
                         />
                         {#if showSenderIdentity && mockSenderIdentity.email}
                             <div class="sender-section">
-                                <svg
-                                    class="checkmark"
-                                    viewBox="0 0 12 10"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                >
-                                    <path
-                                        d="M1 5L4.5 8.5L11 1"
-                                        stroke="currentColor"
-                                        stroke-width="1.75"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    />
-                                </svg>
                                 <p class="sender-label">
                                     {$_(
-                                        'filesharing.decryptpanel.verifiedEmail'
+                                        'filesharing.decryptpanel.claimedEmail'
                                     )}
                                 </p>
                                 <strong class="sender-email">
                                     {mockSenderIdentity.email}
                                 </strong>
+                                <p class="sender-caveat">
+                                    {$_(
+                                        'filesharing.decryptpanel.claimedEmailCaveat'
+                                    )}
+                                </p>
                             </div>
                         {/if}
                     </div>
@@ -1230,6 +1221,14 @@
         font-weight: var(--pg-font-weight-bold);
         color: var(--pg-text);
         font-family: var(--pg-font-family);
+    }
+
+    .sender-caveat {
+        margin: 0;
+        font-size: var(--pg-font-size-sm);
+        color: var(--pg-text-secondary);
+        font-family: var(--pg-font-family);
+        line-height: 1.5;
     }
 
     .success-banner {

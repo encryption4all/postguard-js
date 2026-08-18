@@ -194,6 +194,8 @@
             "doneMessageComplete": "Your files have been downloaded and decrypted",
             "readyToDownload": "Your files have been decrypted and are ready to download",
             "verifiedEmail": "The files are from",
+            "claimedEmail": "These files claim to be from",
+            "claimedEmailCaveat": "We can confirm this only after decryption.",
             "trustHeader": "Do you trust this sender?",
             "trustWarnEmailOnly": "The sender only verified an email address. Anyone with access to that mailbox could have signed these files. Check that the address truly belongs to who you expect, ideally via a channel other than email, before downloading.",
             "trustWarnUnsigned": "This file is not signed. There is no verified sender at all, so anyone could have created it and there is no way to confirm where it came from. Only continue if you are certain you trust the source.",

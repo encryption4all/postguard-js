@@ -50,7 +50,8 @@
     let key = $state('')
     let senderIdentity: FriendlySender | null = $state(null)
     // The disclosed non-email signing attributes, derived once and reused
-    // across every panel that renders them (Ready, Confirm, Done).
+    // across every panel that renders them (Confirm, Done). Not Ready: that
+    // state runs before decryption, where the sender is only claimed.
     const verifiedAttributes = $derived(verifiedAttributesFor(senderIdentity))
     let fileList: string[] = $state([])
     let decryptPct: number | undefined = $state(undefined)
@@ -328,33 +329,15 @@
                 />
                 {#if senderIdentity?.email}
                     <div class="sender-section">
-                        <svg
-                            class="checkmark"
-                            viewBox="0 0 12 10"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                        >
-                            <path
-                                d="M1 5L4.5 8.5L11 1"
-                                stroke="currentColor"
-                                stroke-width="1.75"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            />
-                        </svg>
                         <p class="sender-label">
-                            {$_('filesharing.decryptpanel.verifiedEmail')}
+                            {$_('filesharing.decryptpanel.claimedEmail')}
                         </p>
                         <strong class="sender-email"
                             >{senderIdentity.email}</strong
                         >
-                        {#if verifiedAttributes.length > 0}
-                            <div class="attr-chips">
-                                {#each verifiedAttributes as attr (attr.type)}
-                                    <span class="attr-chip">{attr.value}</span>
-                                {/each}
-                            </div>
-                        {/if}
+                        <p class="sender-caveat">
+                            {$_('filesharing.decryptpanel.claimedEmailCaveat')}
+                        </p>
                     </div>
                 {/if}
             </div>
@@ -796,6 +779,14 @@
         font-weight: var(--pg-font-weight-bold);
         color: var(--pg-text);
         font-family: var(--pg-font-family);
+    }
+
+    .sender-caveat {
+        margin: 0;
+        font-size: var(--pg-font-size-sm);
+        color: var(--pg-text-secondary);
+        font-family: var(--pg-font-family);
+        line-height: 1.5;
     }
 
     .success-banner {

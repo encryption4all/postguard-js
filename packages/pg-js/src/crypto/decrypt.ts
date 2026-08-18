@@ -25,6 +25,13 @@ export interface InspectSealedOptions {
 export interface InspectSealedResult {
   unsealer: any;
   policies: Map<string, any>;
+  /** The sender identity *claimed* by the header. Its signature over the
+   *  header bytes verifies, but nothing binds it to the ciphertext, so any
+   *  party the PKG will issue a signing key to can re-sign another sender's
+   *  header with their own key and appear here (encryption4all/postguard#338).
+   *  Never present this as a verified sender. The bound answer is the
+   *  `sender` returned by `decrypt()`, which is authenticated inside the
+   *  AEAD and therefore only available once decryption has run. */
   sender: SenderIdentity | null;
   /** Progress tracker for the underlying download stream. Null when
    *  decrypting from raw data (no network involved). Callers attach
@@ -33,7 +40,12 @@ export interface InspectSealedResult {
   pipe: ProgressPipe | null;
 }
 
-/** Inspect a sealed file/data without decrypting. Returns unsealer + metadata. */
+/** Inspect a sealed file/data without decrypting. Returns unsealer + metadata.
+ *
+ *  The `sender` in the result is only *claimed*: it is read off the header,
+ *  and while its header signature verifies, nothing binds it to the
+ *  ciphertext (encryption4all/postguard#338). Treat it as unverified until
+ *  `decrypt()` returns its own `sender`, which is bound inside the AEAD. */
 export async function inspectSealed(options: InspectSealedOptions): Promise<InspectSealedResult> {
   const { pkgUrl, cryptifyUrl, uuid, data, signal, headers } = options;
 

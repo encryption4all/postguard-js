@@ -34,8 +34,16 @@ export class Opened {
   ) {}
 
   /** Inspect the sealed header without decrypting.
-   *  Returns recipient list, sender identity, and raw policies.
-   *  The unsealer is cached so a subsequent decrypt() reuses it. */
+   *  Returns recipient list, claimed sender identity, and raw policies.
+   *  The unsealer is cached so a subsequent decrypt() reuses it.
+   *
+   *  The returned `sender` is the identity the header *claims*. Its signature
+   *  over the header bytes verifies, but nothing binds it to the ciphertext,
+   *  so any party the PKG will issue a signing key to can re-sign another
+   *  sender's header with their own key and be reported here
+   *  (encryption4all/postguard#338). Do not show it as a verified sender: the
+   *  bound answer is the `sender` returned by decrypt(), authenticated inside
+   *  the AEAD and therefore available only after decryption. */
   async inspect(): Promise<InspectResult> {
     if (this.cachedPolicies) {
       return {
