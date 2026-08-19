@@ -65,7 +65,11 @@ test("throws when a differently spelled dev URL survives the rewrite", () => {
     () => rewriteManifestUrls(partial, URL_DEV, URL_PROD),
     (err: unknown) => {
       assert.ok(err instanceof Error);
-      assert.match(err.message, /https:\/\/localhost:3000/);
+      // Match the leftover guard's own wording, not just the origin: the
+      // no-match guard's message also contains https://localhost:3000 (it
+      // interpolates urlDev), so a bare origin match cannot tell which of the
+      // two guards produced the error.
+      assert.match(err.message, /still contains https:\/\/localhost:3000/);
       return true;
     }
   );
