@@ -46,6 +46,7 @@
 
 - The send button is intentionally `aria-disabled="true"` (never natively disabled) so it can surface the validation modal — tests must `.click({ force: true })`. Accessible names: button "Sign & send", email field "Email address".
 - E2E for a cancelled Yivi disclosure without a real app: mock `POST **/pkg/v2/request/start` (controllable `sessionPtr.u`, no `frontendRequest`), then flip the `/status` mock from `"INITIALIZED"` to `"CANCELLED"`. Preview server port is 4173.
+- The package name is `postguard-website`, not `website` — `pnpm --filter website <script>` from the repo root exits 0 with "No projects matched the filters" and runs nothing. Use `pnpm --filter postguard-website test:e2e`, or `cd apps/website` first.
 - `playwright.config.ts` must keep `testDir: 'tests'`. Playwright's default testDir is the config's own directory, so without it the runner also collects `src/**/*.test.ts` (the vitest specs) and dies on `Cannot read properties of undefined (reading 'config')` before running anything.
 - The browsers in `/opt/ms-playwright` on the agent workspace are a different revision than the one `@playwright/test` pins, so `npx playwright test` cannot find them and the install into that path is not writable. Run `PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright npx playwright install chromium` once, then prefix runs with the same variable. Leave off `--with-deps` (which the CI job does use): it shells out to `sudo apt-get`, which is unavailable in the workspace, and the whole install then fails.
 

@@ -34,8 +34,26 @@ export class Opened {
   ) {}
 
   /** Inspect the sealed header without decrypting.
-   *  Returns recipient list, sender identity, and raw policies.
-   *  The unsealer is cached so a subsequent decrypt() reuses it. */
+   *  Returns recipient list, claimed sender identity, and raw policies.
+   *  The unsealer is cached so a subsequent decrypt() reuses it.
+   *
+   *  The returned `sender` is the identity the header *claims*. Its signature
+   *  over the header bytes verifies, but nothing binds it to the ciphertext,
+   *  so any party the PKG will issue a signing key to can re-sign another
+   *  sender's header with their own key and be reported here
+   *  (encryption4all/postguard#338).
+   *
+   *  Do not show it as a verified sender. Note that decrypt()'s own `sender`
+   *  does not currently earn that label either: the public signing policy
+   *  travels outside the AEAD in the pinned `@e4a/pg-wasm` (0.6.1) and in
+   *  every version published as of 2026-08-10 (0.6.3 is the newest), so the
+   *  same swap is reported after decryption. encryption4all/postguard#347
+   *  adds an AEAD-protected copy of that policy to pg-core and compares it
+   *  against the header's copy on read. That copy reaches this SDK only once
+   *  a `@e4a/pg-wasm` carrying it is published, and it is absent from
+   *  containers written by an older sealer. What the comparison settles for
+   *  this SDK is not established here, so treat the value as unverified on
+   *  every version. */
   async inspect(): Promise<InspectResult> {
     if (this.cachedPolicies) {
       return {

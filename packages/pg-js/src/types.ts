@@ -209,7 +209,12 @@ export interface DecryptInput {
 export interface InspectResult {
   /** Email addresses of all recipients who can decrypt */
   recipients: string[];
-  /** Sender identity (if available before decryption) */
+  /** Sender identity *claimed* by the header (if available before
+   *  decryption). Its header signature verifies, but nothing binds it to the
+   *  ciphertext (encryption4all/postguard#338), so it must not be shown as a
+   *  verified sender. decrypt() returns its own `sender`, which is the
+   *  stronger value, but on the pinned `@e4a/pg-wasm` that one is not bound
+   *  to the ciphertext either; `Opened.inspect()` documents the limits. */
   sender: FriendlySender | null;
   /** Raw policy map for power users */
   policies: Map<string, any>;
