@@ -30,6 +30,8 @@ These are read from `.env` (copy `.env.example`) or fall back to staging default
 
 The webpack config also rewrites `https://localhost:3000/` → `ADDIN_PUBLIC_URL` (default `https://addin.postguard.eu/`) inside `manifest.xml` when building in non-development mode, so the _same_ manifest is used for dev sideloading and production hosting.
 
+That rewrite is the only gate on the shipped manifest's origins, so it asserts its own result in `scripts/rewrite-manifest-urls.mjs` and fails the build on a no-match (#257). Nothing downstream would catch one: `validate:dist` approves a `localhost` manifest (a localhost URL is valid HTTPS), `scopeAppDomains()`'s `missing` check passes because `manifest.xml` lists the production origin as its own `<AppDomain>` entry and then drops the unrewritten `localhost` one as unused, and the `Baked URLs resolve` job never reads `dist/manifest.xml`. Note `urlDev` hardcodes port 3000 while `devServer.port` reads `npm_package_config_dev_server_port`, so changing that config without changing `urlDev` is one way in. When editing a dev URL in `manifest.xml`, keep one spelling: the guard also refuses a manifest where some entry spells the dev origin differently (a bare origin with no trailing slash) and so escapes the replace.
+
 ## Architecture
 
 ### Entry points and bundles
@@ -104,6 +106,7 @@ Outlook add-in (Office.js). Lives at `apps/outlook-addon` in the postguard-js mo
 - `pnpm build` compiles; there's a pre-existing size-limit warning on the `taskpane.js` (~1.03 MiB) and `yivi-dialog.js` (~1 MiB) entrypoint bundles, which embed the bundled WASM (no standalone `.wasm` is emitted to `dist/`). Baseline, not a regression.
 - The workspace lockfile at the repo root is the one that counts; this app has no package-lock.json.
 - CI: `.github/workflows/outlook-addon.yml` runs lint, prettier, typecheck, a build and manifest validation for both the edge and production origin sets, unit tests, nginx validation, a no-push image build, and a check that every URL baked into the bundle resolves. The root `Integration` workflow additionally builds and tests this app as part of the workspace.
+- The CI lint and prettier globs enumerate `scripts/**/*.mjs`, not `scripts/**/*.js`, so a build-time helper added there as `.js` is checked by the pre-commit hook and by nothing in CI. Write new `scripts/` modules as ESM `.mjs`. `webpack.config.js` is CommonJS and reaches one through `await import()` inside the async config factory, because `require()` of ESM needs node >=22.12 while the root `engines` only asks for >=22.
 
 ### Tests
 
