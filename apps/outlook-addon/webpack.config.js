@@ -115,6 +115,10 @@ async function getHttpsOptions() {
 }
 
 module.exports = async (env, options) => {
+  // `await import` rather than `require`: the helper is ESM so CI's existing
+  // `scripts/**/*.mjs` lint and format globs cover it, and requiring ESM from
+  // this CommonJS file needs node >=22.12 while `engines` only asks for >=22.
+  const { rewriteManifestUrls } = await import("./scripts/rewrite-manifest-urls.mjs");
   const dev = options.mode === "development";
   const resolvedEnv = resolveEnv(!dev);
   const config = {
@@ -225,7 +229,7 @@ module.exports = async (env, options) => {
             to: "[name][ext]",
             transform(content) {
               if (dev) return content;
-              const rewritten = content.toString().replace(new RegExp(urlDev, "g"), urlProd);
+              const rewritten = rewriteManifestUrls(content.toString(), urlDev, urlProd);
               return scopeAppDomains(
                 rewritten,
                 new URL(urlProd).origin,
