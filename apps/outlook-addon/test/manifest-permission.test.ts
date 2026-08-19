@@ -94,10 +94,42 @@ function membersByTier(dts: string): Map<string, Member> {
 
 // Comments hold prose about the wider tier (this file included), so they are
 // stripped before the scan — the question is what the code reaches, not what
-// the code talks about. `//` preceded by `:` is left alone so a `https://` URL
-// inside a string does not swallow the rest of its line.
+// the code talks about. Both directions of getting that wrong matter here, and
+// neither of the two obvious regexes covers both, so this scans left to right:
+//
+//   - A whole-file `/\/\*[\s\S]*?\*\//g` pairs a `/*` that opens inside a line
+//     comment (`// see ./*.ts`) with whatever `*/` comes next and deletes the
+//     real code in between, leaving the scan blind to it. `src/` has no such
+//     opener today, which makes it a latent hole rather than a live one.
+//   - Stripping block comments per line instead leaves the continuation lines
+//     of a multi-line block comment standing, so a JSDoc paragraph explaining
+//     why we avoid `makeEwsRequestAsync` would be reported as a call to it.
+//
+// Scanning gets both: `//` is consumed to end of line before any `/*` on that
+// line is looked at, and a `/*` really is followed to its `*/` however many
+// lines away that is. `//` preceded by `:` is left alone so a `https://` URL
+// inside a string does not swallow the rest of its line. A `/*` inside a
+// string literal would still open a comment; `src/` has none, and a real
+// tokenizer is more than a name scan needs.
 function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  let out = "";
+  let i = 0;
+  while (i < source.length) {
+    if (source.startsWith("/*", i)) {
+      const close = source.indexOf("*/", i + 2);
+      i = close < 0 ? source.length : close + 2;
+      continue;
+    }
+    if (source.startsWith("//", i) && source[i - 1] !== ":") {
+      const eol = source.indexOf("\n", i);
+      if (eol < 0) break;
+      i = eol;
+      continue;
+    }
+    out += source[i];
+    i++;
+  }
+  return out;
 }
 
 test("no Office.js member that needs read/write mailbox is reachable from src/", () => {
