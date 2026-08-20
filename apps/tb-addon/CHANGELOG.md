@@ -1,5 +1,12 @@
 # postguard-tb-addon
 
+## 0.9.6
+
+### Patch Changes
+
+- Updated dependencies [9f61ed0]
+  - @e4a/pg-js@2.4.1
+
 ## 0.9.5
 
 ### Patch Changes
