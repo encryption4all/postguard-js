@@ -224,7 +224,9 @@ function base64ToArrayBuffer(b64: string): ArrayBuffer {
   return buf;
 }
 
-// Reads attachment bytes (read mode) by REST or makeEwsRequest fallback.
+// Reads attachment bytes (read mode). No REST or EWS fallback: reaching for
+// makeEwsRequestAsync or a callback token would push the manifest back up to
+// ReadWriteMailbox, which cannot be installed by an end user (#254).
 export function getReadAttachmentContent(attachmentId: string): Promise<Office.AttachmentContent> {
   const item = getItem() as Office.MessageRead;
   // getAttachmentContentAsync also exists in read mode.
