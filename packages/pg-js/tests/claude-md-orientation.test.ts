@@ -46,10 +46,14 @@ import { describe, expect, it } from 'vitest';
 const MAX_BYTES = 4_000;
 
 /**
- * The `##` sections the cut removed, at their `7767706` sizes. Named rather than
- * left to the byte count, because the byte count says only "too big" while the
- * failure this guards is specifically the reference material coming back: any one
- * of these returning is the same file starting over.
+ * The reference sections the cut removed. Named rather than left to the byte
+ * count, because the byte count says only "too big" while the failure this guards
+ * is specifically the reference material coming back: any one of these returning
+ * is the same file starting over.
+ *
+ * Eleven of the fourteen `##` sections at `7767706`. `Project overview`, `Overview`
+ * and ``Examples (`examples/*`)`` are deliberately absent: an orientation file may
+ * legitimately want a heading by those names, so only the byte cap holds them.
  *
  * Matched at any heading level, since a corpus section demoted to `###` is the
  * same corpus. `Tests` is on the list on purpose — "how to run the suite" is
@@ -103,7 +107,12 @@ describe('the root CLAUDE.md', () => {
   });
 
   it('has no heading from the deleted reference corpus', () => {
-    const headings = [...readFileSync(claudeMd, 'utf8').matchAll(/^#{1,6} +(.+?)\s*$/gm)].map(([, h]) => h);
+    // Fenced blocks are stripped first: a `# comment` line in a shell sample is not
+    // a heading, and matching one would fail this test naming the wrong cause.
+    const body = readFileSync(claudeMd, 'utf8').replace(/^```[\s\S]*?^```/gm, '');
+    // The trailing `#+` is closed-ATX (`## Tests ##`), which would otherwise capture
+    // `Tests ##` and slip past the list.
+    const headings = [...body.matchAll(/^#{1,6} +(.+?)(?:\s+#+)?\s*$/gm)].map(([, h]) => h);
     for (const section of DELETED_SECTIONS) {
       expect(
         headings,
