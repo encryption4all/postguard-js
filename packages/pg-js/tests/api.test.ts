@@ -144,6 +144,39 @@ describe('Cryptify API', () => {
       );
     });
 
+    it('carries the challenge from the init response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ uuid: 'file-uuid', recovery_token: 'rec-hex', challenge: 'a1b2c3' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 'tok-123' }),
+      });
+
+      const result = await initUpload('https://cryptify.example.com', {
+        recipient: 'alice@example.com',
+      });
+      expect(result.challenge).toBe('a1b2c3');
+    });
+
+    it('leaves challenge absent when the server issued none', async () => {
+      // Every cryptify deployed today: the field is simply not in the body.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ uuid: 'file-uuid', recovery_token: 'rec-hex' }),
+        text: () => Promise.resolve(''),
+        headers: new Headers({ cryptifytoken: 'tok-123' }),
+      });
+
+      const result = await initUpload('https://cryptify.example.com', {
+        recipient: 'alice@example.com',
+      });
+      expect(result).toEqual({ token: 'tok-123', uuid: 'file-uuid', recoveryToken: 'rec-hex' });
+      expect('challenge' in result).toBe(false);
+    });
+
     it('sends Authorization: Bearer <apiKey> when apiKey is set', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -577,6 +610,13 @@ describe('Cryptify API', () => {
   });
 
   describe('finalizeUpload', () => {
+    /** The proof header off the most recent fetch, casing-agnostic
+     *  (mergeHeaders lower-cases what it merges). */
+    function proofHeader(callIndex = 0): string | null {
+      const init = mockFetch.mock.calls[callIndex][1] as RequestInit;
+      return new Headers(init.headers as HeadersInit).get('X-PostGuard-Proof');
+    }
+
     it('sends finalize with correct size header', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('') });
 
@@ -625,6 +665,82 @@ describe('Cryptify API', () => {
           headers: expect.objectContaining({ authorization: 'Bearer PG-test-key' }),
         })
       );
+    });
+
+    it('signs the challenge and sends the signature base64 in X-PostGuard-Proof', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('') });
+      const signChallenge = vi.fn(() => new Uint8Array([0xde, 0xad, 0xbe, 0xef]));
+
+      await finalizeUpload(
+        'https://cryptify.example.com',
+        { token: 't', uuid: 'u', recoveryToken: 'r', challenge: 'a1b2c3' },
+        100,
+        undefined,
+        undefined,
+        undefined,
+        signChallenge
+      );
+
+      expect(proofHeader()).toBe('3q2+7w==');
+    });
+
+    it('hands the signer the raw decoded challenge and the uuid', async () => {
+      // The signer applies its own domain separator, so anything prepended
+      // or wrapped here would be a signature over a server-chosen message.
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('') });
+      const signChallenge = vi.fn(() => new Uint8Array([1]));
+
+      await finalizeUpload(
+        'https://cryptify.example.com',
+        { token: 't', uuid: 'upload-uuid', recoveryToken: 'r', challenge: '9f0102' },
+        100,
+        undefined,
+        undefined,
+        undefined,
+        signChallenge
+      );
+
+      expect(signChallenge).toHaveBeenCalledTimes(1);
+      expect(signChallenge).toHaveBeenCalledWith(
+        'upload-uuid',
+        new Uint8Array([0x9f, 0x01, 0x02])
+      );
+    });
+
+    it('sends no proof and does not sign when init returned no challenge', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, text: () => Promise.resolve('') });
+      const signChallenge = vi.fn(() => new Uint8Array([1]));
+
+      await finalizeUpload(
+        'https://cryptify.example.com',
+        { token: 't', uuid: 'u', recoveryToken: 'r' },
+        100,
+        undefined,
+        undefined,
+        undefined,
+        signChallenge
+      );
+
+      expect(signChallenge).not.toHaveBeenCalled();
+      expect(proofHeader()).toBeNull();
+    });
+
+    it('throws rather than signing a challenge that is not hex', async () => {
+      const signChallenge = vi.fn(() => new Uint8Array([1]));
+
+      await expect(
+        finalizeUpload(
+          'https://cryptify.example.com',
+          { token: 't', uuid: 'u', recoveryToken: 'r', challenge: 'not-hex' },
+          100,
+          undefined,
+          undefined,
+          undefined,
+          signChallenge
+        )
+      ).rejects.toThrow(/Malformed upload challenge/);
+      expect(signChallenge).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it('surfaces 503 from cryptify as NetworkError when pkg is unreachable', async () => {
@@ -1118,6 +1234,71 @@ describe('Cryptify API', () => {
       const writer = stream.writable.getWriter();
       await expect(writer.write(new Uint8Array([1]))).rejects.toBeDefined();
       expect(onUploadInit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createUploadStream upload proof', () => {
+    /** init POST, then a chunk PUT, then the finalize POST — the finalize
+     *  is the last call, and `json` is only read on init. */
+    function mockUpload(initBody: Record<string, unknown>) {
+      mockFetch.mockImplementation((_url: string, init: RequestInit) => {
+        if (init?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(''),
+            headers: new Headers({ cryptifytoken: 'tok-next' }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(initBody),
+          text: () => Promise.resolve(''),
+          headers: new Headers({ cryptifytoken: 'tok-0' }),
+        });
+      });
+    }
+
+    function lastProofHeader(): string | null {
+      const calls = mockFetch.mock.calls;
+      const init = calls[calls.length - 1][1] as RequestInit;
+      return new Headers(init.headers as HeadersInit).get('X-PostGuard-Proof');
+    }
+
+    it('proves the upload when init issued a challenge', async () => {
+      mockUpload({ uuid: 'u-1', recovery_token: 'rec', challenge: 'a1b2c3' });
+      const signChallenge = vi.fn(() => new Uint8Array([0xde, 0xad, 0xbe, 0xef]));
+
+      const stream = createUploadStream('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        signChallenge,
+      });
+      const writer = stream.writable.getWriter();
+      await writer.write(new Uint8Array([1, 2, 3]));
+      await writer.close();
+
+      // The chunk PUT rebuilds the state, so this also pins that the
+      // challenge survives the trip from init to finalize.
+      expect(signChallenge).toHaveBeenCalledWith('u-1', new Uint8Array([0xa1, 0xb2, 0xc3]));
+      expect(lastProofHeader()).toBe('3q2+7w==');
+    });
+
+    it('completes with no proof header against a cryptify that issues no challenge', async () => {
+      mockUpload({ uuid: 'u-1', recovery_token: 'rec' });
+      const signChallenge = vi.fn(() => new Uint8Array([1]));
+
+      const stream = createUploadStream('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        signChallenge,
+      });
+      const writer = stream.writable.getWriter();
+      await writer.write(new Uint8Array([1, 2, 3]));
+      await expect(writer.close()).resolves.toBeUndefined();
+
+      expect(signChallenge).not.toHaveBeenCalled();
+      expect(lastProofHeader()).toBeNull();
+      expect(stream.getUuid()).toBe('u-1');
     });
   });
 

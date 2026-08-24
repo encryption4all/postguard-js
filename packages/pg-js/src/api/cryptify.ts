@@ -32,6 +32,15 @@ export interface FileState {
    * (see `createUploadStream`'s placeholder state).
    */
   recoveryToken: string;
+  /**
+   * Challenge issued by `POST /fileupload/init` (wire field `challenge`,
+   * hex). Finalizing sends a signature over it, proving the uploader holds
+   * the signing key for the sender identity the container claims rather
+   * than merely relaying a container someone else sealed
+   * (encryption4all/postguard#358). Absent when the server issued none —
+   * no deployed cryptify does yet — and then finalize sends no proof.
+   */
+  challenge?: string;
 }
 
 export interface InitUploadOptions {
@@ -120,11 +129,17 @@ export async function initUpload(
 
   const resJson = await response.json();
   const token = response.headers.get('cryptifytoken') as string;
-  return {
+  const state: FileState = {
     token,
     uuid: resJson['uuid'],
     recoveryToken: resJson['recovery_token'],
   };
+  // Leave the field absent rather than empty when the server issued no
+  // challenge, so finalize can tell "nothing to prove" from "prove this".
+  if (typeof resJson['challenge'] === 'string' && resJson['challenge'].length > 0) {
+    state.challenge = resJson['challenge'];
+  }
+  return state;
 }
 
 /**
@@ -220,7 +235,17 @@ export async function storeChunk(
   }
 
   const token = response.headers.get('cryptifytoken') as string;
-  return { token, uuid: state.uuid, prevToken: state.token, recoveryToken: state.recoveryToken };
+  const next: FileState = {
+    token,
+    uuid: state.uuid,
+    prevToken: state.token,
+    recoveryToken: state.recoveryToken,
+  };
+  // Carried across every chunk: finalize is where the challenge is signed.
+  if (state.challenge !== undefined) {
+    next.challenge = state.challenge;
+  }
+  return next;
 }
 
 /**
@@ -257,21 +282,64 @@ export async function storeChunkWithRetry(
   );
 }
 
-/** Finalize the upload */
+/**
+ * Signs cryptify's upload challenge. Called with the upload uuid as the
+ * proof's context and the challenge bytes exactly as cryptify sent them.
+ * pg-wasm's `signChallenge` applies its own domain separator, so a signer
+ * — or a caller — that wraps or prepends anything here would be signing a
+ * message the server chose, which is the hole the challenge closes.
+ */
+export type ChallengeSigner = (
+  uuid: string,
+  challenge: Uint8Array
+) => Uint8Array | Promise<Uint8Array>;
+
+/** Decode cryptify's hex challenge. Strict, because a value we silently
+ *  mangled would be signed and then rejected at finalize with nothing to
+ *  point at. */
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error('Malformed upload challenge from cryptify: expected hex');
+  }
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = Number.parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** Finalize the upload. Carries `X-PostGuard-Proof` when init issued a
+ *  challenge and a signer was supplied; against a cryptify that issues
+ *  none, no header is sent and the upload completes as before. */
 export async function finalizeUpload(
   cryptifyUrl: string,
   state: FileState,
   size: number,
   signal?: AbortSignal,
   apiKey?: string,
-  headers?: HeadersInit
+  headers?: HeadersInit,
+  signChallenge?: ChallengeSigner
 ): Promise<void> {
+  const proof =
+    state.challenge !== undefined && signChallenge
+      ? await signChallenge(state.uuid, hexToBytes(state.challenge))
+      : undefined;
+
   const response = await fetch(`${cryptifyUrl}/fileupload/finalize/${state.uuid}`, {
     signal,
     method: 'POST',
     headers: mergeHeaders(headers, {
       cryptifytoken: state.token,
       'content-range': `bytes */${size}`,
+      ...(proof ? { 'X-PostGuard-Proof': toBase64(proof) } : {}),
       ...bearerHeader(apiKey),
     }),
   });
@@ -499,6 +567,9 @@ export function createUploadStream(
     abortSignal?: AbortSignal;
     retry?: RetryOptions;
     onUploadInit?: (info: { uuid: string; recoveryToken: string }) => void;
+    /** Signs the challenge `initUpload` received, if any. Leave it out and
+     *  the finalize carries no proof. */
+    signChallenge?: ChallengeSigner;
   }
 ): UploadStream {
   let state: FileState = { token: '', uuid: '', recoveryToken: '' };
@@ -543,7 +614,15 @@ export function createUploadStream(
       async close() {
         const { signal: timed, cleanup } = withTimeout(signal, retry.finalizeTimeoutMs);
         try {
-          await finalizeUpload(cryptifyUrl, state, processed, timed, options.apiKey, options.headers);
+          await finalizeUpload(
+            cryptifyUrl,
+            state,
+            processed,
+            timed,
+            options.apiKey,
+            options.headers,
+            options.signChallenge
+          );
         } finally {
           cleanup();
         }

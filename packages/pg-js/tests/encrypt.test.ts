@@ -5,20 +5,29 @@ import type { Recipient } from '../src/types.js';
 //
 // Factories are hoisted above the imports, so shared mock state is wrapped
 // in vi.hoisted() and referenced from each factory.
-const { fetchMPK, resolveSigningKeys, createUploadStream, createZipReadable, sealStream } =
-  vi.hoisted(() => ({
-    fetchMPK: vi.fn(),
-    resolveSigningKeys: vi.fn(),
-    createUploadStream: vi.fn(),
-    createZipReadable: vi.fn(),
-    sealStream: vi.fn(),
-  }));
+const {
+  fetchMPK,
+  resolveSigningKeys,
+  createUploadStream,
+  createZipReadable,
+  sealStream,
+  signChallenge,
+} = vi.hoisted(() => ({
+  fetchMPK: vi.fn(),
+  resolveSigningKeys: vi.fn(),
+  createUploadStream: vi.fn(),
+  createZipReadable: vi.fn(),
+  sealStream: vi.fn(),
+  signChallenge: vi.fn(),
+}));
 
 vi.mock('../src/api/pkg.js', () => ({ fetchMPK }));
 vi.mock('../src/crypto/signing.js', () => ({ resolveSigningKeys }));
 vi.mock('../src/api/cryptify.js', () => ({ createUploadStream }));
 vi.mock('../src/util/zip.js', () => ({ createZipReadable }));
-vi.mock('../src/util/wasm.js', () => ({ loadWasm: async () => ({ sealStream }) }));
+vi.mock('../src/util/wasm.js', () => ({
+  loadWasm: async () => ({ sealStream, signChallenge }),
+}));
 
 import { encryptPipeline, sealRaw, awaitAllOrAbort } from '../src/crypto/encrypt.js';
 
@@ -160,6 +169,39 @@ describe('encryptPipeline', () => {
     expect(sealStream.mock.calls[0][0]).toBe('MPK');
     const merged = Buffer.concat(uploaded.map((c) => Buffer.from(c)));
     expect([...merged]).toEqual([9, 9]);
+  });
+
+  it('gives the upload a signer that signs the challenge with the sealing key, untouched', async () => {
+    let signer: ((uuid: string, challenge: Uint8Array) => unknown) | undefined;
+    createUploadStream.mockImplementation(
+      (_url: string, opts: { signChallenge?: (uuid: string, challenge: Uint8Array) => unknown }) => {
+        signer = opts.signChallenge;
+        return {
+          writable: new WritableStream<Uint8Array>({ write() {} }),
+          getUuid: () => 'uuid-123',
+        };
+      }
+    );
+    sealStream.mockImplementation(
+      async (
+        _mpk: unknown,
+        _opts: unknown,
+        readable: ReadableStream<Uint8Array>,
+        writable: WritableStream<Uint8Array>
+      ) => {
+        await readable.pipeTo(writable);
+      }
+    );
+    signChallenge.mockReturnValue(new Uint8Array([7, 7]));
+
+    await encryptPipeline(baseOptions());
+
+    const challenge = new Uint8Array([0xa1, 0xb2, 0xc3]);
+    expect(signer?.('uuid-123', challenge)).toEqual(new Uint8Array([7, 7]));
+    // Same signing key the container was sealed with, the uuid as context,
+    // and the challenge exactly as it arrived — signChallenge adds its own
+    // domain separator, so pre-wrapping it here would be a blind signature.
+    expect(signChallenge).toHaveBeenCalledWith('PUB', 'uuid-123', challenge);
   });
 
   it('propagates an upload-sink failure and aborts the shared signal driving the stream graph', async () => {

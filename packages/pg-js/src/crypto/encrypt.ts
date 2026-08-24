@@ -81,7 +81,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   }
 
   // Load WASM
-  const { sealStream } = await loadWasm();
+  const { sealStream, signChallenge } = await loadWasm();
 
   // Create ZIP stream from files
   const readable = await createZipReadable(files);
@@ -107,6 +107,12 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     retry: options.retry,
     headers,
     onUploadInit: options.onUploadInit,
+    // Answers cryptify's upload challenge with the same signing key that
+    // sealed the container, so the sender identity in the header is proven
+    // rather than claimed. The challenge is passed through untouched:
+    // signChallenge adds its own domain separator, and constructing the
+    // signed message here would hand the server a blind signature.
+    signChallenge: (uuid, challenge) => signChallenge(signingKeys.pubSignKey, uuid, challenge),
     onProgress: (uploaded, last) => {
       if (onProgress) {
         const pct = totalSize > 0 ? Math.min(100, Math.round((uploaded / totalSize) * 100)) : 0;

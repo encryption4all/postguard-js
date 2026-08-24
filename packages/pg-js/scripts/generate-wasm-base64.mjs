@@ -50,22 +50,24 @@ if (!existsSync(shimSource)) {
 const shimSrc = readFileSync(shimSource, 'utf8');
 
 // Strip the dead default-value branch. The exact whitespace varies a bit
-// across wasm-bindgen versions, so the regex is forgiving — but if it
-// stops matching entirely we should fail loudly so we notice when the
-// upstream shim shape changes.
+// across wasm-bindgen versions, so the regex is forgiving.
 const deadBranchRe =
   /if\s*\(\s*module_or_path\s*===\s*undefined\s*\)\s*\{\s*module_or_path\s*=\s*new\s+URL\(\s*['"]index_bg\.wasm['"]\s*,\s*import\.meta\.url\s*\)\s*;\s*\}\s*/;
-if (!deadBranchRe.test(shimSrc)) {
+const patched = shimSrc.replace(deadBranchRe, '');
+
+// What consumer builds actually need is a shim with no `new URL` asset
+// import left in it, however the upstream output happens to be shaped.
+// pg-wasm ≥ 0.6.5 ships it already gone, so a shim that never had the
+// branch is fine — one that still mentions the wasm file after the strip
+// is not, and fails loudly so we notice the shape changed.
+if (patched.includes('index_bg.wasm')) {
   console.error(
-    'pg-wasm shim does not contain the expected `new URL("index_bg.wasm", ' +
-      'import.meta.url)` dead branch. Either wasm-bindgen now ships clean ' +
-      'output (great — drop this script step) or the regex above needs ' +
-      'updating to match the new wasm-bindgen output shape.'
+    'pg-wasm shim still references index_bg.wasm after patching. The regex ' +
+      'above needs updating to match the new wasm-bindgen output shape, or ' +
+      'webpack consumer builds will fail resolving a file pg-js does not ship.'
   );
   process.exit(1);
 }
-
-const patched = shimSrc.replace(deadBranchRe, '');
 
 writeFileSync(
   'src/util/pg-wasm-shim.js',
