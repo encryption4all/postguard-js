@@ -1,18 +1,15 @@
 // Tests for the sign-attribute prefill flow (src/lib/settings.ts).
 //
 // #199 reported sender attributes being dropped from the signing request
-// entirely. The fix builds one entry per SIGN_PREFILL_TYPES — a mandatory
-// { t, v } when the user prefilled a value in Settings, { t, optional: true }
-// when they left it blank — and both send paths (taskpane/compose-view.ts,
-// launchevent/launchevent.ts) hand the result to
-// `pg.sign.yivi({ ... } as never)`. That cast means a shape change reaches
-// Yivi unchallenged, so nothing but these assertions stands between a
-// refactor and the reported bug coming back silently.
+// entirely. The fix shipped, but both send paths hand the result to
+// `pg.sign.yivi({ ... } as never)`, and that cast lets a shape change through
+// unchallenged — so these assertions are all that stands between a refactor and
+// the reported bug returning silently.
 //
-// Every case drives state through setSignPrefills, which is both the path the
+// Every case drives state through setSignPrefills: it is both the path the
 // Settings view uses and the only thing that refreshes settings.ts's
-// module-level prefill cache: writing into the store behind the Office stub
-// instead would leave buildSignAttributes reading a stale cache.
+// module-level prefill cache, so seeding the store behind the Office stub
+// instead would leave buildSignAttributes reading a stale value.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -26,14 +23,11 @@ import {
   type SignPrefillType,
 } from "../src/lib/settings.ts";
 
-// settings.ts reads through storage.ts, which touches the bare global
-// `Office`. Neither module dereferences it at import time, so installing the
-// stub here — after the imports have been evaluated — is early enough.
-//
-// storage.ts resolves its save promise by comparing the callback's status
-// against `Office.AsyncResultStatus.Succeeded`, so the stub has to supply
-// both sides of that comparison itself. The value is the string Office.js
-// hands over at runtime; @types/office-js declares the enum as numeric.
+// storage.ts touches the bare global `Office`, but neither module dereferences
+// it at import time, so installing the stub after the imports is early enough.
+// storage.ts resolves its save promise by comparing the callback status against
+// `Office.AsyncResultStatus.Succeeded`, so the stub supplies both sides of that
+// comparison itself and the literal only has to be self-consistent.
 const roaming = new Map<string, unknown>();
 
 (globalThis as { Office?: unknown }).Office = {
@@ -55,9 +49,8 @@ const FULLNAME = "Alice Example";
 const DATEOFBIRTH = "1990-01-31";
 const MOBILE = "+31612345678";
 
-// assert.deepEqual is deepStrictEqual under node:assert/strict, and that
-// rejects an unexpected own property as well as a changed one — so an entry
-// carrying both `v` and `optional` fails these comparisons.
+// assert.deepEqual is deepStrictEqual under node:assert/strict, so it rejects an
+// unexpected own property too: an entry carrying both `v` and `optional` fails.
 test("blank prefills make every attribute optional, in declaration order", async () => {
   await setSignPrefills({});
 
@@ -109,8 +102,7 @@ test("every prefill type appears exactly once, whatever the prefill state", asyn
 
   for (const state of states) {
     await setSignPrefills(state);
-    // A duplicate would ask Yivi twice for one attribute; a missing type is
-    // the #199 bug. Comparing the whole list pins both, and the order.
+    // A duplicate would ask Yivi twice for one attribute; a missing one is #199.
     assert.deepEqual(
       buildSignAttributes().map((a) => a.t),
       [...SIGN_PREFILL_TYPES]
@@ -118,12 +110,11 @@ test("every prefill type appears exactly once, whatever the prefill state", asyn
   }
 });
 
-// setSignPrefills trims and drops, so whitespace never reaches storage and the
-// attribute comes back optional. buildSignAttributes trims again, but that
-// second layer only guards a value that arrived in roamingSettings without
-// passing through setSignPrefills — a legacy blob — and reaching it means
-// seeding the store directly, which the stale cache above rules out. So this
-// pins the first layer only.
+// This pins the first of two layers. setSignPrefills trims and drops, so
+// whitespace never reaches storage; buildSignAttributes trims again, but that
+// only guards a value that arrived in roamingSettings without passing through
+// setSignPrefills, and reaching it means seeding the store directly, which the
+// stale cache rules out.
 test("a whitespace-only prefill is not a value", async () => {
   await setSignPrefills({ [SIGN_PREFILL_FULLNAME]: "   " });
 
@@ -136,10 +127,9 @@ test("a whitespace-only prefill is not a value", async () => {
 test("no email attribute is offered, since pg-js prepends its own", async () => {
   await setSignPrefills({ [SIGN_PREFILL_FULLNAME]: FULLNAME });
 
-  // buildStartRequestBody in pg-js puts the sender's email attribute at the
-  // head of every signing request, so one here would be disclosed twice. The
-  // pattern covers the production `pbdf.*` type and the test-scheme
-  // `irma-demo.*` one without reaching into pg-js for the constant.
+  // pg-js prepends the sender's email attribute to every signing request, so one
+  // here would be disclosed twice. The pattern covers the production `pbdf.*`
+  // type and the test-scheme `irma-demo.*` one without reaching into pg-js.
   for (const t of [...SIGN_PREFILL_TYPES, ...buildSignAttributes().map((a) => a.t)]) {
     assert.doesNotMatch(t, /\.email\.email$/);
   }
