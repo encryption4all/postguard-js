@@ -438,8 +438,8 @@ importers:
   packages/pg-js:
     dependencies:
       '@e4a/pg-wasm':
-        specifier: ^0.6.1
-        version: 0.6.1
+        specifier: ^0.6.5
+        version: 0.6.5
       '@privacybydesign/yivi-client':
         specifier: ^1.0.0
         version: 1.0.1(@privacybydesign/yivi-core@1.0.0)
@@ -1293,6 +1293,9 @@ packages:
 
   '@e4a/pg-wasm@0.6.1':
     resolution: {integrity: sha512-JghjNQlUNAoD6rNjKxfGqE+Qu6yXNjq2VCZSY0hUl0q76csZnGbGQmutzc3WOFXTOjcKuzzrl89hN/ndxvMLsQ==}
+
+  '@e4a/pg-wasm@0.6.5':
+    resolution: {integrity: sha512-JJPNmBBPYfGOx+XjIZa4aV0ouHA8oTp9m64EzfBeUjoGCsDEqT6EPy+Zq6PLxpBpoUjM7ySRvwoMBsJgkQyXWw==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -8734,7 +8737,7 @@ snapshots:
 
   '@e4a/pg-js@1.11.0':
     dependencies:
-      '@e4a/pg-wasm': 0.6.1
+      '@e4a/pg-wasm': 0.6.5
       '@privacybydesign/yivi-client': 1.0.1(@privacybydesign/yivi-core@1.0.0)
       '@privacybydesign/yivi-core': 1.0.0
       '@privacybydesign/yivi-css': 1.0.1
@@ -8743,7 +8746,7 @@ snapshots:
 
   '@e4a/pg-js@2.3.4':
     dependencies:
-      '@e4a/pg-wasm': 0.6.1
+      '@e4a/pg-wasm': 0.6.5
       '@privacybydesign/yivi-client': 1.0.1(@privacybydesign/yivi-core@1.0.0)
       '@privacybydesign/yivi-core': 1.0.0
       '@privacybydesign/yivi-css': 1.0.1
@@ -8753,6 +8756,8 @@ snapshots:
   '@e4a/pg-wasm@0.5.10': {}
 
   '@e4a/pg-wasm@0.6.1': {}
+
+  '@e4a/pg-wasm@0.6.5': {}
 
   '@emnapi/core@1.11.1':
     dependencies:

@@ -205,6 +205,7 @@ interface ExtractCiphertextOptions {
 }
 
 interface FileState {
+    challenge?: string;
     prevToken?: string;
     recoveryToken: string;
     token: string;

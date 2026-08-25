@@ -44,7 +44,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@e4a/pg-wasm": "^0.6.1",
+    "@e4a/pg-wasm": "^0.6.5",
     "@privacybydesign/yivi-client": "^1.0.0",
     "@privacybydesign/yivi-core": "^1.0.0",
     "@privacybydesign/yivi-css": "^1.0.1",
