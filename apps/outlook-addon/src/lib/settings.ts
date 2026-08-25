@@ -3,8 +3,8 @@
 // place stops the two readers from drifting (taskpane writes, launchevent
 // reads).
 
-import { getSetting, setSetting } from "./storage";
-import { AttributeRequest } from "./types";
+import { getSetting, setSetting } from "./storage.ts";
+import type { AttributeRequest } from "./types.ts";
 
 // When true, the launchevent skips Office's "PostGuard wants to open a
 // dialog" confirmation and tries to open the Yivi dialog directly. Only
