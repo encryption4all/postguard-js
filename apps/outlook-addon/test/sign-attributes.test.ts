@@ -6,10 +6,10 @@
 // unchallenged — so these assertions are all that stands between a refactor and
 // the reported bug returning silently.
 //
-// Every case drives state through setSignPrefills: it is both the path the
-// Settings view uses and the only thing that refreshes settings.ts's
-// module-level prefill cache, so seeding the store behind the Office stub
-// instead would leave buildSignAttributes reading a stale value.
+// Every case drives state through setSignPrefills: it is the path the Settings
+// view uses, and once it has run, the module-level prefill cache in settings.ts
+// shadows the store, so seeding that store behind the Office stub would not be
+// read back. Only a read before the first write goes through to storage.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -110,11 +110,12 @@ test("every prefill type appears exactly once, whatever the prefill state", asyn
   }
 });
 
-// This pins the first of two layers. setSignPrefills trims and drops, so
-// whitespace never reaches storage; buildSignAttributes trims again, but that
-// only guards a value that arrived in roamingSettings without passing through
-// setSignPrefills, and reaching it means seeding the store directly, which the
-// stale cache rules out.
+// This pins the setSignPrefills layer, which trims and drops, so whitespace
+// never reaches storage. buildSignAttributes trims again, guarding a value that
+// reached roamingSettings without passing through setSignPrefills — a legacy
+// persisted value read by the launchevent, whose runtime starts with an empty
+// cache. Pinning that layer needs its own file: seed the store before the first
+// read, or the cache this file's setSignPrefills calls populate shadows it.
 test("a whitespace-only prefill is not a value", async () => {
   await setSignPrefills({ [SIGN_PREFILL_FULLNAME]: "   " });
 
