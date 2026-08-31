@@ -29,7 +29,9 @@ const mode = process.argv.includes('--upload-only') ? 'upload-only' : 'send-emai
 
 console.log(`pg-node example — mode: ${mode}`);
 console.log(`  PKG:      ${PKG_URL}`);
-console.log(`  Cryptify: ${CRYPTIFY_URL}${IS_CRYPTIFY_STAGING ? '  (staging — no mails actually sent)' : ''}`);
+console.log(
+  `  Cryptify: ${CRYPTIFY_URL}${IS_CRYPTIFY_STAGING ? '  (staging — no mails actually sent)' : ''}`
+);
 console.log(`  Citizen:      ${CITIZEN_EMAIL}`);
 console.log(`  Organisation: ${ORGANISATION_EMAIL}`);
 console.log('');
@@ -79,7 +81,9 @@ console.log(`Download: ${DOWNLOAD_URL}/download?uuid=${uuid}`);
 
 if (mode === 'send-email' && IS_CRYPTIFY_STAGING) {
   console.log('');
-  console.log('Note: staging Cryptify does not actually deliver mails. Open the URL above to test decrypt.');
+  console.log(
+    'Note: staging Cryptify does not actually deliver mails. Open the URL above to test decrypt.'
+  );
 }
 
 /** Read each path in PG_INPUT_FILES as a File. If empty, return two demo files. */
@@ -92,7 +96,11 @@ async function loadFiles() {
         { type: 'text/plain' }
       ),
       new File(
-        [new TextEncoder().encode('Confidential notes — only the intended recipient can read this.\n')],
+        [
+          new TextEncoder().encode(
+            'Confidential notes — only the intended recipient can read this.\n'
+          ),
+        ],
         'notes.txt',
         { type: 'text/plain' }
       ),

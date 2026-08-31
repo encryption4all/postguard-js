@@ -8,10 +8,10 @@ Node.js example demonstrating how to use the [@e4a/pg-js](https://www.npmjs.com/
 
 Two modes, selected by the script you run:
 
-| Mode        | Command          | What it does                                                                                                                                              |
-| ----------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mode        | Command                        | What it does                                                                                                                                             |
+| ----------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Send        | `pnpm --filter pg-node send`   | Encrypts the input files for a citizen (exact email) and an organisation (email domain), uploads to Cryptify, and asks Cryptify to email each recipient. |
-| Upload-only | `pnpm --filter pg-node upload` | Same encryption and upload, but silent. Cryptify returns a UUID you can distribute through some other channel.                                            |
+| Upload-only | `pnpm --filter pg-node upload` | Same encryption and upload, but silent. Cryptify returns a UUID you can distribute through some other channel.                                           |
 
 Files come from `PG_INPUT_FILES` (comma-separated paths), or two in-memory demo files if that is unset.
 
@@ -48,16 +48,16 @@ The default `PG_CRYPTIFY_URL` is `storage.staging.postguard.eu`, the staging dep
 
 ## Configuration
 
-| Variable                | Description                                           | Default                                                                            |
-| ----------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `PG_API_KEY`            | PostGuard for Business API key (`PG-…`)               | *(required)*                                                                       |
-| `PG_PKG_URL`            | PostGuard PKG server URL                              | `https://pkg.staging.postguard.eu`                                                 |
-| `PG_CRYPTIFY_URL`       | Cryptify file-sharing URL                             | `https://storage.staging.postguard.eu`                                             |
-| `PG_DOWNLOAD_URL`       | PostGuard website used in `/download` URLs            | `https://staging.postguard.eu` on staging Cryptify, else `https://postguard.eu`    |
-| `PG_CITIZEN_EMAIL`      | Citizen recipient (exact email match)                 | `citizen@example.com`                                                              |
-| `PG_ORGANISATION_EMAIL` | Organisation recipient (matches by domain)            | `noreply@example.org`                                                              |
-| `PG_MESSAGE`            | Optional unencrypted body for Cryptify's notify mail  | *(empty)*                                                                          |
-| `PG_INPUT_FILES`        | Comma-separated file paths to encrypt                 | two in-memory demo files                                                           |
+| Variable                | Description                                          | Default                                                                         |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `PG_API_KEY`            | PostGuard for Business API key (`PG-…`)              | _(required)_                                                                    |
+| `PG_PKG_URL`            | PostGuard PKG server URL                             | `https://pkg.staging.postguard.eu`                                              |
+| `PG_CRYPTIFY_URL`       | Cryptify file-sharing URL                            | `https://storage.staging.postguard.eu`                                          |
+| `PG_DOWNLOAD_URL`       | PostGuard website used in `/download` URLs           | `https://staging.postguard.eu` on staging Cryptify, else `https://postguard.eu` |
+| `PG_CITIZEN_EMAIL`      | Citizen recipient (exact email match)                | `citizen@example.com`                                                           |
+| `PG_ORGANISATION_EMAIL` | Organisation recipient (matches by domain)           | `noreply@example.org`                                                           |
+| `PG_MESSAGE`            | Optional unencrypted body for Cryptify's notify mail | _(empty)_                                                                       |
+| `PG_INPUT_FILES`        | Comma-separated file paths to encrypt                | two in-memory demo files                                                        |
 
 ## How it maps to the SDK
 
@@ -77,6 +77,6 @@ const { uuid } = await sealed.upload({ notify: { recipients: true, message, lang
 `notify` must be nested under an object, and **nothing checks that at runtime** — `{ notify: true }` fails silently and is worse than omitting `notify` altogether:
 
 - reading `.recipients` off the boolean `true` yields `undefined`, so `false` goes on the wire and no mail is sent;
-- and because `notify` *is* defined, the SDK's silent-upload notice does not fire either, so there is no warning.
+- and because `notify` _is_ defined, the SDK's silent-upload notice does not fire either, so there is no warning.
 
 There was once a runtime validator, but it hand-maintained an allowlist of upload keys and rejected valid options when the types moved ahead of it; `packages/pg-js/tests/postguard.test.ts` pins its removal. Passing `{ notify: { recipients: false } }` when you mean silence is the way to be explicit. See the [SDK README](https://github.com/encryption4all/postguard-js#server-side-usage-node-bun-deno) for the full server-side surface.
