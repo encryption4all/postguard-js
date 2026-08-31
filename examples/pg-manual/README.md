@@ -2,17 +2,16 @@
 
 > Part of the `postguard-js` pnpm workspace. Run `pnpm install` **once from the repository root** — `npm install` here will not work, because the per-project `package-lock.json` is gone and this example relies on pnpm's layout rather than npm's flat hoisting (see the `resolve.modules` note in `examples/CLAUDE.md`). Unlike `pg-node` and `pg-sveltekit`, this example consumes `@e4a/pg-wasm` from the registry, not the workspace `@e4a/pg-js`. The commands below are written to run from the repo root.
 
-
 Browser example that drives PostGuard encryption and decryption directly through the low-level [`@e4a/pg-wasm`](https://www.npmjs.com/package/@e4a/pg-wasm) library. Where [pg-sveltekit](../pg-sveltekit) and [pg-node](../pg-node) use the high-level [`@e4a/pg-js`](https://www.npmjs.com/package/@e4a/pg-js) SDK, pg-manual calls `seal`, `Unsealer`, `sealStream`, and `StreamUnsealer` itself and builds the policies, signing requests, and key fetches by hand. It is the only sub-project that talks to the WASM module and the PKG directly, so it is the one to read when you need policy-level control that the SDK does not expose.
 
 ## What it demonstrates
 
 Two entry points, each a separate page:
 
-| Page          | Source                                       | What it does                                                                                       |
-| ------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `string.html` | [examples/string.js](./examples/string.js)   | Encrypts a text field in memory with `seal`, then decrypts it back with `Unsealer`.                |
-| `file.html`   | [examples/file.js](./examples/file.js)       | Encrypts and decrypts a file as a stream with `sealStream` / `StreamUnsealer`, writing the result to disk via [streamsaver](https://www.npmjs.com/package/streamsaver). |
+| Page          | Source                                     | What it does                                                                                                                                                            |
+| ------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string.html` | [examples/string.js](./examples/string.js) | Encrypts a text field in memory with `seal`, then decrypts it back with `Unsealer`.                                                                                     |
+| `file.html`   | [examples/file.js](./examples/file.js)     | Encrypts and decrypts a file as a stream with `sealStream` / `StreamUnsealer`, writing the result to disk via [streamsaver](https://www.npmjs.com/package/streamsaver). |
 
 Both flows sign the ciphertext with a public policy (visible to everyone) and a private policy (visible only to recipients), encrypt for a recipient identified by an email attribute, and then fetch a user decryption key to read it back.
 

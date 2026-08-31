@@ -9,9 +9,9 @@
 // Keep this list in step with what the examples destructure. A new name goes in
 // both places below: webpack elides an unreferenced import, so adding one to the
 // import alone probes nothing and leaves the check passing.
-import { seal, sealStream, Unsealer, StreamUnsealer } from '@e4a/pg-wasm'
+import { seal, sealStream, Unsealer, StreamUnsealer } from '@e4a/pg-wasm';
 
 // Referencing the bindings keeps them from being elided before the check runs.
 for (const [name, binding] of Object.entries({ seal, sealStream, Unsealer, StreamUnsealer })) {
-    if (binding === undefined) throw new Error(`@e4a/pg-wasm no longer exports ${name}`)
+  if (binding === undefined) throw new Error(`@e4a/pg-wasm no longer exports ${name}`);
 }
