@@ -293,7 +293,8 @@
                 "invalidEmail": "The email address {email} is not valid. Please check it for typos.",
                 "missingAttribute": "{attribute} of {email} is missing",
                 "invalidPhone": "The phone number of {email} is not valid",
-            "limitsUnavailable": "The upload limits could not be loaded, so sending is not possible right now"
+                "limitsUnavailable": "The upload limits could not be loaded, so sending is not possible right now",
+                "limitsLoading": "The upload limits are still being checked, so sending is not possible yet"
             },
             "usage": {
                 "warningTitle": "You're approaching your 2-week upload limit",
@@ -304,8 +305,8 @@
                 "blockedBody": "You have reached your {limit} GB upload limit for this 2-week period. Your limit resets on {resets}.",
                 "serverBlockedTitle": "Upload rejected by server",
                 "serverBlocked": "The server rejected this upload because you have used {used} GB of your {limit} GB 2-week limit. Your limit resets on {resets}.",
-            "limitsUnavailableTitle": "Upload limits unavailable",
-            "limitsUnavailableBody": "We could not reach the file server to look up your upload limits, so sending is unavailable. Check your connection and reload the page."
+                "limitsUnavailableTitle": "Upload limits unavailable",
+                "limitsUnavailableBody": "We could not reach the file server to look up your upload limits, so sending is unavailable. Check your connection and reload the page."
             },
             "yiviInterrupted": {
                 "title": "Yivi verification was interrupted",

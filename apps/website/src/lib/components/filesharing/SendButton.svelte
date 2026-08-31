@@ -195,8 +195,14 @@
         const totalSize = encryptState.files.reduce((a, f) => a + f.size, 0)
         const limitsState = $uploadLimits
         if (!limitsKnown(limitsState)) {
+            // 'loading' and 'failed' both block the send, but only one of them
+            // is a failure: on a slow connection the fetch is still in flight.
             errors.push(
-                $_('filesharing.encryptPanel.validation.limitsUnavailable')
+                $_(
+                    limitsState.status === 'loading'
+                        ? 'filesharing.encryptPanel.validation.limitsLoading'
+                        : 'filesharing.encryptPanel.validation.limitsUnavailable'
+                )
             )
         } else {
             const effectiveLimit = effectiveLimitBytes(
