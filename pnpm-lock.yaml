@@ -340,6 +340,9 @@ importers:
       https-browserify:
         specifier: ^1.0.0
         version: 1.0.0
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
       process:
         specifier: ^0.11.10
         version: 0.11.10
@@ -373,6 +376,10 @@ importers:
       '@e4a/pg-js':
         specifier: workspace:*
         version: link:../../packages/pg-js
+    devDependencies:
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
 
   examples/pg-sveltekit:
     dependencies:
@@ -459,6 +466,9 @@ importers:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
+      lint-staged:
+        specifier: ^17.0.5
+        version: 17.2.0
       pg-js-legacy-armor:
         specifier: npm:@e4a/pg-js@0.10.0
         version: '@e4a/pg-js@0.10.0'
@@ -468,6 +478,9 @@ importers:
       pg-js-reader-v2:
         specifier: npm:@e4a/pg-js@2.3.4
         version: '@e4a/pg-js@2.3.4'
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
       tsdown:
         specifier: ^0.22.0
         version: 0.22.14(typescript@6.0.3)

@@ -1,3 +1,8 @@
+# Redundant for git — the root .gitignore already covers dist/ — but load-bearing
+# for prettier, which reads .gitignore relative to its own cwd and would otherwise
+# reformat the built bundles.
+dist/
+
 src/util/wasm-binary.ts
 src/util/pg-wasm-shim.js
 src/util/version.ts
