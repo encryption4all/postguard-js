@@ -291,7 +291,8 @@
                 "noEmail": "Je hebt nog geen e-mailadres voor een ontvanger ingevuld",
                 "invalidEmail": "Het e-mailadres {email} is niet geldig. Controleer het op typefouten.",
                 "missingAttribute": "{attribute} van {email} ontbreekt",
-                "invalidPhone": "Het telefoonnummer van {email} is niet geldig"
+                "invalidPhone": "Het telefoonnummer van {email} is niet geldig",
+            "limitsUnavailable": "De uploadlimieten konden niet worden opgehaald, dus versturen is nu niet mogelijk"
             },
             "usage": {
                 "warningTitle": "Je nadert je 2-weken uploadlimiet",
@@ -301,7 +302,9 @@
                 "blockedTitle": "Uploadlimiet bereikt",
                 "blockedBody": "Je hebt je {limit} GB-uploadlimiet voor deze 2-weken periode bereikt. De limiet reset op {resets}.",
                 "serverBlockedTitle": "Upload geweigerd door de server",
-                "serverBlocked": "De server weigerde deze upload omdat je {used} GB van je {limit} GB-limiet (2 weken) hebt gebruikt. De limiet reset op {resets}."
+                "serverBlocked": "De server weigerde deze upload omdat je {used} GB van je {limit} GB-limiet (2 weken) hebt gebruikt. De limiet reset op {resets}.",
+            "limitsUnavailableTitle": "Uploadlimieten niet beschikbaar",
+            "limitsUnavailableBody": "We konden de bestandsserver niet bereiken om je uploadlimieten op te halen, dus versturen is niet mogelijk. Controleer je verbinding en herlaad de pagina."
             },
             "yiviInterrupted": {
                 "title": "Yivi-verificatie is onderbroken",

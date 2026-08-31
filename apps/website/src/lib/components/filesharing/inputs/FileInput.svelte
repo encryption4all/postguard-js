@@ -29,10 +29,8 @@
         initialFiles?: File[]
     }
 
-    import { MAX_UPLOAD_SIZE, ROLLING_LIMIT } from '$lib/env'
+    import { effectiveLimitBytes, limitsKnown, uploadLimits } from '$lib/limits'
     import { getLocalUsedBytes } from '$lib/localUsage'
-
-    let maxFileSizeMB = MAX_UPLOAD_SIZE / (1024 * 1024)
 
     let {
         files = $bindable(),
@@ -62,19 +60,41 @@
         }
     })
 
+    // `null` until cryptify has served its limits: with no limits there is no
+    // cap to show or enforce, so the size line is hidden and SendButton keeps
+    // the send disabled. See $lib/limits for why nothing falls back here.
+    let limits = $derived(
+        limitsKnown($uploadLimits) ? $uploadLimits.limits : null
+    )
     let totalSize = $derived(files.reduce((acc, file) => acc + file.size, 0))
-    let usedBytes = $derived(getLocalUsedBytes())
+    let usedBytes = $derived(limits ? getLocalUsedBytes(limits.windowMs) : 0)
     let effectiveLimit = $derived(
-        Math.min(MAX_UPLOAD_SIZE, ROLLING_LIMIT - usedBytes)
+        limits ? effectiveLimitBytes(limits, usedBytes) : null
     )
-    let remainingSize = $derived(effectiveLimit - totalSize)
-    let remainingSizeGB = $derived(
-        (Math.max(0, remainingSize) / 1e9).toFixed(2)
+    let overLimit = $derived(
+        effectiveLimit !== null && totalSize > effectiveLimit
     )
-    let effectiveLimitGB = $derived(
-        (Math.max(0, effectiveLimit) / 1e9).toFixed(1)
-    )
-    let overLimit = $derived(totalSize > effectiveLimit)
+
+    /** Decimal GB, matching the file sizes Dropzone shows (`filesizeBase: 1000`)
+     *  and the decimal bytes cryptify serves. */
+    function gb(bytes: number, digits: number): string {
+        return (bytes / 1e9).toFixed(digits)
+    }
+
+    // Dropzone measures maxFilesize in MiB (it compares against
+    // `maxFilesize * 1048576`), while every size we display is decimal, so the
+    // conversion happens only here and the cap it enforces stays exactly the
+    // byte figure cryptify served.
+    $effect(() => {
+        // Both reads happen before the guard so the effect depends on them and
+        // re-runs when the limits land after Dropzone is already up.
+        const maxFilesize = limits
+            ? limits.perUploadBytes / (1024 * 1024)
+            : undefined
+        if (dropzoneReady && myDropzone) {
+            myDropzone.options.maxFilesize = maxFilesize
+        }
+    })
 
     const previewTemplate = `
         <div class="dz-preview dz-file-preview files">
@@ -95,7 +115,10 @@
         myDropzone = new Dropzone('#my-form', {
             url: '#', // Dummy URL, can't be empty
             autoProcessQueue: false, // Prevent automatic upload
-            maxFilesize: maxFileSizeMB,
+            // Set by the effect below once the limits arrive; undefined until
+            // then, which switches Dropzone's own size check off rather than
+            // letting its 256 MiB default stand in for cryptify's cap.
+            maxFilesize: undefined,
             filesizeBase: 1000,
             dictFileSizeUnits: {
                 tb: 'TB',
@@ -203,11 +226,15 @@
                         'filesharing.encryptPanel.fileBox.chooseFilesButton'
                     )}</button
                 >
-                <p class="max-size-text">
-                    {$_('filesharing.encryptPanel.fileBox.maxSizeText', {
-                        values: { max: effectiveLimitGB },
-                    })}
-                </p>
+                {#if effectiveLimit !== null}
+                    <p class="max-size-text">
+                        {$_('filesharing.encryptPanel.fileBox.maxSizeText', {
+                            values: {
+                                max: gb(Math.max(0, effectiveLimit), 1),
+                            },
+                        })}
+                    </p>
+                {/if}
             </div>
 
             {#if isDragging}
@@ -247,32 +274,40 @@
                     class:error={stage === EncryptionState.Error}
                 ></div>
 
-                <div class="file-summary" class:over-limit={overLimit}>
-                    <p>
-                        {#if overLimit}
-                            {$_(
-                                'filesharing.encryptPanel.fileBox.overLimitText',
-                                {
-                                    values: {
-                                        over: (
-                                            (totalSize - effectiveLimit) /
-                                            1024 ** 3
-                                        ).toFixed(2),
-                                    },
-                                }
-                            )}
-                        {:else}
-                            {$_(
-                                'filesharing.encryptPanel.fileBox.fileSummary',
-                                {
-                                    values: {
-                                        size: remainingSizeGB,
-                                    },
-                                }
-                            )}
-                        {/if}
-                    </p>
-                </div>
+                {#if effectiveLimit !== null}
+                    <div class="file-summary" class:over-limit={overLimit}>
+                        <p>
+                            {#if overLimit}
+                                {$_(
+                                    'filesharing.encryptPanel.fileBox.overLimitText',
+                                    {
+                                        values: {
+                                            over: gb(
+                                                totalSize - effectiveLimit,
+                                                2
+                                            ),
+                                        },
+                                    }
+                                )}
+                            {:else}
+                                {$_(
+                                    'filesharing.encryptPanel.fileBox.fileSummary',
+                                    {
+                                        values: {
+                                            size: gb(
+                                                Math.max(
+                                                    0,
+                                                    effectiveLimit - totalSize
+                                                ),
+                                                2
+                                            ),
+                                        },
+                                    }
+                                )}
+                            {/if}
+                        </p>
+                    </div>
+                {/if}
 
                 {#if stage !== EncryptionState.Encrypting}
                     <div class="add-more-chip-container">

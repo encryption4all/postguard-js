@@ -8,8 +8,6 @@ function requireEnv(name: string): string {
 
 export const FILEHOST_URL = requireEnv('VITE_FILEHOST_URL')
 export const PKG_URL = '/pkg'
-export const MAX_UPLOAD_SIZE = Number(requireEnv('VITE_MAX_UPLOAD_SIZE'))
-export const ROLLING_LIMIT = Number(requireEnv('VITE_ROLLING_LIMIT'))
 export const APP_NAME = requireEnv('VITE_APP_NAME')
 export const APP_VERSION = requireEnv('VITE_APP_VERSION')
 

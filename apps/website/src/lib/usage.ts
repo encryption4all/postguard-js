@@ -1,8 +1,7 @@
-import { ROLLING_LIMIT } from '$lib/env'
-
 /**
  * Response shape of `GET /usage?email=...` on the cryptify backend (see encryption4all/cryptify#100).
- * `limit_bytes` is authoritative — the frontend falls back to `ROLLING_LIMIT` when the call fails.
+ * `limit_bytes` is authoritative and per-email; `GET /limits` (see $lib/limits)
+ * serves the default tier's numbers, which is what this falls back to.
  */
 export type UsageResponse = {
     email: string
@@ -39,10 +38,15 @@ export function classifyUsage(u: UsageResponse): UsageStatus {
 
 /**
  * Parse a cryptify 413 "limit exceeded" response body into a UsageStatus when possible.
- * Falls back to a synthetic "blocked at `ROLLING_LIMIT`" status so the UI can still show
- * a clear message if the server doesn't return a structured body.
+ * Falls back to a synthetic "blocked at `rollingLimitBytes`" status so the UI can still
+ * show a clear message if the server doesn't return a structured body. Pass the fetched
+ * rolling limit, or 0 if it somehow isn't known — a 413 means the server already blocked
+ * the upload, so `blocked: true` stands either way.
  */
-export function parseLimitExceededBody(body: string): UsageStatus {
+export function parseLimitExceededBody(
+    body: string,
+    rollingLimitBytes: number
+): UsageStatus {
     try {
         const parsed = JSON.parse(body) as Partial<UsageResponse>
         if (
@@ -55,8 +59,8 @@ export function parseLimitExceededBody(body: string): UsageStatus {
         // fall through
     }
     return {
-        usedBytes: ROLLING_LIMIT,
-        limitBytes: ROLLING_LIMIT,
+        usedBytes: rollingLimitBytes,
+        limitBytes: rollingLimitBytes,
         remainingBytes: 0,
         resetsAt: null,
         warn: true,

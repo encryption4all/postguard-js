@@ -12,7 +12,8 @@
     import ErrorPanel from '$lib/components/filesharing/Error.svelte'
     import Done from '$lib/components/filesharing/Done.svelte'
     import CrashReport from '$lib/components/filesharing/CrashReport.svelte'
-    import { SITE_URL } from '$lib/env'
+    import { FILEHOST_URL, SITE_URL } from '$lib/env'
+    import { uploadLimits } from '$lib/limits'
     import { afterNavigate } from '$app/navigation'
     import { onMount, tick } from 'svelte'
     import {
@@ -72,6 +73,12 @@
     let metaSaveTimer: ReturnType<typeof setTimeout> | undefined
 
     onMount(async () => {
+        // The compose screen validates against cryptify's upload limits, so
+        // fetch them before the user has picked anything. Until they arrive
+        // (or if they never do) the send button stays disabled — see
+        // $lib/limits.
+        void uploadLimits.load(FILEHOST_URL)
+
         const draft = await loadDraft()
         if (
             draft &&

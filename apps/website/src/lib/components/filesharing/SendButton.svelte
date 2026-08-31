@@ -30,7 +30,7 @@
     import HelpToggle from '../HelpToggle.svelte'
     import Chip from '../Chip.svelte'
 
-    import { MAX_UPLOAD_SIZE, ROLLING_LIMIT } from '$lib/env'
+    import { effectiveLimitBytes, limitsKnown, uploadLimits } from '$lib/limits'
     import { parseLimitExceededBody, bytesToGB } from '$lib/usage'
     import { recordUpload, getLocalUsedBytes } from '$lib/localUsage'
     import { SIGN_ATTRIBUTES } from './signAttributes'
@@ -80,9 +80,14 @@
     let SMOOTH_TIME = 2
 
     let canEncrypt = $derived.by(() => {
+        // Fail closed: with cryptify's limits unknown we have no cap to check
+        // the attachments against, and the same host the limits come from is
+        // the one the upload needs. See $lib/limits.
+        const limitsState = $uploadLimits
+        if (!limitsKnown(limitsState)) return false
         if (encryptState.files.length === 0) return false
         const totalSize = encryptState.files.reduce((a, f) => a + f.size, 0)
-        if (totalSize >= MAX_UPLOAD_SIZE) return false
+        if (totalSize >= limitsState.limits.perUploadBytes) return false
         if (
             !encryptState.recipients.every(({ email }) =>
                 validator.isEmail(email.trim())
@@ -188,17 +193,24 @@
             errors.push($_('filesharing.encryptPanel.validation.noFiles'))
         }
         const totalSize = encryptState.files.reduce((a, f) => a + f.size, 0)
-        const effectiveLimit = Math.min(
-            MAX_UPLOAD_SIZE,
-            ROLLING_LIMIT - getLocalUsedBytes()
-        )
-        if (totalSize > effectiveLimit) {
-            const over = ((totalSize - effectiveLimit) / 1024 ** 3).toFixed(2)
+        const limitsState = $uploadLimits
+        if (!limitsKnown(limitsState)) {
             errors.push(
-                $_('filesharing.encryptPanel.fileBox.overLimitText', {
-                    values: { over },
-                })
+                $_('filesharing.encryptPanel.validation.limitsUnavailable')
             )
+        } else {
+            const effectiveLimit = effectiveLimitBytes(
+                limitsState.limits,
+                getLocalUsedBytes(limitsState.limits.windowMs)
+            )
+            if (totalSize > effectiveLimit) {
+                const over = ((totalSize - effectiveLimit) / 1e9).toFixed(2)
+                errors.push(
+                    $_('filesharing.encryptPanel.fileBox.overLimitText', {
+                        values: { over },
+                    })
+                )
+            }
         }
         encryptState.recipients.forEach(({ email, extra }) => {
             if (!email || email.trim() === '') {
@@ -337,7 +349,10 @@
                 (a, f) => a + f.size,
                 0
             )
-            recordUpload(totalBytes)
+            const limitsState = $uploadLimits
+            if (limitsKnown(limitsState)) {
+                recordUpload(totalBytes, limitsState.limits.windowMs)
+            }
 
             retryStatus.set(null)
             encryptState.encryptionState = EncryptionState.Done
@@ -370,7 +385,13 @@
                 encryptState.encryptionState = EncryptionState.Error
             } else if (e instanceof NetworkError && e.status === 413) {
                 // cryptify#100: 413 Payload Too Large — either per-upload or rolling limit.
-                const status = parseLimitExceededBody(e.body ?? '')
+                const limitsState = $uploadLimits
+                const status = parseLimitExceededBody(
+                    e.body ?? '',
+                    limitsKnown(limitsState)
+                        ? limitsState.limits.rollingBytes
+                        : 0
+                )
                 const resetsAt = status.resetsAt
                     ? status.resetsAt.toLocaleDateString(
                           $locale === 'nl-NL' ? 'nl-NL' : 'en-US',
@@ -532,6 +553,16 @@
         >{scanQrParts[1]}{:else}{$_('filesharing.sign.scanQR')}{/if}{/snippet}
 
 <div class="button-container">
+    {#if $uploadLimits.status === 'failed'}
+        <div class="limits-unavailable-banner" role="alert">
+            <p class="limits-unavailable-title">
+                {$_('filesharing.encryptPanel.usage.limitsUnavailableTitle')}
+            </p>
+            <p class="limits-unavailable-body">
+                {$_('filesharing.encryptPanel.usage.limitsUnavailableBody')}
+            </p>
+        </div>
+    {/if}
     {#if limitExceededMessage}
         <div class="limit-exceeded-banner" role="alert">
             <p class="limit-exceeded-title">
@@ -992,10 +1023,11 @@
         display: inline-block;
     }
 
-    .limit-exceeded-banner {
+    .limit-exceeded-banner,
+    .limits-unavailable-banner {
         position: relative;
         width: 100%;
-        padding: 0.75rem 2.5rem 0.75rem 1rem;
+        padding: 0.75rem 1rem;
         margin: 0.5rem 0;
         border-radius: var(--pg-border-radius-md);
         background: color-mix(
@@ -1007,14 +1039,21 @@
         box-sizing: border-box;
     }
 
-    .limit-exceeded-title {
+    /* Room for the dismiss button, which only this banner has. */
+    .limit-exceeded-banner {
+        padding-right: 2.5rem;
+    }
+
+    .limit-exceeded-title,
+    .limits-unavailable-title {
         margin: 0 0 0.25rem 0;
         font-weight: var(--pg-font-weight-bold);
         font-size: var(--pg-font-size-sm);
         color: var(--pg-input-error);
     }
 
-    .limit-exceeded-body {
+    .limit-exceeded-body,
+    .limits-unavailable-body {
         margin: 0;
         font-size: var(--pg-font-size-sm);
         color: var(--pg-text-secondary);

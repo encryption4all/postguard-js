@@ -45,8 +45,26 @@ async function mockYiviSession(page: Page, state: { cancel: boolean }) {
     return { startCalls: () => startCalls }
 }
 
+// The compose screen will not enable the send button until it knows cryptify's
+// upload limits, and there is no cryptify behind the preview server, so serve
+// them here.
+async function mockUploadLimits(page: Page) {
+    await page.route('**/limits', (route) =>
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                per_upload_limit_bytes: 4_000_000_000,
+                rolling_limit_bytes: 9_000_000_000,
+                window_days: 14,
+            }),
+        })
+    )
+}
+
 /** Fill in a valid compose form (one file + one recipient) and open the QR. */
 async function composeAndOpenDisclosure(page: Page) {
+    await mockUploadLimits(page)
     await page.goto('/fileshare/', { waitUntil: 'networkidle' })
     // Dropzone's hidden file input lives on <body>, not inside the form.
     await page.locator('input.dz-hidden-input').setInputFiles({
