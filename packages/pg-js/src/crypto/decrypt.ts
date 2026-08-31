@@ -67,19 +67,20 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
       uuid,
       retry,
       signal,
-      headers,
+      headers
     );
     readable = fileStream;
     pipe = streamPipe;
   } else if (data) {
-    readable = data instanceof ReadableStream
-      ? data
-      : new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(data);
-            controller.close();
-          },
-        });
+    readable =
+      data instanceof ReadableStream
+        ? data
+        : new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(data);
+              controller.close();
+            },
+          });
     vkPromise = fetchVerificationKey(pkgUrl, headers);
   } else {
     throw new DecryptionError('Either uuid or data must be provided.');
@@ -153,7 +154,7 @@ export async function unsealAndCollect(
   unsealer: any,
   key: string,
   usk: unknown,
-  preUnsealSender: SenderIdentity | null,
+  preUnsealSender: SenderIdentity | null
 ): Promise<{ chunks: Uint8Array[]; sender: SenderIdentity | null }> {
   const chunks: Uint8Array[] = [];
   const writable = new WritableStream<Uint8Array>({

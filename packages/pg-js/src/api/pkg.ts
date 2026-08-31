@@ -17,7 +17,10 @@ export async function fetchMPK(pkgUrl: string, headers?: HeadersInit): Promise<u
 }
 
 /** Fetch the verification key for signature verification (used in decryption) */
-export async function fetchVerificationKey(pkgUrl: string, headers?: HeadersInit): Promise<unknown> {
+export async function fetchVerificationKey(
+  pkgUrl: string,
+  headers?: HeadersInit
+): Promise<unknown> {
   const response = await fetch(`${pkgUrl}/v2/sign/parameters`, {
     headers: headers ? new Headers(headers) : undefined,
   });
@@ -43,10 +46,12 @@ export async function fetchSigningKeysWithApiKey(
 ): Promise<SigningKeys> {
   const response = await fetch(`${pkgUrl}/v2/irma/sign/key`, {
     method: 'POST',
-    headers: new Headers(mergeHeaders(headers, {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    })),
+    headers: new Headers(
+      mergeHeaders(headers, {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      })
+    ),
     body: JSON.stringify({
       pubSignId: [{ t: (emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES).email }],
     }),
@@ -67,9 +72,11 @@ export async function startSession(
 ): Promise<SessionStartResult> {
   const response = await fetch(`${pkgUrl}/v2/request/start`, {
     method: 'POST',
-    headers: new Headers(mergeHeaders(headers, {
-      'Content-Type': 'application/json',
-    })),
+    headers: new Headers(
+      mergeHeaders(headers, {
+        'Content-Type': 'application/json',
+      })
+    ),
     body: JSON.stringify({ con, sort }),
   });
   if (!response.ok) {
@@ -103,9 +110,11 @@ export async function getUSK(
   headers?: HeadersInit
 ): Promise<unknown> {
   const response = await fetch(`${pkgUrl}/v2/irma/key/${timestamp}`, {
-    headers: new Headers(mergeHeaders(headers, {
-      Authorization: `Bearer ${jwt}`,
-    })),
+    headers: new Headers(
+      mergeHeaders(headers, {
+        Authorization: `Bearer ${jwt}`,
+      })
+    ),
   });
   if (!response.ok) {
     const body = await response.text();
@@ -127,10 +136,12 @@ export async function getSigningKeysWithJwt(
 ): Promise<SigningKeys> {
   const response = await fetch(`${pkgUrl}/v2/irma/sign/key`, {
     method: 'POST',
-    headers: new Headers(mergeHeaders(headers, {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${jwt}`,
-    })),
+    headers: new Headers(
+      mergeHeaders(headers, {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${jwt}`,
+      })
+    ),
     body: JSON.stringify(keyRequest),
   });
   if (!response.ok) {

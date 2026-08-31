@@ -43,11 +43,11 @@ polyfills required.
 
 **Minimum runtime versions**:
 
-| Runtime | Minimum | Notes                                                                                       |
-| ------- | ------- | ------------------------------------------------------------------------------------------- |
+| Runtime | Minimum | Notes                                                                                             |
+| ------- | ------- | ------------------------------------------------------------------------------------------------- |
 | Node    | 22+     | Enforced via `engines.node`. The build tool requires Node 22.18+; runtime is tested on 22 and 24. |
-| Bun     | 1.0.16+ | First release with `AbortSignal.any` (the SDK's tightest web-API requirement)               |
-| Deno    | 1.39+   | First release with `AbortSignal.any`                                                        |
+| Bun     | 1.0.16+ | First release with `AbortSignal.any` (the SDK's tightest web-API requirement)                     |
+| Deno    | 1.39+   | First release with `AbortSignal.any`                                                              |
 
 Other notes:
 

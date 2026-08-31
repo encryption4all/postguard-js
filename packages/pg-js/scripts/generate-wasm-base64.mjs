@@ -79,6 +79,4 @@ writeFileSync(
     patched
 );
 
-console.log(
-  `Generated pg-wasm-shim.js (${(patched.length / 1024).toFixed(0)} KB)`
-);
+console.log(`Generated pg-wasm-shim.js (${(patched.length / 1024).toFixed(0)} KB)`);

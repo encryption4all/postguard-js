@@ -30,7 +30,7 @@ export class Opened {
   /** @internal */
   constructor(
     private readonly config: PostGuardConfig,
-    private readonly options: OpenInput,
+    private readonly options: OpenInput
   ) {}
 
   /** Inspect the sealed header without decrypting.
@@ -107,7 +107,7 @@ export class Opened {
       opts.session,
       this.config.headers,
       opts.enableCache,
-      resolveEmailAttributes(this.config.emailAttributes),
+      resolveEmailAttributes(this.config.emailAttributes)
     );
 
     // Attach progress callback just before we drain the stream: bytes
@@ -118,12 +118,7 @@ export class Opened {
       this.progressPipe?.setCallback(opts.onDownloadProgress);
     }
 
-    const { chunks, sender } = await unsealAndCollect(
-      this.unsealer,
-      key,
-      usk,
-      this.cachedSender,
-    );
+    const { chunks, sender } = await unsealAndCollect(this.unsealer, key, usk, this.cachedSender);
 
     const isUuid = 'uuid' in this.options;
 

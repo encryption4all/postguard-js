@@ -3,10 +3,7 @@
 // code paths under a test scheme. Defaults must remain the production pbdf
 // types — existing callers are unaffected.
 import { describe, it, expect } from 'vitest';
-import {
-  DEFAULT_EMAIL_ATTRIBUTES,
-  resolveEmailAttributes,
-} from '../src/util/attributes.js';
+import { DEFAULT_EMAIL_ATTRIBUTES, resolveEmailAttributes } from '../src/util/attributes.js';
 import { buildEncryptionPolicy } from '../src/recipients/builders.js';
 import { buildKeyRequest } from '../src/util/policy.js';
 import { buildStartRequestBody } from '../src/signing/yivi.js';
@@ -39,9 +36,7 @@ describe('email attribute configuration (postguard#236)', () => {
     expect(policy['alice@example.com'].con).toEqual([
       { t: TEST_ATTRS.email, v: 'alice@example.com' },
     ]);
-    expect(policy['bob@corp.example'].con).toEqual([
-      { t: TEST_ATTRS.domain, v: 'corp.example' },
-    ]);
+    expect(policy['bob@corp.example'].con).toEqual([{ t: TEST_ATTRS.domain, v: 'corp.example' }]);
   });
 
   it('key requests pin the recipient value on the configured email type', () => {
@@ -78,7 +73,11 @@ describe('email attribute configuration (postguard#236)', () => {
     globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
       capturedBody = JSON.parse(init?.body as string);
       return new Response(
-        JSON.stringify({ status: 'DONE', proofStatus: 'VALID', pubSignKey: { key: 'k', policy: { ts: 1, con: [] } } }),
+        JSON.stringify({
+          status: 'DONE',
+          proofStatus: 'VALID',
+          pubSignKey: { key: 'k', policy: { ts: 1, con: [] } },
+        }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     }) as typeof fetch;

@@ -122,9 +122,7 @@ export async function createEnvelope(options: CreateEnvelopeOptions): Promise<En
     }
   }
 
-  const messageSection = unencryptedMessage
-    ? buildUnencryptedSection(unencryptedMessage)
-    : '';
+  const messageSection = unencryptedMessage ? buildUnencryptedSection(unencryptedMessage) : '';
   const checkmarkUrl = `${websiteUrl}/checkmark.png`;
 
   const htmlBody = `<!DOCTYPE html>

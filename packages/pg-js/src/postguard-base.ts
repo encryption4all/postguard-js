@@ -64,9 +64,7 @@ export class PostGuardBase {
 
   /** Recipient builders */
   readonly recipient = {
-    email: (email: string): RecipientBuilder =>
-      new RecipientBuilder(email, 'email'),
-    emailDomain: (email: string): RecipientBuilder =>
-      new RecipientBuilder(email, 'emailDomain'),
+    email: (email: string): RecipientBuilder => new RecipientBuilder(email, 'email'),
+    emailDomain: (email: string): RecipientBuilder => new RecipientBuilder(email, 'emailDomain'),
   };
 }

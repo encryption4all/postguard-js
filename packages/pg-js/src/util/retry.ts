@@ -36,7 +36,9 @@ export interface RetryEvent {
   nextDelayMs: number;
 }
 
-export interface ResolvedRetryOptions extends Required<Omit<RetryOptions, 'onRetry' | 'downloadTimeoutMs'>> {
+export interface ResolvedRetryOptions extends Required<
+  Omit<RetryOptions, 'onRetry' | 'downloadTimeoutMs'>
+> {
   onRetry?: (info: RetryEvent) => void;
   /** 0 means "no per-attempt timeout". */
   downloadTimeoutMs: number;
@@ -65,7 +67,10 @@ export type RetryClassification = 'retry' | 'fail';
  * fetch-level network errors retry. 4xx fail — including the structured
  * `upload_session_not_found` 404 surfaced as `UploadSessionExpiredError`.
  */
-export function classifyCryptifyError(err: unknown, callerSignal?: AbortSignal): RetryClassification {
+export function classifyCryptifyError(
+  err: unknown,
+  callerSignal?: AbortSignal
+): RetryClassification {
   if (err instanceof UploadSessionExpiredError) return 'fail';
   if (err instanceof NetworkError) {
     return err.status >= 500 ? 'retry' : 'fail';
@@ -85,7 +90,10 @@ export function classifyCryptifyError(err: unknown, callerSignal?: AbortSignal):
  * can reuse the same backoff curve without forking the implementation.
  */
 export function delayWithFullJitter(opts: ResolvedRetryOptions, attempt: number): number {
-  const base = Math.min(opts.initialDelayMs * Math.pow(opts.multiplier, attempt - 1), opts.maxDelayMs);
+  const base = Math.min(
+    opts.initialDelayMs * Math.pow(opts.multiplier, attempt - 1),
+    opts.maxDelayMs
+  );
   return Math.floor(Math.random() * base);
 }
 

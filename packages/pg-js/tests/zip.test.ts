@@ -219,10 +219,7 @@ describe('extractAllZipEntries', () => {
 
   it('skips directory entries', async () => {
     const payload = new Uint8Array([42]);
-    const zip = createMinimalZip([
-      { name: 'dir/' },
-      { name: 'dir/file.txt', content: payload },
-    ]);
+    const zip = createMinimalZip([{ name: 'dir/' }, { name: 'dir/file.txt', content: payload }]);
 
     const entries = await extractAllZipEntries(zip);
 
@@ -353,7 +350,7 @@ describe('createZipReadable', () => {
           for await (const _chunk of stream) {
             // drain
           }
-        })(),
+        })()
       ).rejects.toThrow();
 
       // Give Node a macrotask to flush any unobserved rejection.

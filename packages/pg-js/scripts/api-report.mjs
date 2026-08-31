@@ -39,7 +39,11 @@ function fail(message) {
 }
 
 function git(...args) {
-  return execFileSync('git', args, { cwd: PACKAGE_DIR, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('git', args, {
+    cwd: PACKAGE_DIR,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function readBuiltReport() {
@@ -119,7 +123,10 @@ function gate(baseRef) {
     return;
   }
 
-  const { level, changes } = classify(parseReport(baseReport), parseReport(readFileSync(REPORT_PATH, 'utf8')));
+  const { level, changes } = classify(
+    parseReport(baseReport),
+    parseReport(readFileSync(REPORT_PATH, 'utf8'))
+  );
 
   // A `none` change is something that explains a report diff without reaching
   // consumers, such as the rollup renaming an internal declaration.
@@ -148,7 +155,8 @@ function gate(baseRef) {
 
 const args = process.argv.slice(2);
 const baseIndex = args.indexOf('--base');
-const baseRef = baseIndex === -1 ? `origin/${process.env.GITHUB_BASE_REF || 'main'}` : args[baseIndex + 1];
+const baseRef =
+  baseIndex === -1 ? `origin/${process.env.GITHUB_BASE_REF || 'main'}` : args[baseIndex + 1];
 
 if (args.includes('--update')) update();
 else if (args.includes('--gate')) gate(baseRef);

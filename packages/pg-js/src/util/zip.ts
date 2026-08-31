@@ -153,13 +153,17 @@ const EXTRACT_CONCURRENCY = 4;
  *  and unpacks each entry from it. Concurrency is capped (see
  *  EXTRACT_CONCURRENCY) so peak memory scales with the cap, not the
  *  number of entries. */
-export async function extractAllZipEntries(blob: Blob): Promise<Array<{ name: string; blob: Blob }>> {
+export async function extractAllZipEntries(
+  blob: Blob
+): Promise<Array<{ name: string; blob: Blob }>> {
   const buf = await blob.arrayBuffer();
   const view = new DataView(buf);
   const bytes = new Uint8Array(buf);
   const entries = readCentralDirectory(view, bytes).filter((e) => !e.name.endsWith('/'));
 
-  async function extractOne(entry: typeof entries[number]): Promise<{ name: string; blob: Blob }> {
+  async function extractOne(
+    entry: (typeof entries)[number]
+  ): Promise<{ name: string; blob: Blob }> {
     const lfh = entry.lfhOffset;
     if (view.getUint32(lfh, true) !== 0x04034b50) {
       throw new Error(`Invalid local file header at offset ${lfh}`);
@@ -201,7 +205,7 @@ export async function extractAllZipEntries(blob: Blob): Promise<Array<{ name: st
         if (i >= entries.length) return;
         results[i] = await extractOne(entries[i]);
       }
-    }),
+    })
   );
   return results;
 }

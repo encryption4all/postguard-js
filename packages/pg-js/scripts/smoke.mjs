@@ -139,7 +139,9 @@ for (const { name, fn } of checks) {
 }
 
 console.log('');
-console.log(failed === 0 ? `OK — ${checks.length} checks passed` : `${failed}/${checks.length} checks FAILED`);
+console.log(
+  failed === 0 ? `OK — ${checks.length} checks passed` : `${failed}/${checks.length} checks FAILED`
+);
 process.exit(failed === 0 ? 0 : 1);
 
 function detectRuntime() {

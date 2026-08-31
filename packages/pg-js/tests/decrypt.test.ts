@@ -10,7 +10,7 @@ import type { SenderIdentity } from '../src/types.js';
  *  `void`/`undefined` — both are fine. */
 function fakeUnsealer(
   unsealImpl: () => Promise<SenderIdentity | void>,
-  publicIdentity: SenderIdentity | null = null,
+  publicIdentity: SenderIdentity | null = null
 ) {
   return {
     unseal: unsealImpl,
@@ -23,9 +23,7 @@ describe('unsealAndCollect', () => {
     const original = new TypeError('Network error');
     const unsealer = fakeUnsealer(() => Promise.reject(original));
 
-    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch(
-      (e) => e
-    );
+    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch((e) => e);
 
     expect(err).toBeInstanceOf(IdentityMismatchError);
     expect((err as IdentityMismatchError).cause).toBe(original);
@@ -35,9 +33,7 @@ describe('unsealAndCollect', () => {
     const abort = new DOMException('Aborted', 'AbortError');
     const unsealer = fakeUnsealer(() => Promise.reject(abort));
 
-    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch(
-      (e) => e
-    );
+    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch((e) => e);
 
     expect(err).toBe(abort);
     expect(err).not.toBeInstanceOf(IdentityMismatchError);
@@ -46,9 +42,7 @@ describe('unsealAndCollect', () => {
   it('still throws IdentityMismatchError on an unspecified unseal failure', async () => {
     const unsealer = fakeUnsealer(() => Promise.reject(new Error('bad key')));
 
-    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch(
-      (e) => e
-    );
+    const err = await unsealAndCollect(unsealer, 'recipient@example.com', {}, null).catch((e) => e);
 
     expect(err).toBeInstanceOf(IdentityMismatchError);
   });

@@ -42,8 +42,10 @@ describe('buildEncryptionPolicy', () => {
   });
 
   it('includes extra attributes in policy', () => {
-    const r = new RecipientBuilder('alice@example.com', 'email')
-      .extraAttribute('pbdf.gemeente.personalData.surname', 'Smith');
+    const r = new RecipientBuilder('alice@example.com', 'email').extraAttribute(
+      'pbdf.gemeente.personalData.surname',
+      'Smith'
+    );
     const policy = buildEncryptionPolicy([r], ts);
 
     expect(policy['alice@example.com'].con).toEqual([

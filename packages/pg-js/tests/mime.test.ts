@@ -62,9 +62,7 @@ describe('buildMime header sanitization', () => {
     }
 
     expect(mime).toContain('From: alice@example.com X-Injected: 1\r\n');
-    expect(mime).toContain(
-      'To: bob@example.com X-To-Injected: 1, carol@example.com\r\n'
-    );
+    expect(mime).toContain('To: bob@example.com X-To-Injected: 1, carol@example.com\r\n');
     expect(mime).toContain('Cc: dave@example.com X-Cc-Injected: 1\r\n');
   });
 
@@ -151,7 +149,9 @@ describe('buildMime header sanitization', () => {
     expect(mime).not.toContain('filename="evil.txt";');
     // ...instead the `"` is backslash-escaped inside the quoted string.
     expect(mime).toContain('name="evil.txt\\"; x-malicious=\\"1"');
-    expect(mime).toContain('Content-Disposition: attachment; filename="evil.txt\\"; x-malicious=\\"1"');
+    expect(mime).toContain(
+      'Content-Disposition: attachment; filename="evil.txt\\"; x-malicious=\\"1"'
+    );
   });
 
   it('escapes backslashes in attachment name so the escaping itself cannot be subverted', () => {

@@ -66,9 +66,10 @@ describe('detectHost', () => {
     // A worker has no window/document but does expose WorkerGlobalScope and
     // importScripts; WASM crypto is commonly offloaded here, so it must still
     // attribute as browser rather than unknown.
-    expect(
-      detectHost({ WorkerGlobalScope: function () {}, importScripts: () => {} })
-    ).toEqual({ host: 'browser', hostVersion: 'unknown' });
+    expect(detectHost({ WorkerGlobalScope: function () {}, importScripts: () => {} })).toEqual({
+      host: 'browser',
+      hostVersion: 'unknown',
+    });
   });
 
   it('falls back to unknown when no runtime is recognised', () => {

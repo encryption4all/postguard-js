@@ -51,7 +51,10 @@ describe('PKG API', () => {
       mockFetch.mockResolvedValueOnce(okJson({ publicKey: 'mpk-data' }));
       const mpk = await fetchMPK('https://pkg.example.com');
       expect(mpk).toBe('mpk-data');
-      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/parameters', expect.objectContaining({}));
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://pkg.example.com/v2/parameters',
+        expect.objectContaining({})
+      );
     });
 
     it('throws NetworkError on failure', async () => {
@@ -65,7 +68,10 @@ describe('PKG API', () => {
       mockFetch.mockResolvedValueOnce(okJson({ publicKey: 'vk-data' }));
       const vk = await fetchVerificationKey('https://pkg.example.com');
       expect(vk).toBe('vk-data');
-      expect(mockFetch).toHaveBeenCalledWith('https://pkg.example.com/v2/sign/parameters', expect.objectContaining({}));
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://pkg.example.com/v2/sign/parameters',
+        expect.objectContaining({})
+      );
     });
 
     it('throws NetworkError on failure', async () => {
@@ -214,11 +220,7 @@ describe('Cryptify API', () => {
         headers: new Headers(),
       });
 
-      const result = await resumeUpload(
-        'https://cryptify.example.com',
-        'file-uuid',
-        'rec-hex'
-      );
+      const result = await resumeUpload('https://cryptify.example.com', 'file-uuid', 'rec-hex');
 
       expect(result.uploaded).toBe(0);
       expect(result.state).toEqual({
@@ -253,11 +255,7 @@ describe('Cryptify API', () => {
         headers: new Headers(),
       });
 
-      const result = await resumeUpload(
-        'https://cryptify.example.com',
-        'file-uuid',
-        'rec-hex'
-      );
+      const result = await resumeUpload('https://cryptify.example.com', 'file-uuid', 'rec-hex');
 
       expect(result.uploaded).toBe(1024);
       expect(result.state).toEqual({
@@ -297,11 +295,9 @@ describe('Cryptify API', () => {
     it('surfaces 401 (missing/empty recovery header) as plain NetworkError', async () => {
       mockFetch.mockResolvedValueOnce(errorResponse(401, ''));
 
-      const err = await resumeUpload(
-        'https://cryptify.example.com',
-        'file-uuid',
-        ''
-      ).catch((e) => e);
+      const err = await resumeUpload('https://cryptify.example.com', 'file-uuid', '').catch(
+        (e) => e
+      );
 
       expect(err).toBeInstanceOf(NetworkError);
       expect(err).not.toBeInstanceOf(UploadSessionExpiredError);
@@ -316,11 +312,9 @@ describe('Cryptify API', () => {
         headers: new Headers(),
       });
 
-      const err = await resumeUpload(
-        'https://cryptify.example.com',
-        'file-uuid',
-        'rec-hex'
-      ).catch((e) => e);
+      const err = await resumeUpload('https://cryptify.example.com', 'file-uuid', 'rec-hex').catch(
+        (e) => e
+      );
 
       expect(err).toBeInstanceOf(NetworkError);
       expect(err).not.toBeInstanceOf(UploadSessionExpiredError);
@@ -485,13 +479,11 @@ describe('Cryptify API', () => {
     });
 
     it('sends prevToken on retry so cryptify can detect a duplicate', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new TypeError('network error'))
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          headers: new Headers({ cryptifytoken: 'tok-after' }),
-        });
+      mockFetch.mockRejectedValueOnce(new TypeError('network error')).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ cryptifytoken: 'tok-after' }),
+      });
 
       const result = await storeChunkWithRetry(
         'https://cryptify.example.com',
@@ -591,9 +583,7 @@ describe('Cryptify API', () => {
       const controller = new AbortController();
       controller.abort();
 
-      mockFetch.mockRejectedValueOnce(
-        new DOMException('Aborted', 'AbortError')
-      );
+      mockFetch.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
 
       await expect(
         storeChunkWithRetry(
@@ -701,10 +691,7 @@ describe('Cryptify API', () => {
       );
 
       expect(signChallenge).toHaveBeenCalledTimes(1);
-      expect(signChallenge).toHaveBeenCalledWith(
-        'upload-uuid',
-        new Uint8Array([0x9f, 0x01, 0x02])
-      );
+      expect(signChallenge).toHaveBeenCalledWith('upload-uuid', new Uint8Array([0x9f, 0x01, 0x02]));
     });
 
     it('sends no proof and does not sign when init returned no challenge', async () => {
@@ -833,9 +820,9 @@ describe('Cryptify API', () => {
 
     it('throws NetworkError on failure', async () => {
       mockFetch.mockResolvedValueOnce(errorResponse(404, 'Not Found'));
-      await expect(
-        downloadFile('https://cryptify.example.com', 'missing-uuid')
-      ).rejects.toThrow(NetworkError);
+      await expect(downloadFile('https://cryptify.example.com', 'missing-uuid')).rejects.toThrow(
+        NetworkError
+      );
     });
 
     it('throws if response body is null', async () => {
@@ -844,9 +831,9 @@ describe('Cryptify API', () => {
         status: 200,
         body: null,
       });
-      await expect(
-        downloadFile('https://cryptify.example.com', 'uuid')
-      ).rejects.toThrow('Response body is null');
+      await expect(downloadFile('https://cryptify.example.com', 'uuid')).rejects.toThrow(
+        'Response body is null'
+      );
     });
   });
 
@@ -871,10 +858,7 @@ describe('Cryptify API', () => {
      *  Pull-based so chunks are delivered to the consumer before the
      *  error fires — `controller.error()` empties any queued chunks, so
      *  a start-based variant would silently drop the first batch. */
-    function streamThenError(
-      chunks: Uint8Array[],
-      err: unknown
-    ): ReadableStream<Uint8Array> {
+    function streamThenError(chunks: Uint8Array[], err: unknown): ReadableStream<Uint8Array> {
       let i = 0;
       return new ReadableStream<Uint8Array>({
         pull(controller) {
@@ -920,9 +904,7 @@ describe('Cryptify API', () => {
       expect(Array.from(bytes)).toEqual([1, 2, 3, 4]);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       // First attempt should not include a Range header.
-      expect(mockFetch.mock.calls[0][1]).toEqual(
-        expect.objectContaining({ method: 'GET' })
-      );
+      expect(mockFetch.mock.calls[0][1]).toEqual(expect.objectContaining({ method: 'GET' }));
       const firstAttemptHeaders = mockFetch.mock.calls[0][1]?.headers;
       expect(firstAttemptHeaders).toBeUndefined();
     });
@@ -955,10 +937,7 @@ describe('Cryptify API', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        body: streamThenError(
-          [new Uint8Array([1, 2, 3, 4])],
-          new TypeError('network reset')
-        ),
+        body: streamThenError([new Uint8Array([1, 2, 3, 4])], new TypeError('network reset')),
       });
       // Attempt 2: 206 with Content-Range starting at 4, deliver 4 more bytes.
       mockFetch.mockResolvedValueOnce({
@@ -987,15 +966,16 @@ describe('Cryptify API', () => {
       const cancelSpy = vi.fn();
       const failingBody = streamThenError([], new TypeError('connection reset'));
       const realGetReader = failingBody.getReader.bind(failingBody);
-      (failingBody as { getReader: () => ReadableStreamDefaultReader<Uint8Array> }).getReader = () => {
-        const reader = realGetReader();
-        const realCancel = reader.cancel.bind(reader);
-        reader.cancel = (reason?: unknown) => {
-          cancelSpy();
-          return realCancel(reason);
+      (failingBody as { getReader: () => ReadableStreamDefaultReader<Uint8Array> }).getReader =
+        () => {
+          const reader = realGetReader();
+          const realCancel = reader.cancel.bind(reader);
+          reader.cancel = (reason?: unknown) => {
+            cancelSpy();
+            return realCancel(reason);
+          };
+          return reader;
         };
-        return reader;
-      };
 
       mockFetch
         .mockResolvedValueOnce({ ok: true, status: 200, body: failingBody })
@@ -1098,10 +1078,7 @@ describe('Cryptify API', () => {
               mockFetch.mock.calls.length - 1
             }-${mockFetch.mock.calls.length - 1}/100`,
           }),
-          body: streamThenError(
-            [new Uint8Array([0xab])],
-            new TypeError('flap')
-          ),
+          body: streamThenError([new Uint8Array([0xab])], new TypeError('flap')),
           text: () => Promise.resolve(''),
         })
       );
@@ -1122,10 +1099,7 @@ describe('Cryptify API', () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            body: streamThenError(
-              [new Uint8Array([0xa1])],
-              new TypeError('flap')
-            ),
+            body: streamThenError([new Uint8Array([0xa1])], new TypeError('flap')),
           });
         }
         // Resume attempts: parse Range, return 206 with matching Content-Range.
@@ -1139,10 +1113,7 @@ describe('Cryptify API', () => {
           headers: new Headers({
             'content-range': `bytes ${offset}-${offset}/100`,
           }),
-          body: streamThenError(
-            [new Uint8Array([0xa0 + offset])],
-            new TypeError('flap')
-          ),
+          body: streamThenError([new Uint8Array([0xa0 + offset])], new TypeError('flap')),
           text: () => Promise.resolve(''),
         });
       });
@@ -1321,7 +1292,10 @@ describe('Cryptify API', () => {
         text: () => Promise.resolve(''),
         headers: new Headers({ cryptifytoken: 't' }),
       });
-      await initUpload('https://cryptify.example.com', { recipient: 'a@b.com', headers: cvHeaders });
+      await initUpload('https://cryptify.example.com', {
+        recipient: 'a@b.com',
+        headers: cvHeaders,
+      });
       expect(sentHeader()).toBe(CV);
     });
 

@@ -45,7 +45,8 @@ export interface EncryptPipelineOptions {
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
 export async function encryptPipeline(options: EncryptPipelineOptions): Promise<UploadResult> {
-  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } = options;
+  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } =
+    options;
   const emailAttrs = options.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
 
   const abortController = new AbortController();
@@ -122,7 +123,11 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
   });
 
   const uploadChunker = new Chunker(options.uploadChunkSize ?? DEFAULT_UPLOAD_CHUNK_SIZE);
-  const { writable, pipeDone } = withTransform(uploadStream.writable, uploadChunker, effectiveSignal);
+  const { writable, pipeDone } = withTransform(
+    uploadStream.writable,
+    uploadChunker,
+    effectiveSignal
+  );
 
   // Encrypt: ZIP -> sealStream -> chunker -> upload
   //
@@ -219,14 +224,15 @@ export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
   const { sealStream } = await loadWasm();
 
   // Create readable from input
-  const readable = data instanceof ReadableStream
-    ? data
-    : new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(data);
-          controller.close();
-        },
-      });
+  const readable =
+    data instanceof ReadableStream
+      ? data
+      : new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(data);
+            controller.close();
+          },
+        });
 
   // Collect encrypted output
   const chunks: Uint8Array[] = [];
