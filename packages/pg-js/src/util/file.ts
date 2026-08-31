@@ -1,7 +1,10 @@
 const DEFAULT_CHUNK_SIZE = 1024 * 1024;
 
 /** Create a ReadableStream from a File, reading in chunks */
-export function createFileReadable(file: File, chunkSize = DEFAULT_CHUNK_SIZE): ReadableStream<Uint8Array> {
+export function createFileReadable(
+  file: File,
+  chunkSize = DEFAULT_CHUNK_SIZE
+): ReadableStream<Uint8Array> {
   let offset = 0;
   const queuingStrategy = new CountQueuingStrategy({ highWaterMark: 1 });
 

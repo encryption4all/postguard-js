@@ -21,8 +21,6 @@ export const DEFAULT_EMAIL_ATTRIBUTES: EmailAttributes = {
 };
 
 /** Merge partial overrides (from `PostGuardConfig.emailAttributes`) with the defaults. */
-export function resolveEmailAttributes(
-  overrides?: Partial<EmailAttributes>
-): EmailAttributes {
+export function resolveEmailAttributes(overrides?: Partial<EmailAttributes>): EmailAttributes {
   return { ...DEFAULT_EMAIL_ATTRIBUTES, ...overrides };
 }

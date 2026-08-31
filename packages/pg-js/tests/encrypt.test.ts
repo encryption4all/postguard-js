@@ -32,7 +32,7 @@ vi.mock('../src/util/wasm.js', () => ({
 import { encryptPipeline, sealRaw, awaitAllOrAbort } from '../src/crypto/encrypt.js';
 
 const emailRecipient = (email: string): Recipient =>
-  ({ email, _baseType: 'email', _extras: [] } as unknown as Recipient);
+  ({ email, _baseType: 'email', _extras: [] }) as unknown as Recipient;
 
 /** A readable that emits the given chunks then closes. */
 function readableOf(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
@@ -127,9 +127,7 @@ describe('encryptPipeline', () => {
 
   beforeEach(() => {
     fetchMPK.mockResolvedValue('MPK');
-    createZipReadable.mockImplementation(async () =>
-      readableOf([new Uint8Array([9, 9])])
-    );
+    createZipReadable.mockImplementation(async () => readableOf([new Uint8Array([9, 9])]));
   });
 
   afterEach(() => {
@@ -174,7 +172,10 @@ describe('encryptPipeline', () => {
   it('gives the upload a signer that signs the challenge with the sealing key, untouched', async () => {
     let signer: ((uuid: string, challenge: Uint8Array) => unknown) | undefined;
     createUploadStream.mockImplementation(
-      (_url: string, opts: { signChallenge?: (uuid: string, challenge: Uint8Array) => unknown }) => {
+      (
+        _url: string,
+        opts: { signChallenge?: (uuid: string, challenge: Uint8Array) => unknown }
+      ) => {
         signer = opts.signChallenge;
         return {
           writable: new WritableStream<Uint8Array>({ write() {} }),

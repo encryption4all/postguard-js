@@ -9,9 +9,7 @@ export default defineConfig({
   treeshake: true,
   sourcemap: true,
   deps: {
-    neverBundle: [
-      '@transcend-io/conflux',
-    ],
+    neverBundle: ['@transcend-io/conflux'],
   },
   target: false,
 });

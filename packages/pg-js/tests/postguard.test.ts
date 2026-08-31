@@ -95,9 +95,7 @@ describe('PostGuard', () => {
     it('preserves legacy flat attribute entries with optional flag', () => {
       const body = buildStartRequestBody({
         element: '#yivi',
-        attributes: [
-          { t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', optional: true },
-        ],
+        attributes: [{ t: 'pbdf.sidn-pbdf.mobilenumber.mobilenumber', optional: true }],
       });
       expect(body).toEqual({
         con: [
@@ -113,10 +111,7 @@ describe('PostGuard', () => {
         attributes: [
           [
             [{ t: 'pbdf.gemeente.personalData.fullname' }],
-            [
-              { t: 'pbdf.pbdf.passport.firstName' },
-              { t: 'pbdf.pbdf.passport.lastName' },
-            ],
+            [{ t: 'pbdf.pbdf.passport.firstName' }, { t: 'pbdf.pbdf.passport.lastName' }],
           ],
           { t: 'pbdf.gemeente.personalData.dateofbirth', optional: true },
         ],
@@ -126,10 +121,7 @@ describe('PostGuard', () => {
           { t: 'pbdf.sidn-pbdf.email.email' },
           [
             [{ t: 'pbdf.gemeente.personalData.fullname' }],
-            [
-              { t: 'pbdf.pbdf.passport.firstName' },
-              { t: 'pbdf.pbdf.passport.lastName' },
-            ],
+            [{ t: 'pbdf.pbdf.passport.firstName' }, { t: 'pbdf.pbdf.passport.lastName' }],
           ],
           { t: 'pbdf.gemeente.personalData.dateofbirth', optional: true },
         ],
@@ -245,7 +237,8 @@ describe('PostGuard', () => {
     });
 
     it('chains extraAttribute calls', () => {
-      const r = pg.recipient.email('alice@example.com')
+      const r = pg.recipient
+        .email('alice@example.com')
         .extraAttribute('pbdf.gemeente.personalData.surname', 'Smith')
         .extraAttribute('pbdf.sidn-pbdf.mobilenumber.mobilenumber', '0612345678');
 
@@ -263,9 +256,7 @@ describe('PostGuard', () => {
         recipients: [pg.recipient.email('a@b.com')],
         sign: pg.sign.apiKey('PG-test'),
       });
-      await expect(sealed.upload()).rejects.toThrow(
-        /does not support data: ReadableStream/
-      );
+      await expect(sealed.upload()).rejects.toThrow(/does not support data: ReadableStream/);
     });
 
     // Regression: a previous runtime validator hand-maintained an
@@ -279,9 +270,9 @@ describe('PostGuard', () => {
         recipients: [pg.recipient.email('alice@example.com')],
         sign: pg.sign.apiKey('PG-test'),
       });
-      await expect(
-        sealed.upload({ onUploadInit: () => {} })
-      ).rejects.not.toThrow(/unknown option "onUploadInit"/);
+      await expect(sealed.upload({ onUploadInit: () => {} })).rejects.not.toThrow(
+        /unknown option "onUploadInit"/
+      );
     });
   });
 
@@ -307,8 +298,12 @@ describe('PostGuard', () => {
       const info = vi.spyOn(console, 'info').mockImplementation(() => {});
       const instance = newPg();
       // Two uploads on the same instance — info should fire exactly once.
-      await newSealed(instance).upload().catch(() => {});
-      await newSealed(instance).upload().catch(() => {});
+      await newSealed(instance)
+        .upload()
+        .catch(() => {});
+      await newSealed(instance)
+        .upload()
+        .catch(() => {});
       expect(info).toHaveBeenCalledTimes(1);
       expect(info.mock.calls[0][0]).toMatch(/notify is unset — uploading silently/);
     });
@@ -316,8 +311,12 @@ describe('PostGuard', () => {
     it('does not log when notify is set explicitly (true or false)', async () => {
       const info = vi.spyOn(console, 'info').mockImplementation(() => {});
       const instance = newPg();
-      await newSealed(instance).upload({ notify: { recipients: true } }).catch(() => {});
-      await newSealed(newPg()).upload({ notify: { recipients: false } }).catch(() => {});
+      await newSealed(instance)
+        .upload({ notify: { recipients: true } })
+        .catch(() => {});
+      await newSealed(newPg())
+        .upload({ notify: { recipients: false } })
+        .catch(() => {});
       expect(info).not.toHaveBeenCalled();
     });
   });
@@ -434,9 +433,9 @@ describe('PostGuard', () => {
           senderEmail: 'me@example.com',
         },
       });
-      await expect(
-        sealed.upload({ notify: { recipients: false } })
-      ).rejects.not.toThrow(/requires a DOM/);
+      await expect(sealed.upload({ notify: { recipients: false } })).rejects.not.toThrow(
+        /requires a DOM/
+      );
     });
   });
 });

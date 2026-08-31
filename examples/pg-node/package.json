@@ -10,12 +10,22 @@
     "send": "node --env-file-if-exists=.env index.mjs",
     "upload": "node --env-file-if-exists=.env index.mjs --upload-only",
     "check": "node --check index.mjs && node --input-type=module -e \"await import('./src/encryption.mjs')\"",
-    "typecheck": "pnpm check"
+    "typecheck": "pnpm check",
+    "lint": "prettier --check .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@e4a/pg-js": "workspace:*"
   },
+  "devDependencies": {
+    "prettier": "^3.9.6"
+  },
   "engines": {
     "node": ">=22"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "trailingComma": "es5",
+    "singleQuote": true
   }
 }

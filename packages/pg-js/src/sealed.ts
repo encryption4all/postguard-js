@@ -1,4 +1,10 @@
-import type { PostGuardConfig, EncryptInput, SigningKeys, UploadOptions, UploadResult } from './types.js';
+import type {
+  PostGuardConfig,
+  EncryptInput,
+  SigningKeys,
+  UploadOptions,
+  UploadResult,
+} from './types.js';
 import { sealRaw } from './crypto/encrypt.js';
 import { resolveEmailAttributes } from './util/attributes.js';
 import { encryptPipeline } from './crypto/encrypt.js';
@@ -12,7 +18,7 @@ export class Sealed {
   /** @internal */
   constructor(
     private readonly config: PostGuardConfig,
-    private readonly options: EncryptInput,
+    private readonly options: EncryptInput
   ) {}
 
   /** Was this Sealed built from raw `data` (typically an RFC 5322 MIME
@@ -39,7 +45,7 @@ export class Sealed {
         this.config.pkgUrl,
         this.options.sign,
         this.config.headers,
-        resolveEmailAttributes(this.config.emailAttributes),
+        resolveEmailAttributes(this.config.emailAttributes)
       );
     }
     return this.cachedSigningKeys;
@@ -99,9 +105,9 @@ export class Sealed {
       silentDefaultNoticed.add(this.config);
       console.info(
         '[@e4a/pg-js] sealed.upload(): notify is unset — uploading silently ' +
-        '(no recipient email sent). Pass { notify: { recipients: true } } to email ' +
-        'recipients, or { notify: { recipients: false } } to make the silent intent ' +
-        'explicit and suppress this notice.'
+          '(no recipient email sent). Pass { notify: { recipients: true } } to email ' +
+          'recipients, or { notify: { recipients: false } } to make the silent intent ' +
+          'explicit and suppress this notice.'
       );
     }
 
@@ -112,7 +118,7 @@ export class Sealed {
     if (this.options.data instanceof ReadableStream) {
       throw new TypeError(
         'sealed.upload() does not support data: ReadableStream — use toBytes() instead, ' +
-        'or pass data as Uint8Array.'
+          'or pass data as Uint8Array.'
       );
     }
 
@@ -149,26 +155,21 @@ export function resolveFiles(options: EncryptInput): File[] {
   if (options.files) {
     // FileList is browser-only — guard so Node/Bun/Deno don't throw
     // ReferenceError on the instanceof check.
-    const isFileList =
-      typeof FileList !== 'undefined' && options.files instanceof FileList;
-    return isFileList
-      ? Array.from(options.files as FileList)
-      : (options.files as File[]);
+    const isFileList = typeof FileList !== 'undefined' && options.files instanceof FileList;
+    return isFileList ? Array.from(options.files as FileList) : (options.files as File[]);
   }
   if (options.data) {
     if (options.data instanceof ReadableStream) {
       throw new TypeError(
         'resolveFiles cannot wrap a ReadableStream payload — use toBytes() ' +
-        'for streaming, or pass data as Uint8Array for upload().'
+          'for streaming, or pass data as Uint8Array for upload().'
       );
     }
     // Wrap raw bytes as a synthetic file for the upload pipeline
     return [
-      new File(
-        [new Blob([options.data as BlobPart])],
-        'data.bin',
-        { type: 'application/octet-stream' }
-      ),
+      new File([new Blob([options.data as BlobPart])], 'data.bin', {
+        type: 'application/octet-stream',
+      }),
     ];
   }
   throw new Error('Either files or data must be provided');

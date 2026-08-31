@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import Chunker from '../src/crypto/chunker.js';
 
-async function pipeAndCollect(
-  chunker: Chunker,
-  inputs: Uint8Array[]
-): Promise<Uint8Array[]> {
+async function pipeAndCollect(chunker: Chunker, inputs: Uint8Array[]): Promise<Uint8Array[]> {
   const chunks: Uint8Array[] = [];
 
   // Read and write concurrently to avoid backpressure deadlock
@@ -30,9 +27,7 @@ async function pipeAndCollect(
 describe('Chunker', () => {
   it('splits data into fixed-size chunks', async () => {
     const chunker = new Chunker(4);
-    const chunks = await pipeAndCollect(chunker, [
-      new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
-    ]);
+    const chunks = await pipeAndCollect(chunker, [new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])]);
 
     expect(chunks).toHaveLength(3);
     expect(chunks[0]).toEqual(new Uint8Array([1, 2, 3, 4]));
@@ -87,9 +82,7 @@ describe('Chunker', () => {
     // Regression guard: emitted chunks must be independent allocations, so a
     // later fill can never mutate an already-enqueued chunk.
     const chunker = new Chunker(2);
-    const chunks = await pipeAndCollect(chunker, [
-      new Uint8Array([1, 2, 3, 4]),
-    ]);
+    const chunks = await pipeAndCollect(chunker, [new Uint8Array([1, 2, 3, 4])]);
 
     expect(chunks[0]).toEqual(new Uint8Array([1, 2]));
     expect(chunks[1]).toEqual(new Uint8Array([3, 4]));
@@ -100,9 +93,7 @@ describe('Chunker', () => {
 
   it('respects offset on first chunk', async () => {
     const chunker = new Chunker(4, 2);
-    const chunks = await pipeAndCollect(chunker, [
-      new Uint8Array([1, 2, 3, 4, 5, 6]),
-    ]);
+    const chunks = await pipeAndCollect(chunker, [new Uint8Array([1, 2, 3, 4, 5, 6])]);
 
     // Offset=2 skips first 2 bytes of first write, so [3,4,5,6] fills one chunk
     expect(chunks[0]).toEqual(new Uint8Array([3, 4, 5, 6]));

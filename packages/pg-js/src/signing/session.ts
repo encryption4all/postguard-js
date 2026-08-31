@@ -12,19 +12,12 @@ export async function resolveSigningKeysFromSession(
   emailAttributes?: EmailAttributes
 ): Promise<SigningKeys> {
   const attrs = emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
-  const emailAttr = senderEmail
-    ? { t: attrs.email, v: senderEmail }
-    : { t: attrs.email };
+  const emailAttr = senderEmail ? { t: attrs.email, v: senderEmail } : { t: attrs.email };
 
   const jwt = await callback({
     con: [emailAttr],
     sort: 'Signing',
   });
 
-  return getSigningKeysWithJwt(
-    pkgUrl,
-    jwt,
-    { pubSignId: [{ t: attrs.email }] },
-    headers
-  );
+  return getSigningKeysWithJwt(pkgUrl, jwt, { pubSignId: [{ t: attrs.email }] }, headers);
 }

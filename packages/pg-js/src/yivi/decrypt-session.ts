@@ -31,10 +31,7 @@ export const MAX_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 const jwtCache = new Map<string, CacheEntry>();
 
-function getCacheKey(
-  recipientEmail: string,
-  con: { t: string; v?: string }[]
-): string {
+function getCacheKey(recipientEmail: string, con: { t: string; v?: string }[]): string {
   return `${recipientEmail}:${JSON.stringify(con)}`;
 }
 
@@ -49,10 +46,7 @@ function sweepExpired(): void {
 }
 
 /** Look up a cached JWT for this recipient+policy. Returns null if absent or expired. */
-function getCachedJwt(
-  recipientEmail: string,
-  con: { t: string; v?: string }[]
-): string | null {
+function getCachedJwt(recipientEmail: string, con: { t: string; v?: string }[]): string | null {
   const key = getCacheKey(recipientEmail, con);
   const entry = jwtCache.get(key);
   if (!entry) return null;
@@ -69,11 +63,7 @@ function getCachedJwt(
 }
 
 /** Store a JWT in the cache. Parses expiry from the JWT payload. */
-function cacheJwt(
-  recipientEmail: string,
-  con: { t: string; v?: string }[],
-  jwt: string
-): void {
+function cacheJwt(recipientEmail: string, con: { t: string; v?: string }[], jwt: string): void {
   try {
     // Decode JWT payload (base64url → JSON) WITHOUT verifying the signature.
     const decoded = decodeJwtPayloadUnsafe(jwt);

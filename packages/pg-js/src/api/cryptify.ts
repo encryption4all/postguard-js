@@ -83,7 +83,12 @@ const UPLOAD_SESSION_NOT_FOUND_ERROR = 'upload_session_not_found';
  * dedicated error so retry policies can short-circuit. Otherwise fall
  * through to a plain NetworkError.
  */
-function throwSessionExpiredOrNetworkError(message: string, status: number, body: string, uuid: string): never {
+function throwSessionExpiredOrNetworkError(
+  message: string,
+  status: number,
+  body: string,
+  uuid: string
+): never {
   if (status === 404) {
     let parsed: { error?: string; reason?: string; uuid?: string } | undefined;
     try {
@@ -271,7 +276,15 @@ export async function storeChunkWithRetry(
       const stateForAttempt: FileState = { ...state, token: tokenForThisAttempt };
       const { signal: timed, cleanup } = withTimeout(signal, retry.chunkTimeoutMs);
       try {
-        return await storeChunk(cryptifyUrl, stateForAttempt, chunk, offset, timed, apiKey, headers);
+        return await storeChunk(
+          cryptifyUrl,
+          stateForAttempt,
+          chunk,
+          offset,
+          timed,
+          apiKey,
+          headers
+        );
       } finally {
         cleanup();
       }

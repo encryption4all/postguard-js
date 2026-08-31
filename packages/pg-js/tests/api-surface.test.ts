@@ -267,9 +267,11 @@ describe('classify', () => {
     });
 
     it('matches a declaration reachable only through a type-parameter default', () => {
-      const before = [`interface Def { p: string; }`, `interface Box<T = Def> { held: T; }`, `export { Box };`].join(
-        '\n'
-      );
+      const before = [
+        `interface Def { p: string; }`,
+        `interface Box<T = Def> { held: T; }`,
+        `export { Box };`,
+      ].join('\n');
       const after = [
         `interface Def { probeOnly: true; }`,
         `interface Def$1 { p: string; }`,
@@ -445,7 +447,17 @@ describe('comparisonBase', () => {
 
   it('resolves to the base tip once the branch is merged up to date', () => {
     const repo = scratchRepo();
-    repo.git('-c', 'user.name=t', '-c', 'user.email=t@e', 'merge', '-q', 'main', '-m', 'merge main');
+    repo.git(
+      '-c',
+      'user.name=t',
+      '-c',
+      'user.email=t@e',
+      'merge',
+      '-q',
+      'main',
+      '-m',
+      'merge main'
+    );
     expect(comparisonBase(repo.git, 'main')).toBe(repo.git('rev-parse', 'main').trim());
     expect(classify(baseModel(repo), headModel(repo))).toEqual({ level: 'none', changes: [] });
   });
@@ -460,7 +472,9 @@ describe('pendingBump', () => {
   });
 
   it('reads a single-quoted package name', () => {
-    expect(pendingBump([{ name: 'a.md', content: changeset('minor') }], '@e4a/pg-js')).toBe('minor');
+    expect(pendingBump([{ name: 'a.md', content: changeset('minor') }], '@e4a/pg-js')).toBe(
+      'minor'
+    );
   });
 
   it('reads a double-quoted package name', () => {
@@ -483,9 +497,9 @@ describe('pendingBump', () => {
   });
 
   it('ignores changesets for other packages', () => {
-    expect(pendingBump([{ name: 'a.md', content: changeset('major', '@e4a/other') }], '@e4a/pg-js')).toBe(
-      'none'
-    );
+    expect(
+      pendingBump([{ name: 'a.md', content: changeset('major', '@e4a/other') }], '@e4a/pg-js')
+    ).toBe('none');
   });
 
   it('ignores a bump word in the changeset body', () => {
@@ -501,7 +515,10 @@ describe('pendingBump', () => {
 });
 
 describe('the committed report', () => {
-  const report = readFileSync(fileURLToPath(new URL('../etc/pg-js.api.md', import.meta.url)), 'utf8');
+  const report = readFileSync(
+    fileURLToPath(new URL('../etc/pg-js.api.md', import.meta.url)),
+    'utf8'
+  );
 
   it('lists every runtime export of the package', () => {
     const listed = new Set(parseReport(report).exports.map((e) => e.name));

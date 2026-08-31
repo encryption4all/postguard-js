@@ -15,14 +15,24 @@ export async function resolveSigningKeys(
     case 'apiKey':
       return resolveSigningKeysFromApiKey(pkgUrl, sign.apiKey, headers, emailAttributes);
     case 'yivi':
-      return resolveSigningKeysFromYivi(pkgUrl, {
-        element: sign.element,
-        senderEmail: sign.senderEmail,
-        attributes: sign.attributes,
-        includeSender: sign.includeSender,
-        emailAttributes,
-      }, headers);
+      return resolveSigningKeysFromYivi(
+        pkgUrl,
+        {
+          element: sign.element,
+          senderEmail: sign.senderEmail,
+          attributes: sign.attributes,
+          includeSender: sign.includeSender,
+          emailAttributes,
+        },
+        headers
+      );
     case 'session':
-      return resolveSigningKeysFromSession(pkgUrl, sign.callback, sign.senderEmail, headers, emailAttributes);
+      return resolveSigningKeysFromSession(
+        pkgUrl,
+        sign.callback,
+        sign.senderEmail,
+        headers,
+        emailAttributes
+      );
   }
 }

@@ -182,8 +182,7 @@ export interface UploadOptions {
 
 /** Input for pg.open() — provide either a UUID or raw encrypted data */
 export type OpenInput =
-  | { uuid: string; signal?: AbortSignal }
-  | { data: Uint8Array | ReadableStream<Uint8Array> };
+  { uuid: string; signal?: AbortSignal } | { data: Uint8Array | ReadableStream<Uint8Array> };
 
 /** Options for opened.decrypt() */
 export interface DecryptInput {

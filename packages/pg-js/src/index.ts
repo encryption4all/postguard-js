@@ -66,12 +66,7 @@ export type { DetectPostGuardInput } from './email/extract.js';
 export { createEnvelope } from './email/envelope.js';
 // Reading a decrypted message back. The other half of buildMime, shared by both
 // add-ins so they cannot drift on the shape they exchange (#129).
-export {
-  parseDecryptedMime,
-  readMimeHeader,
-  bodyFromMime,
-  isMultipart,
-} from './email/parse.js';
+export { parseDecryptedMime, readMimeHeader, bodyFromMime, isMultipart } from './email/parse.js';
 export type { ParsedMessage, ParsedAttachment } from './email/parse.js';
 
 // Errors

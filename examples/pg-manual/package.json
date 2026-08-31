@@ -12,6 +12,7 @@
     "css-loader": "^7.1.4",
     "html-webpack-plugin": "^5.6.7",
     "https-browserify": "^1.0.0",
+    "prettier": "^3.9.6",
     "process": "^0.11.10",
     "stream-http": "^3.2.0",
     "streamsaver": "^2.0.6",
@@ -31,6 +32,13 @@
     "build": "webpack --fail-on-warnings",
     "check": "webpack --config check/webpack.config.js --fail-on-warnings",
     "dev": "npx webpack serve",
-    "typecheck": "pnpm check"
+    "typecheck": "pnpm check",
+    "lint": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "prettier": {
+    "printWidth": 100,
+    "trailingComma": "es5",
+    "singleQuote": true
   }
 }

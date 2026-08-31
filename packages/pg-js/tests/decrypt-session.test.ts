@@ -37,8 +37,12 @@ describe('sortPolicies', () => {
 });
 
 describe('secondsTill4AM', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('calculates remaining seconds until 4 AM', () => {
     // Set time to midnight -> 4 hours = 14400 seconds
@@ -54,8 +58,12 @@ describe('secondsTill4AM', () => {
 });
 
 describe('buildKeyRequest', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
-  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('sets email value to the key', () => {
     vi.setSystemTime(new Date('2024-01-15T00:00:00'));
@@ -233,7 +241,9 @@ describe('waitForElement', () => {
     (globalThis as any).document = { querySelector: () => ({}) };
 
     let resolved = false;
-    void waitForElement('#yivi').then(() => { resolved = true; });
+    void waitForElement('#yivi').then(() => {
+      resolved = true;
+    });
 
     // A microtask flush is enough — no timers are advanced, so a reintroduced
     // 500 ms setTimeout in the ready-path would leave this false.
@@ -249,13 +259,17 @@ describe('waitForElement', () => {
       querySelector: () => (present ? {} : null),
     };
     (globalThis as any).MutationObserver = class {
-      constructor(cb: () => void) { observerCb = cb; }
+      constructor(cb: () => void) {
+        observerCb = cb;
+      }
       observe() {}
       disconnect() {}
     };
 
     let resolved = false;
-    const p = waitForElement('#yivi').then(() => { resolved = true; });
+    const p = waitForElement('#yivi').then(() => {
+      resolved = true;
+    });
 
     await Promise.resolve();
     expect(resolved).toBe(false); // element not there yet -> still waiting
@@ -278,7 +292,9 @@ describe('waitForElement', () => {
     };
 
     let resolved = false;
-    void waitForElement('#yivi', 5000).then(() => { resolved = true; });
+    void waitForElement('#yivi', 5000).then(() => {
+      resolved = true;
+    });
 
     await vi.advanceTimersByTimeAsync(4999);
     expect(resolved).toBe(false);

@@ -10,9 +10,7 @@ import type { BuildMimeOptions } from '../types.js';
  * Tab is preserved, as it is valid header whitespace.
  */
 function sanitizeHeaderValue(value: string): string {
-  return value
-    .replace(/[\r\n]+/g, ' ')
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+  return value.replace(/[\r\n]+/g, ' ').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
 }
 
 /**
@@ -55,9 +53,7 @@ export function buildMime(input: BuildMimeOptions): Uint8Array {
     boundary = generateBoundary();
   }
 
-  const contentType = hasAttachments
-    ? `multipart/mixed; boundary="${boundary}"`
-    : bodyContentType;
+  const contentType = hasAttachments ? `multipart/mixed; boundary="${boundary}"` : bodyContentType;
 
   let mime = '';
   mime += `Date: ${date.toUTCString()}\r\n`;
@@ -118,10 +114,7 @@ export function injectMimeHeaders(
 
   if (headersToRemove) {
     for (const name of headersToRemove) {
-      const pattern = new RegExp(
-        `^${escapeRegExp(name)}:.*(?:\\r\\n[ \\t]+.*)*\\r\\n`,
-        'im'
-      );
+      const pattern = new RegExp(`^${escapeRegExp(name)}:.*(?:\\r\\n[ \\t]+.*)*\\r\\n`, 'im');
       headerBlock = headerBlock.replace(pattern, '');
     }
   }

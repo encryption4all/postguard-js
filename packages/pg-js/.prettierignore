@@ -1,0 +1,24 @@
+# prettier already skips everything in .gitignore, so this file only holds what is
+# tracked but must NOT be formatted. That is also why the four generated sources
+# need no entry here: src/util/wasm-binary.ts, src/util/pg-wasm-shim.js,
+# src/util/version.ts and src/yivi/yivi-css-text.ts are in .gitignore, written by
+# the generate-* scripts on every prebuild.
+#
+# Both entries below are tracked AND machine-written, so formatting them puts
+# prettier in a loop with their writer:
+#
+#   etc/pg-js.api.md is written by scripts/api-report.mjs and gated by
+#   `postbuild: node scripts/api-report.mjs --check`. Format it and the build goes
+#   red, because the report is rendered from the built types and the writer owns
+#   its layout.
+#
+#   tests/fixtures/envelopes/*.json are written by
+#   scripts/generate-envelope-fixtures.mjs and gated by `envelope:check`, which
+#   holds the corpus append-only — a reformat there reads as rewriting bytes a
+#   sender actually emitted.
+#
+# CHANGELOG.md is deliberately NOT here: `changeset version` formats each
+# changelog through prettier using the owning package's config, so ignoring it
+# would make `pnpm lint` skip a file another writer still formats.
+etc/pg-js.api.md
+tests/fixtures/envelopes/*.json

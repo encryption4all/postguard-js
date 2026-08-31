@@ -29,9 +29,7 @@ export class PostGuard extends PostGuardBase {
    *  you ultimately encrypt. Requires a DOM. */
   prepareSign(opts: PrepareSignOptions): PreparedSign {
     const abort = new AbortController();
-    const signal = opts.signal
-      ? AbortSignal.any([opts.signal, abort.signal])
-      : abort.signal;
+    const signal = opts.signal ? AbortSignal.any([opts.signal, abort.signal]) : abort.signal;
 
     let resolveUrl!: (url: string) => void;
     let rejectUrl!: (err: unknown) => void;
@@ -53,7 +51,7 @@ export class PostGuard extends PostGuardBase {
         emailAttributes: this.emailAttributes,
       },
       this.config.headers,
-      { onMobileUrl: resolveUrl, signal },
+      { onMobileUrl: resolveUrl, signal }
     ).catch((err) => {
       // Surface an early failure (cancel/timeout before the button showed) to
       // anyone awaiting the URL, then propagate to `keys`.

@@ -119,7 +119,7 @@ export async function resolveSigningKeysFromYivi(
   if (typeof document === 'undefined') {
     throw new YiviSessionError(
       'sign.yivi requires a DOM (browser environment). ' +
-      'Use sign.apiKey for server-side encryption or sign.session with a custom callback.'
+        'Use sign.apiKey for server-side encryption or sign.session with a custom callback.'
     );
   }
 
@@ -160,7 +160,7 @@ export async function resolveSigningKeysFromYivi(
               pubSignId: [{ t: (opts.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES).email }],
             };
             if (otherAttrTypes.length > 0) {
-              keyRequest.privSignId = otherAttrTypes.map(t => ({ t }));
+              keyRequest.privSignId = otherAttrTypes.map((t) => ({ t }));
             }
 
             return fetch(`${pkgUrl}/v2/irma/sign/key`, {

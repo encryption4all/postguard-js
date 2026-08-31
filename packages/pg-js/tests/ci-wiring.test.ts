@@ -212,7 +212,7 @@ const matrixRows = (body: string): Array<Record<string, string>> => {
     for (const line of block.slice(includeAt + 1)) {
       const isEntry = line.trimStart().startsWith('- ');
       const pair = (isEntry ? line.trim().slice(2) : line.trim()).match(
-        /^([A-Za-z0-9_-]+):\s*(.+)$/,
+        /^([A-Za-z0-9_-]+):\s*(.+)$/
       );
       if (isEntry) rows.push({});
       if (!pair || rows.length === 0) continue;
@@ -239,8 +239,8 @@ const expandName = (template: string, rows: Array<Record<string, string>>) => {
   if (!/\$\{\{\s*matrix\./.test(template) || rows.length === 0) return [template];
   const names = rows.map((row) =>
     template.replace(/\$\{\{\s*matrix\.([A-Za-z0-9_-]+)\s*\}\}/g, (whole, key: string) =>
-      key in row ? row[key] : whole,
-    ),
+      key in row ? row[key] : whole
+    )
   );
   return [...new Set(names)];
 };
@@ -347,7 +347,7 @@ const stepWith = (target: Job, needle: string) => {
   const found = stepsOf(target).filter((step) => step.includes(needle));
   expect(
     found,
-    `expected exactly one step containing ${JSON.stringify(needle)} in ${target.file}'s \`${target.id}\``,
+    `expected exactly one step containing ${JSON.stringify(needle)} in ${target.file}'s \`${target.id}\``
   ).toHaveLength(1);
   return found[0];
 };
@@ -367,10 +367,7 @@ const producers = new Map<string, string[]>();
 for (const candidate of workflows) {
   for (const target of candidate.jobs) {
     for (const context of target.contexts) {
-      producers.set(context, [
-        ...(producers.get(context) ?? []),
-        `${candidate.file}#${target.id}`,
-      ]);
+      producers.set(context, [...(producers.get(context) ?? []), `${candidate.file}#${target.id}`]);
     }
   }
 }
@@ -378,8 +375,8 @@ for (const candidate of workflows) {
 const requiredJobs = () =>
   workflows.flatMap((candidate) =>
     candidate.jobs.filter((target) =>
-      target.contexts.some((context) => REQUIRED_CONTEXTS.includes(context)),
-    ),
+      target.contexts.some((context) => REQUIRED_CONTEXTS.includes(context))
+    )
   );
 
 describe('required contexts', () => {
@@ -399,7 +396,7 @@ describe('required contexts', () => {
           'time(s). A required context no job produces blocks nothing, so renaming a job ' +
           'disarms its gate instead of breaking it; two jobs producing one context are ' +
           'indistinguishable to branch protection. Rename the context in the same change ' +
-          '(`gh api repos/encryption4all/postguard-js/rules/branches/main`).',
+          '(`gh api repos/encryption4all/postguard-js/rules/branches/main`).'
       ).toHaveLength(1);
     }
   });
@@ -416,7 +413,7 @@ describe('required contexts', () => {
         `${target.file}'s \`${target.id}\` reports a required context and carries ` +
           `\`if: ${target.condition}\`. GitHub counts a skipped check as passing, so a ` +
           'condition that is false on a pull request makes this gate unable to fail. If the ' +
-          'condition really is PR-safe, add it to PR_SAFE_CONDITIONS and say why.',
+          'condition really is PR-safe, add it to PR_SAFE_CONDITIONS and say why.'
       ).toContain(target.condition);
     }
   });
@@ -433,17 +430,19 @@ describe('required contexts', () => {
     const files = [...new Set(requiredJobs().map((target) => target.file))];
     for (const file of files) {
       const block = triggerBlock(workflow(file), 'pull_request');
-      expect(block, `${file} carries a required context but has no \`pull_request:\` trigger`).not
-        .toBeNull();
+      expect(
+        block,
+        `${file} carries a required context but has no \`pull_request:\` trigger`
+      ).not.toBeNull();
       expect(
         block,
         `${file}'s \`pull_request:\` trigger declares a paths filter. A path-filtered ` +
           'required check does not report on a PR that misses the filter, and branch ' +
-          'protection then blocks that PR with nothing to run.',
+          'protection then blocks that PR with nothing to run.'
       ).not.toMatch(/^\s*paths(-ignore)?:/m);
       if (/^\s*branches:/m.test(block ?? '')) {
         expect(block, `${file}'s \`pull_request:\` trigger no longer covers \`main\``).toMatch(
-          /branches:.*main/,
+          /branches:.*main/
         );
       }
     }
@@ -460,7 +459,7 @@ describe('integration.yml', () => {
    */
   it('the aggregate covers every lane in the file', () => {
     const named = workflow('integration.yml').jobs.filter((target) =>
-      target.contexts.includes('Integration complete'),
+      target.contexts.includes('Integration complete')
     );
     expect(named, 'no job in integration.yml is named `Integration complete`').toHaveLength(1);
     const aggregate = named[0];
@@ -473,7 +472,7 @@ describe('integration.yml', () => {
       [...(aggregate.needs ?? [])].sort(),
       `\`${aggregate.id}\` is the single required check for integration.yml and its coverage ` +
         'is exactly its `needs:`. A lane in this file but not in that list runs, reports, and ' +
-        'counts for nothing. Add it there, or say here why it is deliberately uncovered.',
+        'counts for nothing. Add it there, or say here why it is deliberately uncovered.'
     ).toEqual([...lanes].sort());
   });
 
@@ -491,7 +490,7 @@ describe('integration.yml', () => {
     expect(
       aggregate.condition,
       'without `if: always()` the aggregate is skipped when a lane fails, and branch ' +
-        'protection counts a skipped check as passing',
+        'protection counts a skipped check as passing'
     ).toBe('always()');
 
     const assertion = stepWith(aggregate, 'needs.*.result');
@@ -506,12 +505,12 @@ describe('integration.yml', () => {
       'the aggregate reads the lane results and then either never compares them against ' +
         '`success` or never exits non-zero when the comparison fails. Either way it reports ' +
         'green however the lanes ended, which is worse than a rename: a rename disarms a gate, ' +
-        'this one certifies a failure as a pass.',
+        'this one certifies a failure as a pass.'
     ).toMatch(/success[\s\S]{0,400}exit 1/);
     expect(
       assertion,
       'the aggregate does not guard the empty case: with no results the loop runs zero times ' +
-        'and the step exits 0 having checked nothing',
+        'and the step exits 0 having checked nothing'
     ).toMatch(/-z\s+"\$\{RESULTS/);
   });
 
@@ -531,7 +530,7 @@ describe('integration.yml', () => {
         types,
         `${file}'s \`pull_request\` trigger no longer lists \`edited\`, which is not a ` +
           'default type. Without it a retarget or retitle leaves a verdict attached to the ' +
-          'base or title it was computed from.',
+          'base or title it was computed from.'
       ).toContain('edited');
     }
   });
@@ -543,7 +542,7 @@ describe('integration.yml', () => {
     expect(
       surface.body,
       '`api-surface` compares against the merge base, which a shallow clone has no common ' +
-        'ancestor for; without `fetch-depth: 0` the gate fails rather than gating',
+        'ancestor for; without `fetch-depth: 0` the gate fails rather than gating'
     ).toContain('fetch-depth: 0');
 
     const envelope = job('integration.yml', 'envelope-compat');
@@ -552,13 +551,13 @@ describe('integration.yml', () => {
       expect(
         envelope.body,
         `\`envelope-compat\` no longer runs ${suite}, so one direction of ` +
-          "COMPATIBILITY.md's envelope guarantee is unchecked",
+          "COMPATIBILITY.md's envelope guarantee is unchecked"
       ).toContain(suite);
     }
     expect(
       envelope.body,
       'the append-only fixture check compares against the merge base and needs the history ' +
-        'to find it',
+        'to find it'
     ).toContain('fetch-depth: 0');
   });
 });
@@ -581,7 +580,7 @@ describe('release and publish wiring', () => {
           pattern,
           `${candidate.file} triggers a release on the tag pattern ${JSON.stringify(pattern)}. ` +
             "This repo's tag namespace is shared with changesets and the pre-monorepo " +
-            'pg-js tags, so an unscoped pattern fires on another product\'s release.',
+            "pg-js tags, so an unscoped pattern fires on another product's release."
         ).toMatch(/^[a-z][a-z0-9-]*-v\*$/);
       }
     }
@@ -592,12 +591,12 @@ describe('release and publish wiring', () => {
     expect(
       push,
       'tb-addon.yml no longer builds on its own release tags, so a tag push produces no ' +
-        'artifact for the release job to attach',
+        'artifact for the release job to attach'
     ).toContain("tags: ['tb-addon-v*']");
     expect(
       job('tb-addon.yml', 'release').condition,
       'the tb-addon release job no longer checks the tag prefix, so any tag on this repo — ' +
-        'a changesets pg-js release included — would cut a Thunderbird add-on release',
+        'a changesets pg-js release included — would cut a Thunderbird add-on release'
     ).toBe("startsWith(github.ref, 'refs/tags/tb-addon-v')");
   });
 
@@ -608,16 +607,16 @@ describe('release and publish wiring', () => {
    */
   it('the published image names are the ones ops deploys', () => {
     expect(workflow('website.yml').triggers).toContain(
-      'IMAGE: ghcr.io/encryption4all/postguard-website',
+      'IMAGE: ghcr.io/encryption4all/postguard-website'
     );
     expect(workflow('outlook-addon.yml').triggers).toContain(
-      'IMAGE: ghcr.io/encryption4all/postguard-outlook-addon',
+      'IMAGE: ghcr.io/encryption4all/postguard-outlook-addon'
     );
     for (const file of ['website.yml', 'outlook-addon.yml']) {
       expect(
         workflow(file).triggers,
         `${file} derives its image name from \`github.repository\`, which resolves to ` +
-          'postguard-js here — that publishes to a name nothing deploys',
+          'postguard-js here — that publishes to a name nothing deploys'
       ).not.toMatch(/IMAGE:.*github\.repository/);
     }
   });
@@ -633,7 +632,7 @@ describe('release and publish wiring', () => {
     expect(
       stepWith(build, 'push-by-digest=true'),
       'the website build pushes by digest without checking the branch, so a pull request ' +
-        'would write to the registry',
+        'would write to the registry'
     ).toContain("if: github.ref == 'refs/heads/main'");
 
     const finalize = job('website.yml', 'finalize');
@@ -642,7 +641,7 @@ describe('release and publish wiring', () => {
     ]);
     expect(
       finalize.condition ?? '',
-      'the tagging job no longer restricts itself to main, so a PR run would tag `:edge`',
+      'the tagging job no longer restricts itself to main, so a PR run would tag `:edge`'
     ).toContain("github.ref == 'refs/heads/main'");
   });
 });
@@ -659,7 +658,7 @@ describe('the reader', () => {
       expect(candidate.jobs.length, `${candidate.file} read back with no jobs`).toBeGreaterThan(0);
       for (const target of candidate.jobs) {
         expect(target.name, `${candidate.file}#${target.id} read back with an empty name`).not.toBe(
-          '',
+          ''
         );
       }
     }
@@ -675,7 +674,7 @@ describe('the reader', () => {
           expect(
             context,
             `${candidate.file}#${target.id} read back with an unresolved matrix reference, so ` +
-              'this reader no longer understands the file',
+              'this reader no longer understands the file'
           ).not.toMatch(/\$\{\{\s*matrix\./);
         }
       }
@@ -700,7 +699,7 @@ describe('the reader', () => {
       expect(
         stepsOf(target).length,
         `${target.file}#${target.id} reports a required context but read back with no steps, ` +
-          'so this reader no longer understands the file',
+          'so this reader no longer understands the file'
       ).toBeGreaterThan(0);
     }
   });

@@ -102,7 +102,7 @@ describe('the root CLAUDE.md', () => {
         `lives. Durable knowledge belongs in a binding rule (at most 600 B, delivered to the next ` +
         `container at ~/dobby-rules.md) or in a comment beside the check it explains, not here. ` +
         `Above the cap a container working this repo loses its cwd on the clone, and the file stops ` +
-        `being loaded at all. See encryption4all/dobby-code#677.`,
+        `being loaded at all. See encryption4all/dobby-code#677.`
     ).toBeLessThanOrEqual(MAX_BYTES);
   });
 
@@ -118,7 +118,7 @@ describe('the root CLAUDE.md', () => {
         headings,
         `CLAUDE.md has a "${section}" heading again. That section went with the reference corpus; ` +
           `its content is a binding rule, a header comment on the check it describes, or README.md — ` +
-          `not this file.`,
+          `not this file.`
       ).not.toContain(section);
     }
   });
@@ -131,7 +131,7 @@ describe('the root CLAUDE.md', () => {
       body,
       'CLAUDE.md no longer names a revision holding the cut corpus. The old file was not migrated ' +
         'and not reconstructed — it stays in git history, and this file is what points at it. Keep a ' +
-        '`git show <sha>:CLAUDE.md` pointer.',
+        '`git show <sha>:CLAUDE.md` pointer.'
     ).toMatch(/git show [0-9a-f]{7,40}:CLAUDE\.md/);
   });
 });

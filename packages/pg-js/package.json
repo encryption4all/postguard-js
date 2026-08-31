@@ -41,6 +41,8 @@
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "prettier --check .",
+    "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
@@ -53,9 +55,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "lint-staged": "^17.0.5",
     "pg-js-legacy-armor": "npm:@e4a/pg-js@0.10.0",
     "pg-js-reader-v1": "npm:@e4a/pg-js@1.11.0",
     "pg-js-reader-v2": "npm:@e4a/pg-js@2.3.4",
+    "prettier": "^3.9.6",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
@@ -70,5 +74,15 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "trailingComma": "es5",
+    "singleQuote": true
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
   }
 }

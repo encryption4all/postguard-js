@@ -1,16 +1,25 @@
-# lint-staged runs per workspace package; add a line here when an app joins.
+# lint-staged runs per workspace package; add a line here when a package joins.
 #
-# Every app is now covered (#138 closed the tb-addon gap). What is NOT covered is
-# packages/pg-js and examples/*: they declare no prettier config, so a line here
-# would format them against prettier's bare defaults rather than a style anyone
-# chose. Give a package a config first, then add its line — and note that a
-# config at the REPO ROOT is not the way to do it, because prettier resolves
-# config by walking up from each file and a package.json without a `prettier` key
-# does not stop the search, so one root config silently becomes the style of
-# every package that has none. See apps/tb-addon/CLAUDE.md.
+# Hook-covered, one line each below: apps/website, apps/outlook-addon,
+# apps/tb-addon and packages/pg-js — the four that are edited by hand every day,
+# where formatting on commit keeps style churn out of the next diff.
+#
+# CI-covered only: examples/pg-manual, examples/pg-node and examples/pg-sveltekit.
+# All three declare `lint` and the Node examples job in examples.yml runs it on
+# every PR, so an unformatted example still cannot merge. The two lists differ on
+# cost, not on principle: a line here is paid on every commit in the repo, and the
+# examples are touched a few times a year. pg-sveltekit has been in that shape
+# since the import; #269 put the other two there with it.
+#
+# A package needs its own prettier config before it can be listed here, and a
+# config at the REPO ROOT is not the way to give it one: prettier resolves config
+# by walking up from each file and a package.json without a `prettier` key does
+# not stop the search, so one root config silently becomes the style of every
+# package that has none. See apps/tb-addon/CLAUDE.md.
 #
 # Each line runs with that package's directory as cwd, which is what makes the
 # package's own prettier config and .prettierignore apply.
 pnpm --filter postguard-website exec lint-staged
 pnpm --filter postguard-outlook-addin exec lint-staged
 pnpm --filter postguard-tb-addon exec lint-staged
+pnpm --filter @e4a/pg-js exec lint-staged

@@ -46,7 +46,13 @@ export const BUMP_RANK = { none: 0, patch: 1, minor: 2, major: 3 };
  * `classify` can compare texts across a rename.
  */
 export function buildModel(dts) {
-  const source = ts.createSourceFile(VIRTUAL_FILE, dts, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const source = ts.createSourceFile(
+    VIRTUAL_FILE,
+    dts,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
   const exports = [];
   const declarations = new Map();
   const statements = new Map();
@@ -223,7 +229,9 @@ function stripAndSortMembers(declaration) {
   const kept = declaration.members
     .filter((member) => !isPrivate(member))
     .map((member, index) => ({ member, index, key: memberKey(member) }))
-    .sort((a, b) => sortRank(a.key) - sortRank(b.key) || compareNames(a.key, b.key) || a.index - b.index)
+    .sort(
+      (a, b) => sortRank(a.key) - sortRank(b.key) || compareNames(a.key, b.key) || a.index - b.index
+    )
     .map((entry) => entry.member);
 
   return ts.isClassDeclaration(declaration)
@@ -258,7 +266,8 @@ function isPrivate(member) {
 function memberKey(member) {
   const isStatic = (ts.getCombinedModifierFlags(member) & ts.ModifierFlags.Static) !== 0;
   const prefix = isStatic ? 'static ' : '';
-  if (ts.isConstructorDeclaration(member) || ts.isConstructSignatureDeclaration(member)) return 'new()';
+  if (ts.isConstructorDeclaration(member) || ts.isConstructSignatureDeclaration(member))
+    return 'new()';
   if (ts.isIndexSignatureDeclaration(member)) return '[index]';
   if (ts.isCallSignatureDeclaration(member)) return '()';
   if (!member.name) return prefix + '<unnamed>';
@@ -344,7 +353,8 @@ function assignIds(declarations, exports, references) {
   for (const entry of exports) {
     if (!declarations.has(entry.from)) continue;
     const current = roots.get(entry.from);
-    if (current === undefined || compareNames(entry.name, current) < 0) roots.set(entry.from, entry.name);
+    if (current === undefined || compareNames(entry.name, current) < 0)
+      roots.set(entry.from, entry.name);
   }
 
   let frontier = [...roots.keys()].sort((a, b) => compareNames(roots.get(a), roots.get(b)));
@@ -360,7 +370,8 @@ function assignIds(declarations, exports, references) {
         if (ids.has(reference.name)) continue;
         const claim = `${parent}/${reference.label}:${reference.index}`;
         const current = claims.get(reference.name);
-        if (current === undefined || compareNames(claim, current) < 0) claims.set(reference.name, claim);
+        if (current === undefined || compareNames(claim, current) < 0)
+          claims.set(reference.name, claim);
       }
     }
     frontier = [...claims.keys()].sort((a, b) => compareNames(claims.get(a), claims.get(b)));
@@ -435,7 +446,10 @@ function referenceMarker(names) {
 function mapSignature(signature, transform) {
   return {
     typeParameters: transform(signature.typeParameters),
-    parameters: signature.parameters.map((parameter) => ({ ...parameter, text: transform(parameter.text) })),
+    parameters: signature.parameters.map((parameter) => ({
+      ...parameter,
+      text: transform(parameter.text),
+    })),
     returnType: transform(signature.returnType),
   };
 }
@@ -697,7 +711,9 @@ function compareEntry(baseEntry, headEntry) {
     const baseHeaders = [...new Set(baseEntry.refHeaders)];
     const headHeaders = [...new Set(headEntry.refHeaders)];
     if (!sameTexts(baseHeaders, headHeaders)) {
-      const shown = [...new Set(headEntry.headers)].map((header) => header.replace(/\s*\{$/, '')).join(', ');
+      const shown = [...new Set(headEntry.headers)]
+        .map((header) => header.replace(/\s*\{$/, ''))
+        .join(', ');
       changes.push({
         level: 'major',
         name: baseEntry.name,
@@ -754,7 +770,13 @@ function compareEntry(baseEntry, headEntry) {
     ];
   }
 
-  return [{ level: 'major', name: baseEntry.name, detail: `${baseEntry.kind} \`${baseEntry.name}\` changed` }];
+  return [
+    {
+      level: 'major',
+      name: baseEntry.name,
+      detail: `${baseEntry.kind} \`${baseEntry.name}\` changed`,
+    },
+  ];
 }
 
 function sameTexts(a, b) {
@@ -820,7 +842,9 @@ function bumpsIn(content, packageName) {
   if (!match) return [];
   const found = [];
   for (const line of match[1].split(/\r?\n/)) {
-    const entry = /^\s*(?:"([^"]+)"|'([^']+)'|([^:'"\s]+))\s*:\s*(major|minor|patch)\s*$/.exec(line);
+    const entry = /^\s*(?:"([^"]+)"|'([^']+)'|([^:'"\s]+))\s*:\s*(major|minor|patch)\s*$/.exec(
+      line
+    );
     if (!entry) continue;
     const name = entry[1] ?? entry[2] ?? entry[3];
     if (name === packageName) found.push(entry[4]);
