@@ -34,10 +34,28 @@ async function mockYiviSession(page: Page) {
     )
 }
 
+// The compose screen will not enable the send button until it knows cryptify's
+// upload limits, and there is no cryptify behind the preview server, so serve
+// them here.
+async function mockUploadLimits(page: Page) {
+    await page.route('**/limits', (route) =>
+        route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                per_upload_limit_bytes: 4_000_000_000,
+                rolling_limit_bytes: 9_000_000_000,
+                window_days: 14,
+            }),
+        })
+    )
+}
+
 test('the scan instruction shows the Yivi wordmark but reads normally to a screen reader', async ({
     page,
 }) => {
     await mockYiviSession(page)
+    await mockUploadLimits(page)
     await page.goto('/fileshare/', { waitUntil: 'networkidle' })
 
     // Compose a valid message (one file + one recipient) and open the QR.

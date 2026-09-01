@@ -11,6 +11,8 @@
     import SendButton from '$lib/components/filesharing/SendButton.svelte'
     import FileInput from '$lib/components/filesharing/inputs/FileInput.svelte'
     import Dropzone from '@deltablot/dropzone'
+    import { FILEHOST_URL } from '$lib/env'
+    import { uploadLimits } from '$lib/limits'
 
     const ATTRIBUTES: Array<AttType> = [
         'pbdf.sidn-pbdf.mobilenumber.mobilenumber',
@@ -94,6 +96,10 @@
 
     // Add files to Dropzone after it initializes
     onMount(() => {
+        // Same fetch the real compose screen does; without it the send button
+        // in this sandbox stays disabled.
+        void uploadLimits.load(FILEHOST_URL)
+
         setTimeout(() => {
             const dropzoneElement = document.querySelector('#my-form') as
                 (HTMLElement & { dropzone?: Dropzone }) | null

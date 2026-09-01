@@ -31,13 +31,13 @@ pnpm --filter postguard-website dev
 
 ### Environment variables
 
-| Variable               | Description                                                               | Default                 |
-| ---------------------- | ------------------------------------------------------------------------- | ----------------------- |
-| `VITE_FILEHOST_URL`    | Filehosting service URL (Cryptify)                                        | `http://localhost:8000` |
-| `VITE_PKG_URL`         | PKG service URL                                                           | `http://localhost:8087` |
-| `VITE_MAX_UPLOAD_SIZE` | Maximum file upload size in bytes (default: 5 GB)                         | -                       |
-| `VITE_ROLLING_LIMIT`   | Rolling upload limit in bytes per email per 2 weeks (default: 5 GB)       | -                       |
-| `VITE_CHUNK_SIZE`      | Optional: upload chunk size in bytes. If unset, uses pg-js default (5 MB) | -                       |
+| Variable            | Description                                                               | Default                 |
+| ------------------- | ------------------------------------------------------------------------- | ----------------------- |
+| `VITE_FILEHOST_URL` | Filehosting service URL (Cryptify)                                        | `http://localhost:8000` |
+| `VITE_PKG_URL`      | PKG service URL                                                           | `http://localhost:8087` |
+| `VITE_CHUNK_SIZE`   | Optional: upload chunk size in bytes. If unset, uses pg-js default (5 MB) | -                       |
+
+The per-upload and rolling upload limits are not configured here. The site fetches them from cryptify's `GET /limits` when the compose screen loads; if that call fails, sending is disabled rather than falling back to a value baked into the build.
 
 ## Releasing
 
