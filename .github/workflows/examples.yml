@@ -49,9 +49,9 @@ jobs:
             # script, silently and with a zero exit — that is how the website and
             # the Outlook add-in both shipped without a typecheck. `typecheck` is
             # the one script every example must therefore declare, and this asserts
-            # it rather than trusting it. `build` and `lint` are genuinely absent in
-            # some examples (pg-node runs, it does not build), so they stay
-            # best-effort below.
+            # it rather than trusting it, as does the `lint` guard below it. `build`
+            # is genuinely absent in some examples (pg-node runs, it does not
+            # build), so it stays best-effort.
             - name: Every example declares typecheck
               shell: bash
               run: |
@@ -88,6 +88,32 @@ jobs:
             - name: Build
               run: pnpm --filter './examples/*' run build
 
+            # Until this guard existed the step below was fail-open: pnpm skipped
+            # the two examples declaring no `lint` script and exited 0, so `Lint`
+            # was green while linting one example of three.
+            - name: Every example declares lint
+              shell: bash
+              run: |
+                  set -uo pipefail
+                  missing=0 count=0
+                  for pkg in examples/*/package.json; do
+                    [ -f "$pkg" ] || continue
+                    count=$((count + 1))
+                    if ! jq -e '.scripts.lint // "" | length > 0' "$pkg" >/dev/null 2>&1; then
+                      echo "::error::$pkg declares no \"lint\" script; pnpm would skip it without a word"
+                      missing=1
+                    fi
+                  done
+                  if [ "$count" -eq 0 ]; then
+                    echo "::error::found no examples/*/package.json; this job would pass vacuously"
+                    exit 1
+                  fi
+                  if [ "$missing" -ne 0 ]; then
+                    exit 1
+                  fi
+                  echo "$count example packages, each declaring lint"
+
+            # Asserted present above, so this cannot skip silently.
             - name: Lint
               run: pnpm --filter './examples/*' run lint
 
