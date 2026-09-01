@@ -59,6 +59,21 @@ jobs:
             - name: Prettier plugins resolve from the root
               run: pnpm check-prettier-plugins
 
+            # `.husky/pre-commit` runs lint-staged over packages/pg-js, but a hook
+            # only ever sees staged files and `--no-verify` skips it entirely, so
+            # without this step the SDK's formatting rule is a convention rather
+            # than a contract. Same shape as the tb-addon lane: `prettier --check .`
+            # package-wide, which is wider than the hook's globs, because a CI gate
+            # narrower than the hook it complements is weaker than it looks.
+            #
+            # A step rather than a job, deliberately: it reports under this job's
+            # `Integration complete` aggregate, which is already required, so it
+            # needs no `main` ruleset change and no REQUIRED_CONTEXTS edit in
+            # packages/pg-js/tests/ci-wiring.test.ts. A new job would be a new
+            # context, unenforced until both are updated in lockstep.
+            - name: Prettier (format check)
+              run: pnpm --filter @e4a/pg-js lint
+
             - name: Typecheck
               run: pnpm -r typecheck
 
