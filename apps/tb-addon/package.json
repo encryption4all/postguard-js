@@ -1,6 +1,6 @@
 {
   "name": "postguard-tb-addon",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "description": "PostGuard encryption extension for Thunderbird",
   "scripts": {
