@@ -277,8 +277,10 @@ declare class PostGuard extends PostGuardBase {
 declare class PostGuardBase {
     constructor(config: PostGuardConfig);
     protected readonly config: PostGuardConfig;
+    protected readonly cryptifyHeaders: HeadersInit | undefined;
     readonly email: EmailHelpers;
     protected readonly emailAttributes: EmailAttributes;
+    protected readonly pkgHeaders: HeadersInit | undefined;
     readonly recipient: {
         email: (email: string) => RecipientBuilder;
         emailDomain: (email: string) => RecipientBuilder;
@@ -298,6 +300,7 @@ declare class PostGuardBase {
 }
 
 interface PostGuardConfig {
+    cryptifyChannel?: string;
     cryptifyUrl?: string;
     emailAttributes?: {
         email?: string;

@@ -137,6 +137,7 @@ async function runEncryption(req: EncryptRequest): Promise<EncryptResult> {
     pkgUrl: PKG_URL,
     cryptifyUrl: CRYPTIFY_URL,
     headers: clientHeaders(ADDIN_VERSION),
+    cryptifyChannel: "outlook",
   } as never);
 
   const recipients = [...req.to, ...req.cc].map((email) =>

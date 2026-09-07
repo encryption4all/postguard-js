@@ -21,7 +21,7 @@ export const pg = new PostGuard({
     // upload metrics. Without this, cryptify falls back to matching the
     // browser Origin header, which collides with the Outlook add-in
     // (also served from a *.postguard.eu host).
-    headers: { 'X-Cryptify-Source': 'website' },
+    cryptifyChannel: 'website',
     ...(CHUNK_SIZE !== undefined && { uploadChunkSize: CHUNK_SIZE }),
     retry: {
         // Defaults (5 attempts, 500ms initial) exhaust the retry budget in

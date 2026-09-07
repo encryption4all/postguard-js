@@ -10,16 +10,22 @@ import { resolveEmailAttributes } from './util/attributes.js';
 import { encryptPipeline } from './crypto/encrypt.js';
 import { createZipReadable } from './util/zip.js';
 import { resolveSigningKeys } from './crypto/signing.js';
+import { pkgHeaders, cryptifyHeaders } from './util/headers.js';
 
 /** Lazy encryption builder. Nothing executes until a terminal method is called. */
 export class Sealed {
   private cachedSigningKeys?: SigningKeys;
+  private readonly pkgHeaders: HeadersInit | undefined;
+  private readonly cryptifyHeaders: HeadersInit | undefined;
 
   /** @internal */
   constructor(
     private readonly config: PostGuardConfig,
     private readonly options: EncryptInput
-  ) {}
+  ) {
+    this.pkgHeaders = pkgHeaders(config);
+    this.cryptifyHeaders = cryptifyHeaders(config);
+  }
 
   /** Was this Sealed built from raw `data` (typically an RFC 5322 MIME
    *  envelope) or from a list of `files`? Consumers like createEnvelope
@@ -44,7 +50,7 @@ export class Sealed {
       this.cachedSigningKeys = await resolveSigningKeys(
         this.config.pkgUrl,
         this.options.sign,
-        this.config.headers,
+        this.pkgHeaders,
         resolveEmailAttributes(this.config.emailAttributes)
       );
     }
@@ -63,7 +69,7 @@ export class Sealed {
         sign,
         recipients,
         data: this.options.data,
-        headers: this.config.headers,
+        pkgHeaders: this.pkgHeaders,
         signingKeys,
         emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
       });
@@ -77,7 +83,7 @@ export class Sealed {
       sign,
       recipients,
       data: zipReadable,
-      headers: this.config.headers,
+      pkgHeaders: this.pkgHeaders,
       signingKeys,
       emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
     });
@@ -136,7 +142,8 @@ export class Sealed {
       signal,
       uploadChunkSize: this.config.uploadChunkSize,
       delivery: opts?.notify,
-      headers: this.config.headers,
+      pkgHeaders: this.pkgHeaders,
+      cryptifyHeaders: this.cryptifyHeaders,
       signingKeys,
       emailAttributes: resolveEmailAttributes(this.config.emailAttributes),
       retry: this.config.retry,

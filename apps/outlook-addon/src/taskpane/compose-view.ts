@@ -449,6 +449,7 @@ async function encryptAndPrepareSend(): Promise<void> {
       pkgUrl: PKG_URL,
       cryptifyUrl: CRYPTIFY_URL,
       headers: clientHeaders(ADDIN_VERSION),
+      cryptifyChannel: "outlook",
     } as never);
 
     const recipients = buildPgRecipients(pg);

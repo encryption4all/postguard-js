@@ -253,6 +253,7 @@ export async function runBeforeSendEncryption(
           pkgUrl: deps.pkgUrl,
           cryptifyUrl: deps.cryptifyUrl,
           headers: deps.pgClientHeader,
+          cryptifyChannel: "thunderbird",
         },
         mimeDataBase64: toBase64(mimeData),
         recipients: serializedRecipients,

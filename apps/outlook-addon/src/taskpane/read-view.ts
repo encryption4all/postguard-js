@@ -199,6 +199,7 @@ async function runDecryption(): Promise<void> {
       pkgUrl: PKG_URL,
       cryptifyUrl: CRYPTIFY_URL,
       headers: clientHeaders(ADDIN_VERSION),
+      cryptifyChannel: "outlook",
     } as never);
 
     const opened = (

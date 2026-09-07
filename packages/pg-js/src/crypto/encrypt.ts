@@ -33,7 +33,10 @@ export interface EncryptPipelineOptions {
     message?: string;
     language?: 'EN' | 'NL';
   };
-  headers?: HeadersInit;
+  /** Headers for PKG requests (fetchMPK, signing-key resolution). */
+  pkgHeaders?: HeadersInit;
+  /** Headers for Cryptify requests (the upload stream). */
+  cryptifyHeaders?: HeadersInit;
   /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
   signingKeys?: SigningKeys;
   /** Retry behaviour for chunk uploads. See PostGuardConfig.retry. */
@@ -45,8 +48,18 @@ export interface EncryptPipelineOptions {
 
 /** Full encryption pipeline: sign -> policy -> ZIP -> seal -> upload */
 export async function encryptPipeline(options: EncryptPipelineOptions): Promise<UploadResult> {
-  const { pkgUrl, cryptifyUrl, sign, files, recipients, onProgress, signal, delivery, headers } =
-    options;
+  const {
+    pkgUrl,
+    cryptifyUrl,
+    sign,
+    files,
+    recipients,
+    onProgress,
+    signal,
+    delivery,
+    pkgHeaders,
+    cryptifyHeaders,
+  } = options;
   const emailAttrs = options.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
 
   const abortController = new AbortController();
@@ -56,8 +69,8 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
 
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
-    fetchMPK(pkgUrl, headers),
-    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers, emailAttrs),
+    fetchMPK(pkgUrl, pkgHeaders),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, pkgHeaders, emailAttrs),
   ]);
 
   // Build encryption policy
@@ -106,7 +119,7 @@ export async function encryptPipeline(options: EncryptPipelineOptions): Promise<
     apiKey: cryptifyApiKey,
     abortSignal: effectiveSignal,
     retry: options.retry,
-    headers,
+    headers: cryptifyHeaders,
     onUploadInit: options.onUploadInit,
     // Answers cryptify's upload challenge with the same signing key that
     // sealed the container, so the sender identity in the header is proven
@@ -182,7 +195,8 @@ export interface SealRawOptions {
   sign: SignMethod;
   recipients: Recipient[];
   data: Uint8Array | ReadableStream<Uint8Array>;
-  headers?: HeadersInit;
+  /** Headers for PKG requests (fetchMPK, signing-key resolution). */
+  pkgHeaders?: HeadersInit;
   /** Pre-resolved signing keys (skips Yivi/API key resolution if provided) */
   signingKeys?: SigningKeys;
   /** Email attribute types (see `PostGuardConfig.emailAttributes`). */
@@ -191,13 +205,13 @@ export interface SealRawOptions {
 
 /** Seal raw data: sign -> policy -> sealStream -> return encrypted bytes */
 export async function sealRaw(options: SealRawOptions): Promise<Uint8Array> {
-  const { pkgUrl, sign, recipients, data, headers } = options;
+  const { pkgUrl, sign, recipients, data, pkgHeaders } = options;
   const emailAttrs = options.emailAttributes ?? DEFAULT_EMAIL_ATTRIBUTES;
 
   // Fetch MPK and signing keys in parallel
   const [mpk, signingKeys] = await Promise.all([
-    fetchMPK(pkgUrl, headers),
-    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, headers, emailAttrs),
+    fetchMPK(pkgUrl, pkgHeaders),
+    options.signingKeys ?? resolveSigningKeys(pkgUrl, sign, pkgHeaders, emailAttrs),
   ]);
 
   // Build encryption policy
