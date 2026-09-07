@@ -623,6 +623,9 @@ async function handleDecryptMessage(messageId: number): Promise<{ ok: boolean; e
         pkgUrl: PKG_URL!,
         cryptifyUrl: CRYPTIFY_URL,
         headers: PG_CLIENT_HEADER,
+        // Identifies this add-in in cryptify's per-channel upload metrics
+        // (encryption4all/cryptify#102); avoids relying on cryptify's
+        // Origin/User-Agent fallbacks, which are environment-dependent.
         cryptifyChannel: "thunderbird",
       },
       ciphertextBase64: ciphertext ? toBase64(ciphertext) : undefined,

@@ -137,6 +137,9 @@ async function runEncryption(req: EncryptRequest): Promise<EncryptResult> {
     pkgUrl: PKG_URL,
     cryptifyUrl: CRYPTIFY_URL,
     headers: clientHeaders(ADDIN_VERSION),
+    // Identifies this add-in in cryptify's per-channel upload metrics.
+    // Without it, cryptify's Origin-based fallback misclassifies traffic
+    // from addin.*.postguard.eu.
     cryptifyChannel: "outlook",
   } as never);
 
