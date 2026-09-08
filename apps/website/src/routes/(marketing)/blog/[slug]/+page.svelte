@@ -197,6 +197,11 @@
         margin-bottom: 1rem;
     }
 
+    .blog-post :global(p > img:only-child) {
+        display: block;
+        margin: 1.5rem auto 1rem;
+    }
+
     .blog-post :global(a) {
         color: var(--pg-primary);
     }
