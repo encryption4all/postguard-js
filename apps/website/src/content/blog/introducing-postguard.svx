@@ -18,7 +18,7 @@ Traditional encryption solutions like PGP or S/MIME exist, but they require both
 
 ## How PostGuard is different
 
-PostGuard uses **Identity-Based Encryption (IBE)**, a different approach. With IBE, the recipient's identity, such as their email address, _is_ their public key. There is nothing to exchange or look up beforehand.
+PostGuard uses **Identity-Based Encryption (IBE)**, a different approach. With IBE, the recipient's identity, such as their email address, *is* their public key. There is nothing to exchange or look up beforehand.
 
 Here is how sending an encrypted file works:
 
