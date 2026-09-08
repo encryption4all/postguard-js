@@ -1,9 +1,9 @@
 ---
-title: 'Introducing PostGuard: Easy End-to-End Encryption for Everyone'
-description: 'PostGuard makes end-to-end encryption accessible. Learn how identity-based encryption simplifies secure email and file sharing.'
-date: '2026-04-15'
-author: 'Ruben Hensen'
-image: '/blog/introducing-postguard-cover.png'
+title: "Introducing PostGuard: Easy End-to-End Encryption for Everyone"
+description: "PostGuard makes end-to-end encryption accessible. Learn how identity-based encryption simplifies secure email and file sharing."
+date: "2026-04-15"
+author: "Ruben Hensen"
+image: "/blog/introducing-postguard-cover.png"
 ---
 
 # Introducing PostGuard
