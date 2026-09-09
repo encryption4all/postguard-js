@@ -253,6 +253,10 @@ export async function runBeforeSendEncryption(
           pkgUrl: deps.pkgUrl,
           cryptifyUrl: deps.cryptifyUrl,
           headers: deps.pgClientHeader,
+          // Identifies this add-in in cryptify's per-channel upload metrics
+          // (encryption4all/cryptify#102); avoids relying on cryptify's
+          // Origin/User-Agent fallbacks, which are environment-dependent.
+          cryptifyChannel: "thunderbird",
         },
         mimeDataBase64: toBase64(mimeData),
         recipients: serializedRecipients,

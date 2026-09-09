@@ -19,6 +19,7 @@ import { resolveEmailAttributes } from './util/attributes.js';
 import { triggerBrowserDownloads } from './util/download.js';
 import { parseSender } from './util/identity.js';
 import { ProgressPipe } from './util/progress.js';
+import { pkgHeaders, cryptifyHeaders } from './util/headers.js';
 
 /** Lazy decryption builder. Supports inspect-before-decrypt pattern. */
 export class Opened {
@@ -26,12 +27,17 @@ export class Opened {
   private cachedPolicies: Map<string, any> | null = null;
   private cachedSender: SenderIdentity | null = null;
   private progressPipe: ProgressPipe | null = null;
+  private readonly pkgHeaders: HeadersInit | undefined;
+  private readonly cryptifyHeaders: HeadersInit | undefined;
 
   /** @internal */
   constructor(
     private readonly config: PostGuardConfig,
     private readonly options: OpenInput
-  ) {}
+  ) {
+    this.pkgHeaders = pkgHeaders(config);
+    this.cryptifyHeaders = cryptifyHeaders(config);
+  }
 
   /** Inspect the sealed header without decrypting.
    *  Returns recipient list, claimed sender identity, and raw policies.
@@ -71,7 +77,8 @@ export class Opened {
       uuid: isUuid ? this.options.uuid : undefined,
       data: !isUuid ? this.options.data : undefined,
       signal: isUuid ? this.options.signal : undefined,
-      headers: this.config.headers,
+      pkgHeaders: this.pkgHeaders,
+      cryptifyHeaders: this.cryptifyHeaders,
       retry: this.config.retry,
     });
 
@@ -105,7 +112,7 @@ export class Opened {
       policy,
       opts.element,
       opts.session,
-      this.config.headers,
+      this.pkgHeaders,
       opts.enableCache,
       resolveEmailAttributes(this.config.emailAttributes)
     );

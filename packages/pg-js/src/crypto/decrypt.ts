@@ -18,7 +18,10 @@ export interface InspectSealedOptions {
   uuid?: string;
   data?: Uint8Array | ReadableStream<Uint8Array>;
   signal?: AbortSignal;
-  headers?: HeadersInit;
+  /** Headers for PKG requests (fetchVerificationKey). */
+  pkgHeaders?: HeadersInit;
+  /** Headers for Cryptify requests (the download stream). */
+  cryptifyHeaders?: HeadersInit;
   retry?: RetryOptions;
 }
 
@@ -49,7 +52,7 @@ export interface InspectSealedResult {
  *  the AEAD has run by then, but it is not verified either on the pinned
  *  `@e4a/pg-wasm`; see `Opened.inspect()`. */
 export async function inspectSealed(options: InspectSealedOptions): Promise<InspectSealedResult> {
-  const { pkgUrl, cryptifyUrl, uuid, data, signal, headers } = options;
+  const { pkgUrl, cryptifyUrl, uuid, data, signal, pkgHeaders, cryptifyHeaders } = options;
 
   // Get the readable stream (either from Cryptify or raw data)
   let readable: ReadableStream<Uint8Array>;
@@ -61,13 +64,13 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
     // ReadableStream returned by downloadFileWithRetry is lazy — the
     // first HTTP GET happens when the stream is read, not here.
     const retry = resolveRetryOptions(options.retry);
-    vkPromise = fetchVerificationKey(pkgUrl, headers);
+    vkPromise = fetchVerificationKey(pkgUrl, pkgHeaders);
     const { stream: fileStream, pipe: streamPipe } = downloadFileWithRetry(
       cryptifyUrl,
       uuid,
       retry,
       signal,
-      headers
+      cryptifyHeaders
     );
     readable = fileStream;
     pipe = streamPipe;
@@ -81,7 +84,7 @@ export async function inspectSealed(options: InspectSealedOptions): Promise<Insp
               controller.close();
             },
           });
-    vkPromise = fetchVerificationKey(pkgUrl, headers);
+    vkPromise = fetchVerificationKey(pkgUrl, pkgHeaders);
   } else {
     throw new DecryptionError('Either uuid or data must be provided.');
   }
@@ -123,7 +126,7 @@ export async function resolveUSK(
   policy: { ts: number; con: { t: string; v?: string }[] },
   element?: string,
   session?: SessionCallback,
-  headers?: HeadersInit,
+  pkgHeaders?: HeadersInit,
   enableCache?: boolean,
   emailAttributes?: EmailAttributes
 ): Promise<unknown> {
@@ -139,7 +142,7 @@ export async function resolveUSK(
         return c;
       }),
     });
-    return getUSK(pkgUrl, jwt, policy.ts, headers);
+    return getUSK(pkgUrl, jwt, policy.ts, pkgHeaders);
   }
 
   if (element) {

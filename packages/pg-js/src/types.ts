@@ -8,6 +8,12 @@ export interface PostGuardConfig {
   pkgUrl: string;
   cryptifyUrl?: string;
   headers?: HeadersInit;
+  /**
+   * Name Cryptify's per-channel upload metrics attribute this client's uploads
+   * to (e.g. `"outlook"`, `"thunderbird"`, `"website"`). Sent as
+   * `X-Cryptify-Source` on Cryptify requests only; never sent to the PKG.
+   */
+  cryptifyChannel?: string;
   /** Size (in bytes) of each chunk sent during upload. Defaults to 5 000 000 (5 MB). */
   uploadChunkSize?: number;
   /**

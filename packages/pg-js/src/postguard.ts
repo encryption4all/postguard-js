@@ -50,7 +50,7 @@ export class PostGuard extends PostGuardBase {
         includeSender: opts.includeSender,
         emailAttributes: this.emailAttributes,
       },
-      this.config.headers,
+      this.pkgHeaders,
       { onMobileUrl: resolveUrl, signal }
     ).catch((err) => {
       // Surface an early failure (cancel/timeout before the button showed) to

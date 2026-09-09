@@ -13,6 +13,7 @@ import {
   defaultClientVersionHeaderValue,
 } from './util/client-version.js';
 import { resolveEmailAttributes, type EmailAttributes } from './util/attributes.js';
+import { pkgHeaders, cryptifyHeaders } from './util/headers.js';
 
 /** Base class with config, builders, and email helpers shared by PostGuard variants. */
 export class PostGuardBase {
@@ -21,6 +22,13 @@ export class PostGuardBase {
 
   /** Email attribute types, resolved once from the config (postguard#236). @internal */
   protected readonly emailAttributes: EmailAttributes;
+
+  /** Headers for a PKG request: the shared bag minus `X-Cryptify-Source`. @internal */
+  protected readonly pkgHeaders: HeadersInit | undefined;
+
+  /** Headers for a Cryptify request: the shared bag plus `X-Cryptify-Source`
+   *  from `cryptifyChannel`, when set. @internal */
+  protected readonly cryptifyHeaders: HeadersInit | undefined;
 
   /** Email helpers for building/parsing PostGuard-encrypted emails */
   readonly email: EmailHelpers;
@@ -36,6 +44,8 @@ export class PostGuardBase {
       headers.set(PG_CLIENT_VERSION_HEADER, defaultClientVersionHeaderValue());
     }
     this.config = { ...config, headers };
+    this.pkgHeaders = pkgHeaders(this.config);
+    this.cryptifyHeaders = cryptifyHeaders(this.config);
     this.emailAttributes = resolveEmailAttributes(config.emailAttributes);
     this.email = new EmailHelpers(this.config);
   }
