@@ -1,0 +1,110 @@
+name: Ruleset drift
+
+# Watches that `main`'s LIVE ruleset still requires what
+# .github/required-rules.json and packages/pg-js/tests/ci-wiring.test.ts both
+# expect (postguard-js#274). What this reads changes out of band — an admin
+# edits repo settings, with no commit and no pull request — so this is
+# deliberately NOT a required check: a required check here would hold the next
+# unrelated PR hostage on every edit, and would block every merge whenever the
+# API is briefly unreachable. It reports by filing an issue instead. Because of
+# that, this job is NOT added to the `main` ruleset or to
+# .github/required-rules.json — a new required job would be a new context,
+# unenforced until both are updated in lockstep, and this one is deliberately
+# advisory rather than enforced.
+#
+# packages/pg-js/scripts/ruleset-drift.mjs is the pure-core-plus-thin-CLI
+# checker this runs; its comparison logic is unit-tested offline under
+# `Integration complete`, so only ITS LIVE READ is uncovered there, which is
+# what this workflow exists to run.
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        # Once a day. The thing this watches changes rarely and out of band, so
+        # daily is frequent enough to catch drift without polling GitHub's API
+        # on every commit to every branch.
+        - cron: '17 4 * * *'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    issues: write
+
+jobs:
+    ruleset-drift:
+        name: Ruleset still requires the gates
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: packages/pg-js
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+
+            # GitHub runs a `run:` block as `bash -e {0}`, and `set -uo pipefail`
+            # below does NOT clear that `-e`. A bare `output=$(node ...)` would
+            # kill this step the instant the checker exits non-zero — before the
+            # dedupe, before `gh issue create` — and the job would redden while
+            # filing nothing, which is the one outcome this workflow exists to
+            # prevent (encryption4all/postguard's delivery.yml shipped exactly
+            # this bug in its changelog-coverage job and it went unnoticed for
+            # weeks). `set +e` around the capture is what keeps the exit code
+            # reachable instead of ending the step early.
+            - name: Run the ruleset-drift checker
+              id: check
+              shell: bash
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -uo pipefail
+                  set +e
+                  output=$(node scripts/ruleset-drift.mjs)
+                  code=$?
+                  set -e
+
+                  echo "$output"
+
+                  {
+                    echo "report<<RULESET_DRIFT_EOF"
+                    echo "$output"
+                    echo "RULESET_DRIFT_EOF"
+                  } >> "$GITHUB_OUTPUT"
+                  echo "code=$code" >> "$GITHUB_OUTPUT"
+
+            # Exit 1 is drift: file an issue (deduped by exact title) and still
+            # fail the job. Exit 2 is undetermined — the API was unreachable,
+            # answered non-200, or returned something unparseable — and files
+            # NOTHING: an unrunnable checker is not a drift finding, and filing
+            # one would misreport it as one. Either way the job ends red, which
+            # is what makes this failure visible at all rather than reddening
+            # silently the way the bug above did.
+            - name: File an issue on drift
+              if: steps.check.outputs.code == '1'
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GH_REPO: ${{ github.repository }}
+                  REPORT: ${{ steps.check.outputs.report }}
+              run: |
+                  set -euo pipefail
+
+                  title="ruleset: main's required rules have drifted"
+                  # `jq` (the real binary, preinstalled on this runner), not
+                  # `gh`'s built-in `--jq`: the title has an apostrophe in it,
+                  # and only the standalone binary's `--arg` gets it into the
+                  # filter without hand-quoting it into the expression itself.
+                  existing=$(gh issue list --state open --label ruleset-drift --json title,number \
+                    | jq -r --arg t "$title" '.[] | select(.title == $t) | .number' | head -n1)
+
+                  if [ -n "$existing" ]; then
+                    echo "issue #$existing already tracks this, not filing again"
+                  else
+                    gh issue create --title "$title" --label ruleset-drift --body "$REPORT"
+                  fi
+
+            - name: Fail on drift or on an undetermined read
+              if: steps.check.outputs.code != '0'
+              run: exit 1
