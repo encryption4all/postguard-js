@@ -82,44 +82,6 @@ import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The contexts the ruleset `main` requires, by display name, in the order the API
- * returns them. Classic protection requires none of them — read the live list
- * from the ruleset, not from the protection endpoint:
- *
- *     gh api repos/encryption4all/postguard-js/rules/branches/main \
- *       -q '.[] | select(.type=="required_status_checks")
- *            | .parameters.required_status_checks[].context'
- *
- * Note `Unit tests` (outlook-addon) and `Unit Tests` (website) differ only in
- * case, and `nginx config test (…)` is qualified per app: a required check is
- * matched by name across the WHOLE repo, so two jobs sharing one name are
- * indistinguishable to branch protection. `everyRequiredContextHasExactlyOneJob`
- * is what stops that recurring.
- */
-const REQUIRED_CONTEXTS = [
-  'Integration complete',
-  'Envelope compatibility',
-  'API surface',
-  'Conventional Commit',
-  'Build & test',
-  'Lint, typecheck & build',
-  'Unit tests',
-  'Baked URLs resolve',
-  'Image builds (PR, no push)',
-  'Svelte Check',
-  'Unit Tests',
-  'Lint',
-  'E2E Tests',
-  'Build (amd64)',
-  'Build (arm64)',
-  'Node examples',
-  'pg-dotnet',
-  'Canary scope is complete',
-  'nginx config test (outlook-addon)',
-  'nginx config test (website)',
-];
-
-/**
  * Job-level `if:` expressions a required job may carry.
  *
  * GitHub reports a skipped job as a *passing* required check, so an `if:` on a
@@ -153,6 +115,29 @@ const workflowDir = (() => {
   }
   throw new Error(`no .github/workflows above ${fileURLToPath(import.meta.url)}`);
 })();
+
+/**
+ * The contexts the ruleset `main` requires, by display name, plus the floor on
+ * its approving review count — read from `.github/required-rules.json`, the
+ * one place the twenty names live (postguard-js#274). That file is
+ * byte-sorted, not ordered the way the API returns them, so every comparison
+ * against it (here, and in `scripts/ruleset-drift.mjs`, which reads the same
+ * file to catch drift in the *live* ruleset) is against a set, never a
+ * sequence:
+ *
+ *     gh api repos/encryption4all/postguard-js/rules/branches/main \
+ *       -q '.[] | select(.type=="required_status_checks")
+ *            | .parameters.required_status_checks[].context'
+ *
+ * Note `Unit tests` (outlook-addon) and `Unit Tests` (website) differ only in
+ * case, and `nginx config test (…)` is qualified per app: a required check is
+ * matched by name across the WHOLE repo, so two jobs sharing one name are
+ * indistinguishable to branch protection. `everyRequiredContextHasExactlyOneJob`
+ * is what stops that recurring.
+ */
+const REQUIRED_CONTEXTS: string[] = JSON.parse(
+  readFileSync(join(dirname(workflowDir), 'required-rules.json'), 'utf8')
+).contexts;
 
 const indentOf = (line: string) => line.length - line.trimStart().length;
 
@@ -643,6 +628,29 @@ describe('release and publish wiring', () => {
       finalize.condition ?? '',
       'the tagging job no longer restricts itself to main, so a PR run would tag `:edge`'
     ).toContain("github.ref == 'refs/heads/main'");
+  });
+});
+
+describe('ruleset-drift.yml', () => {
+  /**
+   * This is deliberately RED on this branch (postguard-js#274): `dobby-coder`
+   * has no `workflows: write`, so `.github/workflows/ruleset-drift.yml` could
+   * only be posted as a patch on the PR, not committed. Leaving this assertion
+   * red is what keeps that patch from being forgotten — on this repo's
+   * sibling, a posted-and-never-applied workflow patch merged silently twice
+   * before this inversion (guard first, workflow second) was adopted. Do not
+   * weaken, skip or delete it to make CI green; once a maintainer applies the
+   * patch this goes green on its own.
+   */
+  it('main is watched by a scheduled ruleset-drift check', () => {
+    const named = workflow('ruleset-drift.yml').jobs.filter(
+      (target) => target.name === 'Ruleset still requires the gates'
+    );
+    expect(
+      named,
+      'no job named exactly `Ruleset still requires the gates` in ruleset-drift.yml'
+    ).toHaveLength(1);
+    stepWith(named[0], 'node scripts/ruleset-drift.mjs');
   });
 });
 

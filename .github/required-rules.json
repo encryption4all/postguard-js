@@ -1,0 +1,25 @@
+{
+  "contexts": [
+    "API surface",
+    "Baked URLs resolve",
+    "Build & test",
+    "Build (amd64)",
+    "Build (arm64)",
+    "Canary scope is complete",
+    "Conventional Commit",
+    "E2E Tests",
+    "Envelope compatibility",
+    "Image builds (PR, no push)",
+    "Integration complete",
+    "Lint",
+    "Lint, typecheck & build",
+    "Node examples",
+    "Svelte Check",
+    "Unit Tests",
+    "Unit tests",
+    "nginx config test (outlook-addon)",
+    "nginx config test (website)",
+    "pg-dotnet"
+  ],
+  "requiredApprovingReviewCount": 1
+}
