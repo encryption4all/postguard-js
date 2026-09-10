@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [ecb9411]
+  - @e4a/pg-js@2.6.0
+
 ## 1.0.2
 
 ### Patch Changes
