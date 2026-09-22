@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.1
+
+### Patch Changes
+
+- Updated dependencies [ecb9411]
+    - @e4a/pg-js@2.6.0
+
 ## 1.9.0
 
 ### Minor Changes
