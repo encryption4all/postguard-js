@@ -1,8 +1,8 @@
 /**
  * `renovate.json` at the repo root (postguard-js#280, decisions settled in
- * encryption4all/postguard#254). Renovate itself is validated by
- * `renovate-config-validator --strict` in CI, which catches a malformed file;
- * it does not catch a well-formed file that says the wrong thing. This is the
+ * encryption4all/postguard#254). `renovate-config-validator --strict` catches a
+ * malformed file — run by hand for now; no CI job in this repo wires it in yet.
+ * It does not catch a well-formed file that says the wrong thing. This is the
  * check for that second failure mode, and it exists because of
  * encryption4all/postguard#419: a rule telling Renovate to leave something
  * alone needs a check that fails when the rule is removed, or the removal is
